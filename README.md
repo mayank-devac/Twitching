@@ -4,54 +4,74 @@ A local Codex vs Cursor show: audience suggestions go through a blocked-word lis
 
 ## Start locally
 
-Copy `.env.example` to `.env.local` and fill in your own credentials privately. Add your own `assets/break.mp3` for break music; audio is not distributed with this repository. The blocked-word filter starts empty; configure it before accepting public chat. Jev safety checks remain enabled.
+Copy `.env.example` to `.env.local` and fill in your own credentials privately. 
+Add your own `assets/break.mp3` for break music. 
+The blocked-bad word filter starts empty; configure it before accepting public chat. 
+Jev safety checks remain enabled.
 
-For guided checks and startup:
+### Meet the CLIs
+```tex
++-----------------------------+-----------------------------+ with Quota monitoring and separate login
+| Cursor CLI                  | Codex CLI                   |
+|                             |                             |
+|                             vs                            | 
+|                             |                             |
+|                             |                             |
++-----------------------------+-----------------------------+
+
+Solo mode: choose either CLI for a full-width show.
+```
+Current runners support **Codex and Cursor**.
+
+## Contents
+- [Quick start](#quick-start)
+- [How the show works](#how-the-show-works)
+- [Startup options](#startup-options)
+- [Configuration and credentials](#configuration-and-credentials)
+- [Connect the platforms](#connect-the-platforms)
+- [Rehearse and go live](#rehearse-and-go-live)
+- [Round rules](#round-rules)
+- [Isolation and privacy](#isolation-and-privacy)
+- [Verification](#verification)
+- [Project layout](#project-layout)
+- [Official references](#official-references)
+
+## Quick start
+
+### 1. Prepare your machine
+
+- [ ] Install **Node.js 24+** and open **Docker Desktop**. Docker is also required for native-agent previews.
+- [ ] Run `npm ci`.
+- [ ] Copy `.env.example` to `.env.local`; fill in credentials privately.
+- [ ] Supply your own `assets/break.mp3`; audio is not distributed.
+- [ ] Add blocked words in `settings.json`.
+
+Agent logins and private settings are local only; the repository does not include them.
+
+### 2. Use guided startup
 
 ```sh
 ./check_stream_start.sh
 ./start_stream.sh
 ```
 
-For a single-model show, choose either supported CLI:
+- **Check:** defaults to live readiness; starts no broadcast or coding job.
+- **Start:** asks for private/live mode and Docker/native agents, checks readiness, then starts or safely reuses a paused app.
+- **First run:** choose private rehearsal and Docker. Public mode requires a recorded rehearsal confirmation.
 
-```sh
-./start_stream.sh --codex
-./start_stream.sh --cursor
-# Equivalent selection:
-./start_stream.sh --cli cursor
-./check_stream_start.sh --cli codex --mode rehearsal
-```
+Keep the terminal open. **Ctrl+C ends the activated show and broadcast.**
 
-Single-model mode checks and launches only the selected CLI, with one full-width preview and activity panel. Chat selection, prompt lists, OBS, pause/stop, and rehearsal still use the same show flow. Codex keeps its quota monitoring; Cursor reports usage failures through its CLI and does not require a Codex login. Without a selection flag, both CLIs run as before. Rebuild the frontend with `npm run build` before launching after a UI code change.
+### 3. Open the control desk and overlay
 
-`check_stream_start.sh` defaults to **live readiness**. It never starts a broadcast or coding job. It checks Docker, images/networks, saved CLI logins, the exact requested models, Codex quota, Jev, required private field names, media files, the OBS overlay source and a temporary isolated HTML preview. Failures print specific fixes; interactive mode offers builds, network setup or CLI login. Live readiness also requires your recorded rehearsal confirmation with the same Docker/native runner mode. Actual platform permissions/connections and signed Kick delivery need the platforms to be live; the check file marks those as pending instead of pretending they passed.
+**Run the show:** open the [host control panel](http://127.0.0.1:3210/control).
 
-`start_stream.sh` asks for private/live mode and Docker/native agents, checks readiness, starts or safely reuses a paused app, and offers a private task round or public OBS broadcast. Going public requires scene/audio/webhook confirmation and a final yes. A public broadcast started by this file is stopped if controller startup fails. A pre-existing broadcast is not stopped merely because prerequisite checks failed. Keep the terminal open: Ctrl+C ends the activated show and broadcast.
+**Display the show:** add the [overlay](http://127.0.0.1:3210/overlay) as an OBS Browser Source at **1920 × 1080**.
 
-```sh
-./check_stream_start.sh --mode rehearsal
-./check_stream_start.sh --mode live --verify
-./check_stream_start.sh --mode live --non-interactive
-./start_stream.sh --mode rehearsal --runner docker
-./start_stream.sh --mode live --runner native
-```
+Use these exact `127.0.0.1` addresses; other Host headers are rejected. Refresh reconnects to the current show and recent events.
 
-When `prompts.txt` (or `settings.promptFile`) already has tasks, the show uses that list instead of live chat: both CLIs get each line in order, then the control desk asks whether to collect from chat or end the stream. **Stop** opens **Chat** and **End**; each then offers After this round / Now. Chat also asks which platforms. `--prompts` forces this mode; `--no-prompts` keeps audience chat even if the file still has lines.
+### Manual setup alternative
 
-```sh
-./start_stream.sh --mode rehearsal --runner docker
-./start_stream.sh --mode live --runner docker
-./start_stream.sh --mode live --no-prompts --skip yt --skip twitch
-```
-
-`--verify` explicitly runs type checks, tests, fixture replay and the frontend build; Docker-agent mode also runs the real agent boundary test. Without it, tests are skipped unless you accept the check file's prompt. Missing dependencies can be installed after answering its shell prompt. Credentials are not requested or printed in the terminal; edit `.env.local` privately. `--help` lists the options.
-
-**Native agents are optional and unprotected.** `runnerMode` defaults to `docker`. With `--runner native`, host-installed Codex uses the private arena login and Cursor uses its native subscription login; previews still require Docker. Type `NATIVE` before starting to accept that agent terminal commands can read/change files outside the project. That consent applies only to the launched app process, through `ARENA_NATIVE_APPROVED`, and is not saved in settings. A direct native app start without confirmation cannot launch coding jobs. Cursor must expose its `--sandbox` option; requested models remain mandatory. Native runners use process groups and ownership records for cancellation/restart recovery. Process groups are not a sandbox: escaped/background work may require manual cleanup. There is no automatic switch to native if Docker fails.
-
-Mode choices use `ARENA_MODE`/`ARENA_RUNNER` for that process without rewriting `settings.json`. An existing app with different/stale settings or active work is refused with pause/stop/restart instructions. OBS checks establish that the Browser Source is configured, not that it is visible in the current scene or that audio is audible; confirm those during rehearsal and the final prompt.
-
-Node.js 24+ and Docker Desktop are required. Install dependencies with `npm ci`. Agent logins and private settings must be configured locally; this repository does not include them. The remaining Docker setup can take a few minutes; run these commands after opening Docker Desktop:
+After opening Docker Desktop, run the remaining setup commands. Image setup can take a few minutes.
 
 ```sh
 npm run sandbox:build
@@ -64,74 +84,373 @@ npm run build
 npm run dev
 ```
 
-Login commands use your existing subscriptions and save authentication under ignored `runtime/auth/`. Sign in yourself; never paste CLI credentials into prompts. Host terminal chats are left alone. Each round starts separate new sessions without a resume flag. The Cursor installer is the official installer; its current version is checked at startup. The Codex image pins CLI `0.159.2`; change its build argument if your account needs a newer version:
+Sign in yourself using your existing subscriptions. Docker login commands save authentication under ignored `runtime/auth/`; never paste CLI credentials into prompts. Personal terminal chats are left alone.
+
+To override the Codex image's CLI version at build time:
 
 ```sh
 docker build --build-arg CODEX_VERSION=YOUR_INSTALLED_VERSION -t prompt-arena-agent:local sandbox
 ```
 
-Open [the host control panel](http://127.0.0.1:3210/control). Add [the overlay](http://127.0.0.1:3210/overlay) as an OBS Browser Source, 1920 × 1080. Use the exact `127.0.0.1` URLs; other Host headers are rejected. Browser refresh reconnects to existing state and recent events.
+## How the show works
 
-## Private credentials
+### From suggestion to result
 
-Paste credentials into **`.env.local`**, already created with blank fields and ignored by Git. The controller reads it only at runtime and sets permissions to `0600`. It is never served to the browser or mounted into coding containers. Agent instructions forbid opening it. File permissions cannot technically exclude an assistant running as your same OS user; this project instead keeps it out of all app-facing and container-facing surfaces, and the assistant must not read it after you fill it.
+```mermaid
+flowchart TD
+    Chat[YouTube / Twitch / Kick] --> Filter[Filter suggestions]
+    Filter --> Jev[Jev safety, relevance and ranking]
+    Jev --> Task[Freeze one next task]
+    File[Ordered prompt file] --> Task
+    Task --> Cursor[ fresh chat]
+    Task --> Codex[Codex: another chat]
+    Cursor --> Validate[Validate saved HTML]
+    Codex --> Validate
+    Validate --> Preview[Isolated browser previews]
+    Preview --> OBS[OBS overlay: Cursor left, Codex right]
+```
 
-`settings.json` holds public configuration: timings, model IDs, blocked slang, the Jev startup probe, media paths and the Kick webhook URL. Restart after changing settings. The configured Cursor ID is an **unverified requested ID**, not a claim that Grok 4.7 high exists for your account. Startup requires that exact ID in `cursor-agent --list-models` and a label identifying Grok 4.7 high. Missing model/effort support pauses the show; no replacement model is used.
+Each round uses new sessions without a resume flag. In single-agent mode, only the selected CLI runs, with one full-width preview and activity panel.
+
+### Task sources
+
+**Audience chat** → collect suggestions → filter and rank → freeze one next task.
+
+**Prompt file** → read `prompts.txt` or `settings.promptFile` → send each line to both agents in order.
+
+Use `--prompts` to force the file, or `--no-prompts` to keep chat even when the file has tasks.
+
+With a prompt list, the next task starts after the result hold. After the last task, the show ends and the desk offers chat collection or ending the stream.
+
+**Stop** opens **Chat** and **End**. Each offers **After this round** or **Now**; Chat also asks which platforms to use.
+
+## Startup options
+
+### Common commands
+
+| Goal | Command |
+| --- | --- |
+| Private rehearsal | `./start_stream.sh --mode rehearsal --runner docker` |
+| Live show | `./start_stream.sh --mode live --runner docker` |
+| Codex only | `./start_stream.sh --codex` |
+| Cursor only | `./start_stream.sh --cursor` |
+| Explicit CLI selection | `./start_stream.sh --cli cursor` |
+| Codex rehearsal readiness | `./check_stream_start.sh --cli codex --mode rehearsal` |
+| Rehearsal readiness | `./check_stream_start.sh --mode rehearsal` |
+| Live readiness + verification | `./check_stream_start.sh --mode live --verify` |
+| Non-interactive live readiness | `./check_stream_start.sh --mode live --non-interactive` |
+| Live chat, skipping YouTube and Twitch | `./start_stream.sh --mode live --no-prompts --skip yt --skip twitch` |
+| Optional native agents | `./start_stream.sh --mode live --runner native` |
+
+No CLI selection flag means **both agents**. Rebuild the frontend with `npm run build` after UI code changes. Use `--help` for all options.
+
+### What readiness checks mean
+
+- **Local requirements:** Docker, images, networks, saved CLI logins and exact requested models
+- **Show services:** Codex quota, Jev, required private field names and media files
+- **Preview:** Temporary isolated HTML preview
+- **OBS:** Overlay Browser Source configuration
+- **Live readiness:** Recorded rehearsal confirmation using the same Docker/native runner mode
+- **Platform permissions and signed Kick delivery:** Marked pending until verified against live platforms
+
+Failures print specific fixes. Interactive checks offer image builds, network setup or CLI login; missing dependencies can be installed after a shell prompt.
+
+`--verify` runs type checks, tests, fixture replay and the frontend build. Docker-agent mode also runs the real agent boundary test. Without it, tests run only if you accept the check script's prompt.
+
+### Startup and broadcast safeguards
+
+- Mode overrides use `ARENA_MODE` / `ARENA_RUNNER` for that process; `settings.json` is not rewritten.
+- An existing app with different/stale settings or active work is refused, with pause/stop/restart instructions.
+- Going public requires scene, audio and webhook confirmation, then a final **yes**.
+- If the script starts a public broadcast but controller startup fails, it stops that broadcast.
+- Failed prerequisite checks do not stop a pre-existing broadcast.
+- OBS checks confirm source configuration. Rehearsal must confirm visibility and audible audio.
+
+### Native agents: explicit opt-in
+
+> Native agents can read and change host files outside this project. Docker remains the default execution boundary; there is no automatic native fallback.
+
+- **Consent:** Type `NATIVE` through `start_stream.sh`
+- **Lifetime:** `ARENA_NATIVE_APPROVED` applies only to the launched app process; never saved in settings
+- **Direct app start:** Cannot launch native coding jobs without confirmation
+- **Codex login:** Private arena login
+- **Cursor login:** Native subscription login; CLI must expose `--sandbox`
+- **Models:** Exact requested models remain mandatory
+- **Previews:** Still require Docker
+- **Cancellation/restart:** Process groups and ownership records
+- **Limitation:** Process groups do not isolate files; escaped/background work may need manual cleanup
+
+## Configuration and credentials
+
+### Files and responsibilities
+
+- **`.env.local`:** Credentials; Private, Git-ignored; runtime permissions set to `0600`
+- **`settings.json`:** Timings, model IDs, blocked words, Jev startup probe, media paths and Kick webhook URL; Public configuration; restart after edits
+- **`runtime/auth/`:** Saved CLI authentication; Private, Git-ignored
+- **`assets/break.mp3`:** Your break music; Supply locally
+
+Credentials are never requested or printed in the terminal. Edit `.env.local` privately; it is neither served to browsers nor mounted into coding containers. Agent instructions forbid reading it.
+
+**Limit:** file permissions cannot exclude an assistant running as the same OS user. Credentials stay outside app-facing and container-facing surfaces, but the assistant must also obey the no-read rule.
+
+### Exact model selection
+
+The configured Cursor ID is an **unverified requested ID**. It does not prove Grok 4.7 high is available to your account.
+
+Startup requires that exact ID in `cursor-agent --list-models`, with a label identifying Grok 4.7 high. Missing model or effort support pauses the show; no replacement model is used.
+
+Codex-only mode retains quota monitoring. Cursor-only mode reports usage failures through its CLI and needs no Codex login. Only the selected CLI is checked and launched; the rest of the show flow stays available.
 
 ## Connect the platforms
 
-- **YouTube:** enable the YouTube Data API. Provide an OAuth access token with `youtube.readonly`, the live chat ID, and optionally refresh token/client credentials. The adapter uses the official server-streaming gRPC interface and continuation tokens. The protobuf file contains only the wire fields this app consumes, with Google's field numbers. Sponsor metadata and recent official gift events establish the bonus; user claims do not.
-- **Twitch:** provide a user access token with `user:read:chat`, its client ID, the bot user ID and broadcaster ID. Add refresh credentials for token expiry. The app creates an EventSub `channel.chat.message` subscription, handles keepalives/reconnects, and recreates subscriptions after a dropped connection. Twitch does not replay messages missed during a disconnected interval.
-- **Kick:** create a developer app, enable its webhook, and register an HTTPS endpoint forwarding **only port 3212** to `/kick`. Put that same URL in `kickWebhookUrl`, and provide a token with `events:subscribe` plus the broadcaster user ID. The API uses the webhook registered in your Kick app settings; a URL in this local settings file does not register the remote webhook. The dedicated listener verifies the RSA signature over exact bytes, timestamp, event version and broadcaster; duplicate events are ignored. Do not expose ports 3210, 3211 or 3213 through the tunnel. A signed subscriber badge or gift event establishes eligibility for a bonus.
+### Required access
 
-Live mode can omit YouTube, Twitch and Kick with `--skip yt`, `--skip twitch` and `--skip kick`. Empty Twitch fields also skip Twitch. If YouTube is enabled and `YOUTUBE_LIVE_CHAT_ID` is empty, startup looks up the chat ID from your YouTube access token for an active or upcoming livestream. Platform errors appear in the host desk and pause new rounds. Tokens refreshed during the show remain in memory; after restarting, update credentials if a provider rotated its refresh token. CLI subscription refreshes are retained in private auth directories.
+| Platform | Credentials and setup | Chat delivery |
+| --- | --- | --- |
+| YouTube | Enable YouTube Data API; OAuth access token with `youtube.readonly`; live chat ID; optional refresh token/client credentials | Official server-streaming gRPC with continuation tokens |
+| Twitch | User access token with `user:read:chat`, client ID, bot user ID, broadcaster ID; refresh credentials for expiry | EventSub `channel.chat.message` |
+| Kick | Developer app with webhook enabled; token with `events:subscribe`; broadcaster user ID | Signed HTTPS webhook to `/kick` on port **3212** |
 
-## Rehearse before going public
+### Platform-specific details
 
-1. Keep `mode: "rehearsal"`. Enable OBS WebSocket v5 under Tools → WebSocket Server Settings. Put its password in `.env.local`.
-2. Press **Start** to check CLI logins, requested models, quota, isolated preview engine, music and visual. If Jev is configured, submit a private test suggestion; otherwise press **Prepare house task**. Both real CLIs run the same task. No fake thinking or fake agent output is shown.
-3. Record privately in OBS. Check activity, shared timers, the faster result while the other runs, both finished previews, refresh/reconnect, Pause, Resume, Skip and Stop. Check audio from the browser source; browser autoplay can require OBS configuration or the host's Play music button.
-4. After both pages succeed and you have checked OBS, press **I checked the private OBS rehearsal**. This records the host's confirmation; automated tests cannot confirm an actual broadcast rehearsal.
-5. Use `start_stream.sh` and choose live mode, or set `mode: "live"`, restart, start OBS streaming manually, then press **Start**. The script can start OBS after confirmation; the controller itself does not start broadcasts. It checks platform startup before collecting; verify signed Kick delivery with a real message.
+**YouTube**
 
-**Stop show + OBS** stops runners, confirms container shutdown and sends OBS `StopStream`. If you stop streaming in OBS, the app also stops. If stopping OBS fails, the app reports that it could not confirm shutdown; check OBS yourself.
+- If enabled with an empty `YOUTUBE_LIVE_CHAT_ID`, startup looks up an active or upcoming livestream using your access token.
+- Sponsor metadata and recent official gift events establish bonus eligibility; viewer claims do not.
+- The protobuf file includes only consumed wire fields, using Google's field numbers.
 
-## Round behaviour
+**Twitch**
 
-- Strip `!prompt`, require at least five words, reject duplicates, blocked abuse, unreadable text and emoji-only content. At least 80% of words must be recognized English, common technical terms or numbers; a small number of unknown names or typos is tolerated. Hinglish/romanized speech has no special support. Repeating one word for 60% or more of a suggestion is rejected as spam. Split blocked words such as `fuc k` and `chu tiya` are checked together. `settings.json` ships with an empty `blockedWords` list; add your own words there; those rules still apply before Jev's separate safety and HTML relevance gates.
-- New valid submissions replace that viewer's earlier suggestion, including pending evaluations. One frozen next task is maintained. Once prepared, further submissions wait for the next collection window.
-- Rank the strongest 30 with simplicity 40%, clarity 25%, creativity 20%, visual appeal 15%. Verified YouTube/Kick membership or gifts add at most ten points. A weak or unsafe paid idea stays rejected.
-- After 60 seconds, ask Jev to select an existing candidate or WAIT. WAIT/API failure allows one 180-second extension, with continued collection. After that, the app asks Jev for one small surprise HTML task; if Jev cannot return one, it keeps waiting for audience activity.
-- Both agent runners are prepared before their start commands are issued together. Provider startup latency may differ; both elapsed timers use the controller's launch timestamp. Work continues until completion, a usage/authentication failure, or a host Skip/Stop action.
-- Save only `main/codex/prompt_N.html` and `main/cursor/prompt_N.html`. Completion requires successful CLI termination, stopped containers, a regular HTML file, visible content and no JavaScript loading error. Timeouts/cancellations remain labelled unfinished even if a partial file exists.
-- Results stay for 30 seconds after both attempts settle. Pause prevents new rounds and lets current work finish. A private rehearsal runs one round, then pauses, unless a prompt list is active. A prompt list keeps launching the next file task after the result hold and ends the show after the last one. Restart always pauses, recovers labelled containers and never relaunches a persisted job.
-- Codex quota comes from official app-server `account/rateLimits/read`, using the reported 300-minute window. Missing usage data pauses instead of guessing. At zero, the overlay plays the configured MP3 and pixel-eye visual for up to ten minutes. Verified recovery resumes the show unless the host paused it. Otherwise, the controller ends the show and stops OBS. A reported future reset is shown as data; it is not treated as proof that quota recovered.
+- Handles keepalives/reconnects and recreates subscriptions after a dropped connection.
+- Messages missed during disconnection are not replayed.
+- Empty Twitch fields skip Twitch.
+
+**Kick**
+
+- Register an HTTPS endpoint forwarding **only port 3212** to `/kick`.
+- Put the same URL in `kickWebhookUrl`. This local setting does not register the remote webhook; configure it in the Kick developer app too.
+- Do not tunnel ports **3210, 3211 or 3213**.
+- The listener checks the RSA signature over exact bytes, timestamp, event version and broadcaster; duplicate events are ignored.
+- A signed subscriber badge or gift event establishes bonus eligibility.
+
+### Failures, refresh and skipped platforms
+
+- **Skip a platform:** Use `--skip yt`, `--skip twitch` or `--skip kick` in live mode
+- **Platform error:** Appears in the host desk; pauses new rounds
+- **Platform token refreshed:** Kept in memory during the show
+- **Provider rotates refresh token:** Update local credentials before restarting
+- **CLI subscription refresh:** Retained in private auth directories
+
+## Rehearse and go live
+
+### Private rehearsal checklist
+
+1. Keep `mode: "rehearsal"`. Enable **OBS WebSocket v5** under **Tools → WebSocket Server Settings**; put its password in `.env.local`.
+2. Press **Start** to check CLI logins, exact models, quota, isolated previews, music and visuals.
+3. If Jev is configured, submit a private suggestion; otherwise choose **Prepare house task**. Both real CLIs receive the same task; activity is real agent output.
+4. Record privately in OBS and complete the checks below.
+5. After both pages succeed and OBS is checked, press **I checked the private OBS rehearsal**. This records your confirmation; automated tests cannot confirm a real rehearsal.
+
+- [ ] Shared timers work; the faster result appears while the other agent is working.
+- [ ] Both finished previews display correctly.
+- [ ] Pause, Resume, Skip and Stop work.
+- [ ] Refresh reconnects to the show.
+- [ ] Browser Source audio is audible. Autoplay may need OBS configuration or **Play music**.
+
+### Go public
+
+Use `start_stream.sh` and choose live mode. Alternatively, set `mode: "live"`, restart, start OBS streaming manually, then press **Start**.
+
+The script can start OBS after confirmation; the controller itself does not start broadcasts. Platform startup is checked before collection. Verify signed Kick delivery with a real message.
+
+### Stop safely
+
+- ****Stop show + OBS**:** Stops runners, confirms container shutdown and sends OBS `StopStream`
+- **Stop streaming in OBS:** Also stops the app's show
+- **OBS stop fails:** App reports unconfirmed shutdown; check OBS yourself
+
+## Round rules
+
+### 1. Admit suggestions
+
+- **Prefix:** Strip `!prompt`
+- **Length:** At least five words
+- **Readability:** At least **80%** recognized English, common technical terms or numbers
+- **Unknown words:** A few names or typos allowed; no special Hinglish/romanized-speech support
+- **Repetition:** Reject when one word is **60% or more** of the suggestion
+- **Abuse and spam:** Reject duplicates, blocked abuse, unreadable text and emoji-only content
+- **Split blocked words:** Check fragments together, such as `fuc k` and `chu tiya`
+- **Replacement:** A new valid submission replaces that viewer's earlier suggestion, including pending evaluation
+
+The blocked-word filter runs before Jev's separate safety and HTML relevance gates. Once the next task is frozen, later submissions wait for the next collection window.
+
+### 2. Rank and choose
+
+Keep the strongest **30 candidates**.
+
+| Score component | Weight |
+| --- | ---: |
+| Simplicity | 40% |
+| Clarity | 25% |
+| Creativity | 20% |
+| Visual appeal | 15% |
+| Verified YouTube/Kick membership or gifts | Up to +10 points |
+
+A weak or unsafe paid suggestion stays rejected.
+
+```mermaid
+flowchart TD
+    Collect[Collect for 60 seconds] --> Select{Jev selects a candidate?}
+    Select -->|Yes| Run[Run selected task]
+    Select -->|WAIT or API failure| Extend[Collect for one extra 180 seconds]
+    Extend --> Retry{Candidate selected?}
+    Retry -->|Yes| Run
+    Retry -->|No| Surprise{Jev returns a small surprise HTML task?}
+    Surprise -->|Yes| Run
+    Surprise -->|No| Wait[Keep waiting for audience activity]
+```
+
+### 3. Run and validate
+
+Both runners are prepared before their start commands are issued together. Provider startup latency can differ; both elapsed timers use the controller's launch timestamp.
+
+Work ends on completion, a usage/authentication failure, or host Skip/Stop. Only these output files are saved:
+
+```text
+main/
+├── codex/prompt_N.html
+└── cursor/prompt_N.html
+```
+
+A successful result must pass every step:
+
+1. CLI exits successfully.
+2. Containers stop.
+3. Output is a regular HTML file.
+4. Page has visible content and no JavaScript loading error.
+
+> Timeouts and cancellations stay **unfinished**, even if a partial file exists. Results remain visible for **30 seconds** after both attempts settle.
+
+### 4. Pause, continue or restart
+
+- **Pause:** Prevents new rounds; current work finishes
+- **Private rehearsal:** One round, then pause; prompt lists are the exception
+- **Prompt list:** Continue after each result hold; end after the final task
+- **App restart:** Start paused, recover labelled containers; never relaunch a persisted job
+
+### 5. Handle Codex quota
+
+Quota comes from official app-server `account/rateLimits/read`, using its reported **300-minute window**.
+
+- **Missing usage data:** Pause instead of guessing
+- **Zero quota:** Play the configured MP3 and pixel-eye visual for up to ten minutes
+- **Verified recovery:** Resume unless the host paused the show
+- **No recovery within the break:** End the show and stop OBS
+- **Future reset time reported:** Display it; do not treat it as proof of recovery
 
 ## Isolation and privacy
 
-Arena Codex sessions use fresh `HOME` and `CODEX_HOME` folders with only the project's private Codex login copied in. Personal config, skills, plugins, hooks and rules are not copied. Apps/plugins/hooks and automatic `AGENTS.md` loading are disabled; built-in coding tools remain available. The launcher requires the CLI's config/rule isolation flags and pauses if its effective configuration exposes extra integrations. This also applies to native Codex: sign in once with `npm run sandbox:login:codex` for the arena instead of relying on your personal CLI profile. Normal Codex sessions and connected services are unchanged. Native mode still has host filesystem access; Docker is the execution boundary.
+### Execution and preview boundaries
 
-The preview controller uses a localhost relay over Docker exec streams instead of publishing a container port. This supports Docker versions that do not publish ports for internal networks, while Chromium keeps only its isolated network.
+```mermaid
+flowchart LR
+    Control[Local controller] --> Agents[Agent containers: provider traffic via allowlist proxy]
+    Agents --> HTML[Saved HTML]
+    HTML --> Gate[Credential check]
+    Gate --> Browser[Separate Chromium container: no external network]
+    Browser -->|JPEG frames| Overlay[Trusted iframe in host / OBS]
+    Overlay -->|Bounded input| Browser
+```
 
-By default, each agent gets a non-root Docker container with read-only root filesystem, one workspace mount, no Docker socket, removed capabilities and resource limits. Credentials copied into that agent's private workspace support its saved subscription. Only that workspace is persistently writable. CLI internal bypass flags apply **inside this Docker boundary**; they do not give the agent host access. An internal network and HTTPS allowlist proxy permit provider traffic, not arbitrary Internet or host-control access. If a CLI version ignores proxy configuration, startup fails; native execution is a separate explicit host choice, never an automatic fallback.
+This diagram shows the default Docker mode. Native mode gives agent commands host filesystem access.
 
-Generated pages run in a separate Chromium container on an internal network with **no egress proxy and external DNS disabled**. Its Playwright connection never exposes the host network. Initial documents are fulfilled from memory without rewriting generated HTML; all other browser requests are aborted, and CSP adds another layer. Pages containing known credential values or recognizable credential tokens are refused before rendering, without changing the saved file. Variable names such as `secret` and `password` do not trigger rewriting or rejection by themselves. Generated JavaScript does not run in OBS or the host browser: a trusted sandboxed iframe receives JPEG frames and forwards bounded click, hover, key and wheel input to the isolated page. Frames refresh at roughly five per second; this favours isolation over full-rate animation and does not forward generated-page audio. The saved HTML remains the actual agent output.
+### Agent containers
 
-CLI adapters publish assistant messages/public summaries, command/tool names, file basenames and output counts. Partial messages are assembled before redaction and published at message/tool boundaries, so split credentials cannot reappear when fragments are joined. Tool argument bodies, file-read results, full command output and raw stderr remain private. Known credentials, token-shaped strings and private home paths are redacted. SQLite contains eligible candidates, evaluation cache, decisions, rounds and sanitized event history. Refresh receives a snapshot with the recent 160 events.
+- **User and filesystem:** Non-root; read-only root filesystem
+- **Persistent writes:** One agent workspace mount
+- **Host access:** No Docker socket; removed capabilities; resource limits
+- **Authentication:** That agent's saved subscription copied into its private workspace
+- **Network:** Internal network + HTTPS allowlist proxy for provider traffic
+- **CLI bypass flags:** Apply inside the Docker boundary; do not grant host access
+- **Proxy incompatibility:** Startup fails; never switches to native automatically
 
-## Verify
+Arena Codex sessions use fresh `HOME` and `CODEX_HOME` folders with only the project's private Codex login. Personal configuration, skills, plugins, hooks and rules are not copied.
+
+Apps/plugins/hooks and automatic `AGENTS.md` loading are disabled; built-in coding tools remain available. Startup requires CLI configuration/rule isolation flags and pauses if the effective configuration exposes extra integrations.
+
+Native Codex uses the same arena profile rules: sign in with `npm run sandbox:login:codex`, rather than relying on your personal CLI profile. Normal Codex sessions and connected services stay unchanged. Profile isolation does not remove native mode's host filesystem access.
+
+### Generated-page previews
+
+- **Browser:** Separate Chromium container, internal network, no egress proxy, external DNS disabled
+- **Controller connection:** Localhost relay over Docker exec streams; no published container port or host network exposed to Playwright
+- **Page loading:** Initial HTML fulfilled from memory without rewriting; all other requests aborted; CSP adds another layer
+- **Credential screening:** Refuse pages containing known credentials or recognizable credential tokens before rendering; saved HTML unchanged
+- **Ordinary variable names:** `secret` and `password` alone do not cause rewriting or rejection
+- **Host/OBS:** Generated JavaScript stays in isolated Chromium; trusted sandboxed iframe displays JPEG frames
+- **Interaction:** Bounded click, hover, key and wheel input forwarded to the isolated page
+- **Trade-off:** Roughly **5 frames/second**; no generated-page audio
+
+The relay supports Docker versions that do not publish ports on internal networks. Saved HTML remains the actual agent output.
+
+### Public activity and stored data
+
+- **Published activity:** Assistant messages/public summaries, command/tool names, file basenames and output counts
+- **Private activity:** Tool argument bodies, file-read results, full command output and raw stderr
+- **Redaction:** Known credentials, token-shaped strings and private home paths
+- **Partial messages:** Assembled before redaction; published at message/tool boundaries to prevent fragment leaks
+- **SQLite:** Eligible candidates, evaluation cache, decisions, rounds and sanitized event history
+- **Browser refresh:** Snapshot plus the most recent **160 events**
+
+## Verification
+
+### Commands
 
 ```sh
 npm run check
 npm test
 npm run build
 npm run replay
-# After Docker images/networks exist; no subscriptions or platform secrets needed:
+```
+
+After Docker images and networks exist, check the real agent boundary without subscriptions or platform secrets:
+
+```sh
 STRAM_SANDBOX_TEST=1 npx tsx --test tests/sandbox.test.ts
 ```
 
-The replay fixtures are representative documentation-shaped samples, **not recordings from your live accounts**. Unit/controller/browser checks cover filtering, metadata bonuses, cache/replacement, partial JSON, duplicate events, WAIT/extension/continued collection, paired timestamps, host cancellation, faster previews, usage interruption, restart, WebSocket reconnect, protected controls, rendering/input and unsafe/missing outputs. The Docker test is skipped by default until the daemon and images exist. Run the real private OBS rehearsal and collect real event recordings before public automation.
+### Coverage and limits
 
-Code lives in `server/` (controller, adapters, database, runners, preview isolation), `shared/` (shared event/state types), `web/` (React overlay and host desk), `sandbox/` (containers/network policy), and `tests/` (focused acceptance checks). The original project brief is in `initial_plan.md`; generated HTML examples are included in `main/`. Provider images live in `assets/chatgpt/`, `assets/codex/`, `assets/grok/`, and `assets/cursor/`.
+- **Suggestions:** Filtering, metadata bonuses, cache/replacement
+- **Events:** Partial JSON, duplicate events, WebSocket reconnect
+- **Selection:** WAIT, extension and continued collection
+- **Rounds:** Paired timestamps, host cancellation, faster previews, usage interruption and restart
+- **Controls and output:** Protected controls, rendering/input, unsafe or missing outputs
 
-Official references: [TypeSafe Jev](https://docs.typesafe.ai/introduction), [Jev coding-agent boundary](https://docs.typesafe.ai/introduction/coding-agents), [Codex exec JSON](https://learn.chatgpt.com/docs/non-interactive-mode), [Codex models/quota protocol](https://learn.chatgpt.com/docs/app-server), [Cursor CLI output](https://cursor.com/docs/cli/reference/output-format), [YouTube streaming](https://developers.google.com/youtube/v3/live/streaming-live-chat), [Twitch EventSub](https://dev.twitch.tv/docs/chat/send-receive-messages/), [Kick events](https://github.com/KickEngineering/KickDevDocs/blob/main/events/event-types.md), [Playwright Docker](https://playwright.dev/docs/docker).
+- Replay fixtures are representative documentation-shaped samples, **not recordings from live accounts**.
+- The Docker test is skipped by default until the daemon and images exist.
+- Before public automation, run a real private OBS rehearsal and collect real event recordings.
+
+## Project layout
+
+```text
+server/       Controller, adapters, database, runners and isolated previews
+shared/       Shared event and state types
+web/          React overlay and host desk
+sandbox/      Containers and network policy
+tests/        Focused acceptance checks
+main/         Generated HTML examples and round output
+assets/       Provider images in chatgpt/, codex/, grok/ and cursor/
+```
+
+See [`initial_plan.md`](initial_plan.md) for the original project brief.
+
+## Official references
+
+- **Jev:** [Introduction](https://docs.typesafe.ai/introduction) · [Coding-agent boundary](https://docs.typesafe.ai/introduction/coding-agents)
+- **Codex:** [Exec JSON](https://learn.chatgpt.com/docs/non-interactive-mode) · [Models and quota protocol](https://learn.chatgpt.com/docs/app-server)
+- **Cursor:** [CLI output format](https://cursor.com/docs/cli/reference/output-format)
+- **YouTube:** [Streaming live chat](https://developers.google.com/youtube/v3/live/streaming-live-chat)
+- **Twitch:** [EventSub chat](https://dev.twitch.tv/docs/chat/send-receive-messages/)
+- **Kick:** [Event types](https://github.com/KickEngineering/KickDevDocs/blob/main/events/event-types.md)
+- **Playwright:** [Docker](https://playwright.dev/docs/docker)
