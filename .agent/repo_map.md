@@ -4,6 +4,14 @@ Purpose: Route agents to the most relevant source files quickly. Verify details 
 
 ## `server/`
 
+`server/cli/index.ts`, `server/cli/types.ts`, `server/cli/codex.ts`, `server/cli/cursor.ts`
+
+- Work: Register CLI adapters for live model discovery, exact model/effort validation, commands and session-scoped activity parsers.
+- Useful for: Adding a CLI protocol without duplicating the round controller; model selection during guided startup.
+- Contains: `CliAdapter`, `CliCatalog`, `cliAdapters`, `validateSessions`, `validateModel`, and Cursor listing parsing.
+- Used by: `server/runner.ts`, `scripts/stream.ts` (through the runner), `tests/sessions.test.ts`.
+
+
 `server/index.ts`
 
 - Work: Starts the show. Loads settings, takes the process lock, and wires the store, filter, judge, runners, previews, chat, OBS, and HTTP server.
@@ -63,13 +71,13 @@ Purpose: Route agents to the most relevant source files quickly. Verify details 
 `server/store.ts`
 
 - Work: Persists show state, candidates, evaluations, decisions, events, seen messages, gifts, and container names in SQLite.
-- Useful for: What survives a restart, and the evaluation cache key storage.
+- Useful for: What survives a restart, legacy codex/cursor round migration, and the evaluation cache key storage.
 - Contains: `Store`.
 - Used by: `server/index.ts`, `server/collection.ts`, `server/controller.ts`, `server/chat.ts`, `server/docker.ts`, `scripts/replay.ts`, and the tests that open `:memory:`.
 
 `server/runner.ts`
 
-- Work: Builds shared instructions and launches Codex and Cursor through the selected Docker/native host.
+- Work: Builds shared instructions and launches one or two configured sessions through CLI adapters and the selected Docker/native host.
 - Useful for: The prompt both agents receive, quota parsing, or CLI failure classification.
 - Contains: Paired or selected single-CLI preflight/launch, `instructions`, `parseQuota`, `CliRunner`, `PairRunner`, `RunHandle`, and `RunOutcome`.
 - Used by: `server/index.ts`, `server/controller.ts`, `scripts/stream.ts`, `tests/core.test.ts`, `tests/controller.test.ts`, `tests/native-host.test.ts`.
@@ -84,7 +92,7 @@ Purpose: Route agents to the most relevant source files quickly. Verify details 
 `server/codex-profile.ts`
 
 - Work: Creates fresh arena Codex homes, copies only the arena login, disables extra integrations/instruction loading, and validates effective startup configuration.
-- Useful for: Codex session isolation, supported exec flags, or arena login retention without copying personal config, skills, hooks or plugins.
+- Useful for: Codex session isolation, supported exec flags, or serialized compare-before-write arena login retention without copying personal config, skills, hooks or plugins.
 - Contains: `CODEX_EXEC_PROFILE_ARGS`, `prepareCodexHome`, `retainCodexLogin`, and `assertCodexProfile`.
 - Used by: `server/docker.ts`, `server/native-host.ts`, `server/runner.ts`, `tests/codex-profile.test.ts`.
 
@@ -164,7 +172,7 @@ Purpose: Route agents to the most relevant source files quickly. Verify details 
 
 - Work: The shared shapes for chat, evaluations, candidates, tasks, activity, rounds, and show state.
 - Useful for: A field that crosses the server and the overlay.
-- Contains: `ChatMessage`, `Evaluation`, `Candidate`, `Task`, `Activity`, `Round`, and `ShowState`.
+- Contains: `SessionConfig`, `configuredSessions`, `sessionLabel`, `SessionId`, `ChatMessage`, `Evaluation`, `Candidate`, `Task`, `Activity`, `Round`, and `ShowState`; CLI names select protocols while session IDs identify results.
 - Used by: Server modules, `web/main.tsx`, `scripts/replay.ts`, and the tests.
 
 ## `web/`
@@ -344,6 +352,13 @@ Purpose: Route agents to the most relevant source files quickly. Verify details 
 - Used by: `sandbox/compose.yml`.
 
 ## Root
+
+`with_colima.sh`
+
+- Work: Starts Colima when needed, selects its Docker socket and runs commands with a separate public-image Docker profile under ignored `runtime/docker-cli/`.
+- Useful for: Running without Docker Desktop or a stale Desktop credential helper; leaves personal Docker registry settings untouched.
+- Contains: Colima status parsing, Compose/Buildx plugin links and a default guided Docker rehearsal command.
+- Used by: The host for Colima builds, CLI login and show startup; forwards explicit native-mode arguments to the existing launcher.
 
 `check_stream_start.sh` and `start_stream.sh`
 

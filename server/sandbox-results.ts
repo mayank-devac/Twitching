@@ -1,15 +1,15 @@
 import { cp, lstat, mkdir, readdir, realpath } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import type { Agent } from "../shared/types.js";
+import type { SessionId } from "../shared/types.js";
 
-const AGENTS: Agent[] = ["codex", "cursor"];
+import { validSessionId } from "../shared/types.js";
 const DOCKER_WORKSPACE_ROOTS = [
   "runtime/workspaces",
   "runtime/archive/workspaces",
 ] as const;
 
 export interface SandboxResult {
-  agent: Agent;
+  agent: SessionId;
   round: number;
   dir: string;
   archived: boolean;
@@ -61,7 +61,11 @@ export async function sandboxPromptPath(
   return path;
 }
 
-export function sandboxResultPath(root: string, agent: Agent, round: number) {
+export function sandboxResultPath(
+  root: string,
+  agent: SessionId,
+  round: number,
+) {
   return resolve(
     root,
     "runtime/sandbox_results",
@@ -72,7 +76,7 @@ export function sandboxResultPath(root: string, agent: Agent, round: number) {
 
 export async function preserveSandboxResult(
   root: string,
-  agent: Agent,
+  agent: SessionId,
   round: number,
   dir: string,
 ) {
@@ -88,7 +92,9 @@ export async function availableSandboxResults(root: string) {
   const found: SandboxResult[] = [];
   const seen = new Set<string>();
   for (const [index, base] of DOCKER_WORKSPACE_ROOTS.entries()) {
-    for (const agent of AGENTS) {
+    for (const agent of (await entries(resolve(root, base))).filter(
+      validSessionId,
+    )) {
       const agentDir = resolve(root, base, agent);
       for (const name of await entries(agentDir)) {
         if (!/^\d+$/.test(name)) continue;

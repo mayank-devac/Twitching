@@ -4,7 +4,7 @@ import ReactMarkdown from "react-markdown";
 import type {
   Activity,
   ActivityLane,
-  Agent,
+  SessionId,
   ShowState,
 } from "../shared/types.js";
 import "./style.css";
@@ -270,7 +270,7 @@ function App() {
             </span>
           )}
           {state.quota && (
-            <span className="quota">
+            <span className="quota" title="Shared Codex account allowance for all Codex sessions">
               {Math.round(state.quota.remainingPercent)}%
             </span>
           )}
@@ -601,10 +601,12 @@ const laneLabel: Record<ActivityLane, string> = {
 const CLI_TAG_MS = 1400;
 function CliColumn({
   agent,
+  cli,
   lane,
   rows,
 }: {
-  agent: Agent;
+  agent: SessionId;
+  cli: string;
   lane: ActivityLane;
   rows: Activity[];
 }) {
@@ -638,7 +640,7 @@ function CliColumn({
         className={`cli-column-tag${tagVisible ? " visible" : ""}`}
         aria-hidden="true"
       >
-        <img src={agent === "cursor" ? cursorLogo : codexLogo} alt="" />
+        <img src={cli === "cursor" ? cursorLogo : codexLogo} alt="" />
         {laneLabel[lane]}
       </span>
       <ul ref={log}>
@@ -669,6 +671,7 @@ function CliBoards({ state }: { state: ShowState }) {
                 <CliColumn
                   key={lane}
                   agent={agent}
+                  cli={state.sessions?.find((s) => s.id === agent)?.cli ?? agent}
                   lane={lane}
                   rows={rows}
                 />
@@ -685,12 +688,13 @@ function AgentPanel({
   state,
   now,
 }: {
-  agent: Agent;
+  agent: SessionId;
   state: ShowState;
   now: number;
 }) {
   const attempt = state.round?.attempts[agent];
-  const model = attempt?.model ?? state.models?.[agent];
+  const cli = attempt?.cli ?? state.sessions?.find((s) => s.id === agent)?.cli ?? agent;
+  const model = attempt ? attempt.model + (attempt.effort ? ` · ${attempt.effort}` : "") : state.models?.[agent];
   const showIntro = !control && !state.round;
   const events = state.events.filter((e) => e.agent === agent && !e.lane);
   const log = useRef<HTMLDivElement>(null);
@@ -730,16 +734,16 @@ function AgentPanel({
     else lines.push({ ...event });
   }
   return (
-    <section className={`agent-panel ${agent}`}>
+    <section className={`agent-panel ${cli}`}>
       <div className="agent-header">
         <div className="agent-icon">
           <img
-            src={agent === "codex" ? codexLogo : cursorLogo}
-            alt={agent === "codex" ? "Codex" : "Cursor"}
+            src={cli === "codex" ? codexLogo : cursorLogo}
+            alt={cli === "codex" ? "Codex" : "Cursor"}
           />
         </div>
         <div>
-          <h2>{agent === "codex" ? "Codex" : "Cursor"}</h2>
+          <h2>{cli === "codex" ? "Codex" : "Cursor"}</h2>
           {model && <p>{model}</p>}
         </div>
         <div className="agent-state" aria-label={attempt?.status ?? "idle"}>
@@ -754,10 +758,10 @@ function AgentPanel({
           <div className="empty-state model-intro">
             <img
               className="empty-logo"
-              src={agent === "codex" ? codexLogo : cursorLogo}
+              src={cli === "codex" ? codexLogo : cursorLogo}
               alt=""
             />
-            <h3>{agent === "codex" ? "Codex" : "Cursor"}</h3>
+            <h3>{cli === "codex" ? "Codex" : "Cursor"}</h3>
             {model && <p>{model}</p>}
           </div>
         ) : attempt?.status === "complete" && attempt.preview && !failed ? (
@@ -810,7 +814,7 @@ function AgentPanel({
               <div className="empty-state">
                 <img
                   className="empty-logo"
-                  src={agent === "codex" ? botLogo : cursorLogo}
+                  src={cli === "codex" ? botLogo : cursorLogo}
                   alt=""
                 />
               </div>

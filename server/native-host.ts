@@ -24,7 +24,7 @@ import { enforceDiskBudget } from "./disk-budget.js";
 import { removeProbeWorkspace } from "./probe-workspace-cleanup.js";
 import { prepareCodexHome, retainCodexLogin } from "./codex-profile.js";
 import type { Store } from "./store.js";
-import type { Agent } from "../shared/types.js";
+import type { Agent, SessionId } from "../shared/types.js";
 
 interface ProcessRecord {
   pid: number;
@@ -51,14 +51,19 @@ export class NativeHost extends Docker {
   ) {
     super(nativeStore, { root: nativeRoot, image: "" });
   }
-  override name(agent: Agent, round: number | string) {
+  override name(agent: SessionId, round: number | string) {
     return `native-${super.name(agent, round)}`;
   }
-  override async workspace(agent: Agent, round: number | string) {
+  override async workspace(
+    agent: Agent,
+    round: number | string,
+    _auth = true,
+    session: SessionId = agent,
+  ) {
     const dir = resolve(
       this.nativeRoot,
       "runtime/native-workspaces",
-      agent,
+      session,
       String(round),
     );
     await mkdir(dir, { recursive: true, mode: 0o700 });
@@ -69,7 +74,11 @@ export class NativeHost extends Docker {
     return dir;
   }
   private recordPath(name: string) {
-    if (!/^native-stram-[a-f0-9]+-(codex|cursor)-[a-zA-Z0-9-]+$/.test(name))
+    if (
+      !/^native-stram-[a-f0-9]+-(codex|cursor|session-[12])-[a-zA-Z0-9-]+$/.test(
+        name,
+      )
+    )
       throw new Error("Invalid native runner record");
     return resolve(this.nativeRoot, "runtime/native-processes", `${name}.json`);
   }
@@ -156,6 +165,7 @@ export class NativeHost extends Docker {
     round: number | string,
     command: string[],
     dir?: string,
+    session: SessionId = agent,
   ) {
     const codexHelp =
       agent === "codex" &&
@@ -176,7 +186,8 @@ export class NativeHost extends Docker {
         throw new Error("Native Cursor sandbox support was not checked");
       args.splice(args.length - 1, 0, "--sandbox", "disabled");
     }
-    const workspace = dir ?? (await this.workspace(agent, round));
+    const workspace =
+      dir ?? (await this.workspace(agent, round, true, session));
     // Keep task instructions identical across native agents; the fixed output is relative to cwd.
     if (coding)
       args[args.length - 1] = command[command.length - 1]
@@ -185,17 +196,18 @@ export class NativeHost extends Docker {
           "Work only in /workspace.",
           "Work only in your current working directory.",
         );
-    const name = this.name(agent, round);
+    const name = this.name(session, round);
     await mkdir(resolve(this.nativeRoot, "runtime/native-processes"), {
       recursive: true,
       mode: 0o700,
     });
+    const env = await this.sessionEnv(agent, workspace);
     this.nativeStore.container(name);
     this.prepared.set(name, {
       agent,
       dir: workspace,
       command: args,
-      env: await this.sessionEnv(agent, workspace),
+      env,
     });
     return { name, dir: workspace };
   }
@@ -355,14 +367,21 @@ export class NativeHost extends Docker {
         );
     }
     const workspace = prepared?.dir;
-    if (workspace && prepared?.agent === "codex")
-      await this.retainAuth("codex", workspace);
+    let authError: unknown;
+    if (workspace && prepared?.agent === "codex") {
+      try {
+        await this.retainAuth("codex", workspace);
+      } catch (error) {
+        authError = error;
+      }
+    }
     await unlink(this.recordPath(name)).catch((error) => {
       if (error.code !== "ENOENT") throw error;
     });
     this.nativeStore.forgetContainer(name);
     this.prepared.delete(name);
     if (workspace) await removeProbeWorkspace(workspace).catch(() => {});
+    if (authError) throw authError;
   }
   override async recover() {
     const records = await readdir(

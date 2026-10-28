@@ -1,3 +1,4 @@
+import { configuredSessions, validSessionId } from "../shared/types.js";
 import { readFileSync, chmodSync } from "node:fs";
 import { resolve } from "node:path";
 import dotenv from "dotenv";
@@ -19,7 +20,7 @@ const schema = z.object({
   quotaGraceMs: z.number().positive(),
   quotaPollMs: z.number().min(10000),
   codexModel: z.string().min(1),
-  codexEffort: z.enum(["minimal", "low", "medium", "high"]).default("high"),
+  codexEffort: z.string().min(1).default("high"),
   cursorModel: z.string().min(1),
   agentImage: z.string().regex(/^[\w./:-]+$/),
   previewImage: z.string().regex(/^[\w./:-]+$/),
@@ -27,6 +28,24 @@ const schema = z.object({
   mode: z.enum(["live", "rehearsal"]),
   previewView: z.enum(["jpeg", "live"]).default("live"),
   runnerMode: z.enum(["docker", "native"]).default("docker"),
+  sessions: z
+    .array(
+      z.object({
+        id: z
+          .string()
+          .refine(validSessionId, "Use codex, cursor, session-1 or session-2"),
+        cli: z.enum(["codex", "cursor"]),
+        model: z.string().trim().min(1),
+        effort: z.string().trim().min(1).optional(),
+      }),
+    )
+    .min(1)
+    .max(2)
+    .refine(
+      (sessions) => new Set(sessions.map((s) => s.id)).size === sessions.length,
+      "Session IDs must be unique",
+    )
+    .optional(),
   singleAgent: z.enum(["codex", "cursor"]).optional(),
   safetyThreshold: z.number().min(0).max(1),
   relevanceThreshold: z.number().min(0).max(1),
@@ -59,13 +78,19 @@ export const settings = schema.parse({
   ...raw,
   ...(process.env.ARENA_MODE ? { mode: process.env.ARENA_MODE } : {}),
   ...(process.env.ARENA_RUNNER ? { runnerMode: process.env.ARENA_RUNNER } : {}),
-  singleAgent: process.env.ARENA_SINGLE_AGENT || undefined,
+  singleAgent: process.env.ARENA_SINGLE_AGENT || raw.singleAgent,
+  sessions: process.env.ARENA_SESSIONS
+    ? JSON.parse(process.env.ARENA_SESSIONS)
+    : process.env.ARENA_SINGLE_AGENT
+      ? undefined
+      : raw.sessions,
   skipYoutube: process.env.ARENA_SKIP_YOUTUBE === "1" || promptPlaylist,
   skipTwitch: process.env.ARENA_SKIP_TWITCH === "1" || promptPlaylist,
   skipKick: process.env.ARENA_SKIP_KICK === "1" || promptPlaylist,
   promptFile,
   promptPlaylist,
 });
+settings.sessions ??= configuredSessions(settings);
 if (
   new Set([
     settings.port,

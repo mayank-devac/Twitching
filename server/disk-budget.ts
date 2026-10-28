@@ -5,7 +5,7 @@ export const DISK_SOFT_BYTES = 520 * 1024 * 1024;
 export const DISK_HARD_BYTES = 1024 * 1024 * 1024;
 
 const ROOTS = ["runtime/workspaces", "runtime/native-workspaces"] as const;
-const AGENTS = ["codex", "cursor"] as const;
+const AGENTS = ["codex", "cursor", "session-1", "session-2"] as const;
 
 async function entries(dir: string) {
   return readdir(dir).catch((error: NodeJS.ErrnoException) => {

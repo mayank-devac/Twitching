@@ -161,6 +161,27 @@ test("paired launch uses runtime isolation controls and the same autonomous prom
   const commands: string[][] = [];
   const cleanup: string[] = [];
   const host = {
+    inspect: async () => {},
+    capture: async (_agent: string, args: string[]) =>
+      args.includes("status")
+        ? "Logged in"
+        : args.includes("--list-models")
+          ? "requested-cursor - Fixture model"
+          : "--ignore-user-config --ignore-rules --disable --print --stream-partial-output --output-format --model --force",
+    codexInfo: async () => ({
+      account: "chatgpt",
+      models: [
+        {
+          model: "requested-codex",
+          supportedReasoningEfforts: [{ reasoningEffort: "high" }],
+        },
+      ],
+      limits: {
+        rateLimits: {
+          primary: { windowDurationMins: 300, usedPercent: 10, resetsAt: 9000 },
+        },
+      },
+    }),
     create: async (_agent: string, _round: number, command: string[]) => {
       commands.push(command);
       return { name: _agent, dir: "fixture" };
@@ -218,10 +239,11 @@ test("paired launch uses runtime isolation controls and the same autonomous prom
       cleanup.indexOf(`preserve:${agent}`) < cleanup.indexOf(`stop:${agent}`),
     );
   }
+  const codexCommand = commands.find((command) => command[0] === "codex")!;
   for (const argument of CODEX_EXEC_PROFILE_ARGS)
-    assert.ok(commands[0].includes(argument));
-  assert.ok(commands[0].includes("requested-codex"));
-  assert.ok(commands[1].includes("requested-cursor"));
+    assert.ok(codexCommand.includes(argument));
+  assert.ok(codexCommand.includes("requested-codex"));
+  assert.ok(commands.some((command) => command.includes("requested-cursor")));
   assert.equal(commands[0].at(-1), commands[1].at(-1));
   assert.match(
     commands[0].at(-1)!,
@@ -253,6 +275,7 @@ test("sandbox output is kept in runtime before the workspace is cleaned", async 
 
 test("readiness fails before launch when required CLI controls or arena login are missing", async () => {
   const options = {
+    singleAgent: "codex" as const,
     codexModel: "requested-codex",
     cursorModel: "requested-cursor",
     codexEffort: "high",
@@ -274,4 +297,45 @@ test("readiness fails before launch when required CLI controls or arena login ar
     new CliRunner(noLogin, options, (s) => s).preflight(),
     /sandbox:login:codex/,
   );
+});
+
+test("same-round Codex homes are distinct and stale refreshes cannot overwrite newer login", async () => {
+  const root = await mkdtemp(resolve(tmpdir(), "arena-login-race-"));
+  const store = new Store(":memory:");
+  try {
+    const saved = resolve(root, "runtime/auth/codex/.codex");
+    await mkdir(saved, { recursive: true });
+    await writeFile(resolve(saved, "auth.json"), "fixture-original");
+    const host = new Docker(store, { root, image: "unused" });
+    const first = await host.workspace("codex", 1, true, "session-1");
+    const second = await host.workspace("codex", 1, true, "session-2");
+    assert.notEqual(first, second);
+    assert.notEqual(host.name("session-1", 1), host.name("session-2", 1));
+    await writeFile(
+      resolve(first, ".home/.codex/auth.json"),
+      "fixture-first-refresh",
+    );
+    await retainCodexLogin(root, resolve(first, ".home"));
+    // A session with unchanged credentials must not restore the old copy.
+    await retainCodexLogin(root, resolve(second, ".home"));
+    assert.equal(
+      await readFile(resolve(saved, "auth.json"), "utf8"),
+      "fixture-first-refresh",
+    );
+    await writeFile(
+      resolve(second, ".home/.codex/auth.json"),
+      "fixture-conflicting-refresh",
+    );
+    await assert.rejects(
+      retainCodexLogin(root, resolve(second, ".home")),
+      /conflicted/,
+    );
+    assert.equal(
+      await readFile(resolve(saved, "auth.json"), "utf8"),
+      "fixture-first-refresh",
+    );
+  } finally {
+    store.close();
+    await rm(root, { recursive: true, force: true });
+  }
 });

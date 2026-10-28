@@ -29,7 +29,22 @@ export class Store {
     const row = this.db
       .prepare("SELECT value FROM state WHERE id=1")
       .get() as any;
-    return row && JSON.parse(row.value);
+    if (!row) return undefined;
+    const state: ShowState = JSON.parse(row.value);
+    if (state.round && !state.round.sessions) {
+      // Legacy keys are also their original file directories. Never rename them.
+      state.round.sessions = Object.entries(state.round.attempts)
+        .filter(
+          ([id, attempt]) =>
+            (id === "codex" || id === "cursor") && attempt.status !== "idle",
+        )
+        .map(([id, attempt]) => {
+          const cli = id as "codex" | "cursor";
+          attempt.cli = cli;
+          return { id, cli, model: attempt.model };
+        });
+    }
+    return state;
   }
   save(state: ShowState) {
     this.db
@@ -131,7 +146,9 @@ export class Store {
       this.db.close();
     } catch (error) {
       if (
-        !/not open/i.test(error instanceof Error ? error.message : String(error))
+        !/not open/i.test(
+          error instanceof Error ? error.message : String(error),
+        )
       )
         throw error;
     }

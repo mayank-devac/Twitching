@@ -1,15 +1,30 @@
 # Twitching
 
+> **Taglines:**
+> 1. Share **live coding sessions for Twitch**: share your harness cli without sharing computer screen , 
+> 2.  Twitch viewers are **prompters**: every qualifying `!prompt` from **Twitch, YouTube or Kick chat**.
+> 3. **Twitch chat** writes the task; run **LLM coding agents** build something **live** inside **sandboxed containers**, . 
+> 4. an **agent-vs-agent game show** harness build it , compare it and let the viewers be judges
+
 <p align="center">
   <img src="assets/break-visual.gif" alt="Pixel-art eye blinking — the break visual" />
 </p>
-<p align="center">
+<p align="right">
    <a href="assets/break-visual.html">assets/break-visual.html</a> 
 </p>
 
-A local Codex vs Cursor show: audience suggestions go through a blocked-word list and TypeSafe Jev; both agents get the same task in fresh chats. Cursor is on the left and Codex on the right. The app starts paused in **private rehearsal** mode.
+idea  ""share and stream what your harness like codex doing without sharing screen""
 
-- Developed with the help of Codex. Started for the [TwitchCon Codex hackathon](https://twitchcon-codex.devpost.com/).
+- twich and codex support  
+- select what to show (tools use , commands , edits , model name ...)
+- use it with OBS
+- viewers can prompt from comment box. when viewer comment with "!prompt"
+- run in a docker sandox for safety and login seperatly , if you want.
+- show html outputs overlays. 
+- typesafe jev to filter out prompts according to prefernces.
+- automate whole live stream. like play music and visuals when qouta goes out.
+
+Developed with the help of Codex. Started for the [TwitchCon Codex hackathon](https://twitchcon-codex.devpost.com/).
 
 ## Start locally
 
@@ -62,7 +77,14 @@ Agent logins and private settings are local only; the repository does not includ
 
 ### 2. Use guided startup
 
-**Colima — terminal only, no Docker Desktop:**
+With **Docker Desktop insalled**
+```sh
+./check_stream_start.sh
+./start_stream.sh
+```
+or 
+
+**with Colima — terminal only, no Docker Desktop:**
 
 ```sh
 brew install colima docker docker-compose docker-buildx
@@ -71,6 +93,14 @@ brew install colima docker docker-compose docker-buildx
 ```
 
 `with_colima.sh` starts Colima if needed and uses an isolated Docker configuration under ignored `runtime/docker-cli/`. Existing Docker registry logins and Desktop settings are left untouched. With no arguments, it opens guided private rehearsal; pass a command to run it with the same Colima settings.
+
+To use your Mac's installed Codex CLI and saved login, with Colima only for previews:
+
+```sh
+./with_colima.sh ./start_stream.sh --mode rehearsal --runner native --codex
+```
+
+The launcher requires `NATIVE` confirmation because agent commands can access host files. The app seeds its private arena profile from your saved Codex login when available; personal settings and plugins are not copied.
 
 On this Mac, Colima is configured for **4 CPUs, 6 GB RAM and a 12 GB container disk**. Container images still consume disk space. Use `colima stop` after stopping the show to release VM memory.
 
@@ -165,7 +195,7 @@ With a prompt list, the next task starts after the result hold. After the last t
 | Rehearsal readiness | `./check_stream_start.sh --mode rehearsal` |
 | Live readiness + verification | `./check_stream_start.sh --mode live --verify` |
 | Non-interactive live readiness | `./check_stream_start.sh --mode live --non-interactive` |
-| Live chat, skipping YouTube and Twitch | `./start_stream.sh --mode live --no-prompts --skip yt --skip twitch` |
+| Live chat, skipping YouTube and kick | `./start_stream.sh --mode live --no-prompts --skip yt --skip kick` |
 | Optional native agents | `./start_stream.sh --mode live --runner native` |
 
 Without explicit session choices, legacy settings select **both CLIs** unless `singleAgent` is set. Rebuild the frontend with `npm run build` after UI code changes. Use `--help` for all options.

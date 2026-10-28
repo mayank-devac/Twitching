@@ -1,6 +1,6 @@
 import { constants } from "node:fs";
 import { open } from "node:fs/promises";
-import type { Activity, Agent } from "../shared/types.js";
+import type { Activity, SessionId } from "../shared/types.js";
 import { sandboxPromptPath } from "./sandbox-results.js";
 
 // One replacement hunk keeps the comparison linear even for large HTML files.
@@ -35,7 +35,7 @@ export class HtmlDiffs {
   constructor(
     private dir: string,
     private round: number,
-    private agent: Agent,
+    private agent: SessionId,
     private clean: (text: string, limit?: number) => string,
     private emit: (event: Activity) => void,
   ) {}

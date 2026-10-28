@@ -1,3 +1,4 @@
+import { configuredSessions } from "../shared/types.js";
 import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { access, mkdir } from "node:fs/promises";
@@ -76,7 +77,9 @@ const preview = new Previews(
   () => browserSandbox.start(),
   credentialGuard(privateValues),
   settings.previewView,
-  settings.singleAgent ? { width: 1920, height: 1044 } : undefined,
+  configuredSessions(settings).length === 1
+    ? { width: 1920, height: 1044 }
+    : undefined,
 );
 const previewServer = preview.app().listen(settings.previewPort, settings.host);
 let controller: Controller;
@@ -283,7 +286,7 @@ await browserSandbox
     ),
   );
 if (controller.state.round)
-  for (const agent of settings.singleAgent ? [settings.singleAgent] : ["codex", "cursor"] as const) {
+  for (const agent of Object.keys(controller.state.round.attempts)) {
     const attempt = controller.state.round.attempts[agent];
     if (attempt.status === "complete") {
       try {
@@ -291,6 +294,7 @@ if (controller.state.round)
         attempt.preview = await preview.restore(
           agent,
           controller.state.round.id,
+          controller.state.round.sessions?.length,
         );
       } catch {
         attempt.preview = undefined;

@@ -1,5 +1,38 @@
 export type Platform = "youtube" | "twitch" | "kick" | "fallback";
 export type Agent = "codex" | "cursor";
+// CLI identity selects a protocol; session identity owns files and results.
+export type SessionId = string;
+export interface SessionConfig {
+  id: SessionId;
+  cli: Agent;
+  model: string;
+  effort?: string;
+}
+export interface SessionOptions {
+  sessions?: SessionConfig[];
+  singleAgent?: Agent;
+  codexModel: string;
+  cursorModel: string;
+  codexEffort?: string;
+}
+export function configuredSessions(options: SessionOptions): SessionConfig[] {
+  if (options.sessions) return options.sessions;
+  const clis: Agent[] = options.singleAgent
+    ? [options.singleAgent]
+    : ["cursor", "codex"];
+  return clis.map((cli) => ({
+    id: cli,
+    cli,
+    model: cli === "codex" ? options.codexModel : options.cursorModel,
+    ...(cli === "codex" ? { effort: options.codexEffort ?? "high" } : {}),
+  }));
+}
+export function sessionLabel(session: SessionConfig) {
+  return session.model + (session.effort ? ` · ${session.effort}` : "");
+}
+export function validSessionId(id: string) {
+  return /^(codex|cursor|session-[12])$/.test(id);
+}
 export interface ChatMessage {
   id: string;
   platform: Exclude<Platform, "fallback">;
@@ -50,7 +83,7 @@ export type ActivityLane = "read" | "write" | "tool" | "terminal";
 export interface Activity {
   id: string;
   round: number;
-  agent: Agent;
+  agent: SessionId;
   at: number;
   kind: ActivityKind;
   text: string;
@@ -59,6 +92,8 @@ export interface Activity {
   lane?: ActivityLane;
 }
 export interface Attempt {
+  cli?: Agent;
+  effort?: string;
   model: string;
   status:
     | "idle"
@@ -77,13 +112,15 @@ export interface Round {
   id: number;
   task: Task;
   launchedAt: number;
-  attempts: Record<Agent, Attempt>;
+  sessions?: SessionConfig[];
+  attempts: Record<SessionId, Attempt>;
 }
 export interface ShowState {
   status: "stopped" | "paused" | "collecting" | "running" | "results" | "break";
   mode: "live" | "rehearsal";
-  models?: Record<Agent, string>;
-  agents?: Agent[];
+  sessions?: SessionConfig[];
+  models?: Record<SessionId, string>;
+  agents?: SessionId[];
   reason: string;
   round?: Round;
   prepared?: Task;

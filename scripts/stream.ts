@@ -1,3 +1,8 @@
+import {
+  configuredSessions,
+  type Agent,
+  type SessionConfig,
+} from "../shared/types.js";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { createServer } from "node:net";
@@ -23,6 +28,8 @@ const help = `Prompt Arena guided startup
   ./start_stream.sh       [--cli codex|cursor] [--mode live|rehearsal] [--runner docker|native] [--verify] [--skip yt] [--skip twitch] [--skip kick] [--prompts] [--no-prompts]
 
 Check defaults to live readiness. Start offers rehearsal/live and Docker/native choices.
+--session cli:model[:effort] selects a session; repeat once for two sessions (including Codex + Codex).
+Interactive start also offers session/model selection from installed CLIs.
 --codex / --cursor (or --cli codex|cursor) runs one CLI in a full-width panel. The other CLI is not checked or launched.
 --skip yt, --skip twitch and --skip kick omit those chat connections in live mode. Repeat --skip for each.
 --prompts runs tasks from prompts.txt (or settings.promptFile) for the selected CLIs, then ends the show. OBS only; chat is skipped.
@@ -50,12 +57,37 @@ let skipKick = false;
 let forcePrompts = false;
 let ignorePrompts = false;
 let singleAgent: "codex" | "cursor" | undefined;
+const requestedSessions: SessionConfig[] = [];
 for (let i = 0; i < args.length; i++) {
   if (args[i] === "--verify") verify = true;
-  else if (["--codex", "--cursor", "--cli"].includes(args[i])) {
+  else if (args[i] === "--session") {
+    const parts = (args[++i] ?? "").split(":");
+    const [cli, model, effort] = parts;
+    if (
+      requestedSessions.length === 2 ||
+      !["codex", "cursor"].includes(cli) ||
+      !model ||
+      parts.length > 3 ||
+      effort === ""
+    ) {
+      console.error("ERROR: Use --session cli:model[:effort], at most twice.");
+      process.exit(2);
+    }
+    requestedSessions.push({
+      id: `session-${requestedSessions.length + 1}`,
+      cli: cli as Agent,
+      model,
+      ...(effort ? { effort } : {}),
+    });
+  } else if (["--codex", "--cursor", "--cli"].includes(args[i])) {
     const agent = args[i] === "--cli" ? args[++i] : args[i].slice(2);
-    if (!["codex", "cursor"].includes(agent) || (singleAgent && singleAgent !== agent)) {
-      console.error(`ERROR: Choose one CLI: --codex, --cursor, or --cli codex|cursor.\n${help}`);
+    if (
+      !["codex", "cursor"].includes(agent) ||
+      (singleAgent && singleAgent !== agent)
+    ) {
+      console.error(
+        `ERROR: Choose one CLI: --codex, --cursor, or --cli codex|cursor.\n${help}`,
+      );
       process.exit(2);
     }
     singleAgent = agent as typeof singleAgent;
@@ -83,6 +115,13 @@ for (let i = 0; i < args.length; i++) {
     process.exit(2);
   }
 }
+if (singleAgent && requestedSessions.length) {
+  console.error("ERROR: Use --session or --cli, not both.");
+  process.exit(2);
+}
+if (singleAgent) delete process.env.ARENA_SESSIONS;
+if (requestedSessions.length)
+  process.env.ARENA_SESSIONS = JSON.stringify(requestedSessions);
 if (forcePrompts && ignorePrompts) {
   console.error(
     "ERROR: Use either --prompts or --no-prompts, not both.\n" + help,
@@ -313,7 +352,7 @@ try {
     process.env.ARENA_SKIP_KICK = "1";
     process.env.ARENA_PROMPTS = "1";
     console.log(
-      `NOTE: Prompt list · ${housePrompts.length} tasks from ${settings.promptFile}. Chat skipped. ${singleAgent ? `${singleAgent} gets` : "Both CLIs get"} each task; the show ends after the last one.`,
+      `NOTE: Prompt list · ${housePrompts.length} tasks from ${settings.promptFile}. Chat skipped. Each configured session gets each task; the show ends after the last one.`,
     );
   }
   let twitchPending = true;
@@ -365,10 +404,11 @@ try {
     for (const close of resources.reverse()) await close().catch(() => {});
   };
   const rootId = createHash("sha256").update(root).digest("hex");
-  const configurationId = createHash("sha256")
+  let configurationId = createHash("sha256")
     .update(JSON.stringify(settings))
     .digest("hex");
   let existing = false;
+  let existingConfigurationId: string | undefined;
   let state: any;
   try {
     const response = await fetch(`${origin}/api/state`, {
@@ -386,7 +426,8 @@ try {
       signal: AbortSignal.timeout(1000),
     });
     const boot = response.ok ? ((await response.json()) as any) : {};
-    if (boot.rootId !== rootId || boot.configurationId !== configurationId)
+    existingConfigurationId = boot.configurationId;
+    if (boot.rootId !== rootId)
       fix(
         "A different mode, older app, or another project is already on this port.",
         "Close its terminal process, then rerun this file. The script will not kill an unknown app.",
@@ -612,6 +653,71 @@ try {
         `Run ./start_stream.sh --mode rehearsal --runner ${runnerMode}, finish one round, check your private recording, and confirm the rehearsal in /control.`,
       );
   }
+  if (
+    command === "start" &&
+    interactive &&
+    !singleAgent &&
+    !requestedSessions.length &&
+    !existing
+  ) {
+    const count = await question(
+      "Sessions: Enter = keep configured choices, 1 = choose one, 2 = choose two: ",
+    );
+    if (count) {
+      if (count !== "1" && count !== "2")
+        throw new Error("Choose 1 or 2 sessions");
+      const selected: SessionConfig[] = [];
+      const catalogs = new Map<
+        Agent,
+        Awaited<ReturnType<typeof runner.discover>>
+      >();
+      for (let index = 0; index < Number(count); index++) {
+        const cliChoice = await question(
+          `Session ${index + 1} CLI: 1 = Codex, 2 = Cursor [1]: `,
+        );
+        if (!["", "1", "2"].includes(cliChoice))
+          throw new Error("Choose Codex or Cursor");
+        const cli: Agent = cliChoice === "2" ? "cursor" : "codex";
+        if (!catalogs.has(cli)) catalogs.set(cli, await runner.discover(cli));
+        const models = catalogs.get(cli)!;
+        models.forEach((model, i) =>
+          console.log(`  ${i + 1}. ${clean(model.id)}`),
+        );
+        const modelIndex =
+          Number(await question(`Session ${index + 1} model number: `)) - 1;
+        if (!Number.isInteger(modelIndex) || !models[modelIndex])
+          throw new Error("Choose a listed model number");
+        const model = models[modelIndex];
+        let effort: string | undefined;
+        if (model.efforts.length) {
+          console.log(`  Supported reasoning: ${model.efforts.join(", ")}`);
+          effort =
+            (await question("Reasoning effort (Enter = CLI default): ")) ||
+            undefined;
+          if (effort && !model.efforts.includes(effort))
+            throw new Error("Choose a listed reasoning effort");
+        }
+        selected.push({
+          id: `session-${index + 1}`,
+          cli,
+          model: model.id,
+          ...(effort ? { effort } : {}),
+        });
+      }
+      settings.sessions = selected;
+    }
+  }
+  process.env.ARENA_SESSIONS = JSON.stringify(configuredSessions(settings));
+  // Hash exactly the same settings the child will parse from ARENA_SESSIONS.
+  settings.sessions = configuredSessions(settings);
+  configurationId = createHash("sha256")
+    .update(JSON.stringify(settings))
+    .digest("hex");
+  if (existing && existingConfigurationId !== configurationId)
+    fix(
+      "The running app has different session or startup choices.",
+      "Close its terminal and start again with the intended choices.",
+    );
   await repair(
     "CLI subscription logins, requested models and stream formats",
     async () => {
@@ -636,7 +742,7 @@ try {
       await run(login.program, login.args);
     },
   );
-  if (singleAgent !== "cursor") {
+  if (configuredSessions(settings).some((session) => session.cli === "codex")) {
     const quota = await runner.quota();
     if (quota.remainingPercent <= 0)
       fix(
@@ -694,7 +800,9 @@ try {
         () => engine.start(),
         credentialGuard(privateValues),
         settings.previewView,
-        singleAgent ? { width: 1920, height: 1044 } : undefined,
+        configuredSessions(settings).length === 1
+          ? { width: 1920, height: 1044 }
+          : undefined,
       );
       try {
         await mkdir(resolve(tempRoot, "main/codex"), {
@@ -915,7 +1023,11 @@ try {
     } else if (settings.promptPlaylist) {
       if (
         await yes(
-          `Start the prompt list now? ${housePrompts.length} tasks go to ${singleAgent ?? "both CLIs"}, then the show ends.`,
+          `Start the prompt list now? ${housePrompts.length} tasks go to ${configuredSessions(
+            settings,
+          )
+            .map((s) => `${s.cli}/${s.model}`)
+            .join(" and ")}, then the show ends.`,
         )
       ) {
         const privateState = await action("start");
@@ -950,7 +1062,7 @@ try {
       showStarted = true;
       await action("rehearsal-task", rehearsalTask);
       console.log(
-        `PRIVATE: record OBS locally, inspect ${singleAgent ? `the ${singleAgent} result` : "both results"}, and confirm the rehearsal in /control.`,
+        `PRIVATE: record OBS locally, inspect ${configuredSessions(settings).length === 1 ? "the session result" : "both session results"}, and confirm the rehearsal in /control.`,
       );
     }
     console.log(

@@ -2,10 +2,13 @@ import { EventEmitter } from "node:events";
 import type {
   Activity,
   Agent,
+  SessionId,
+  SessionConfig,
   ChatMessage,
   ShowState,
   Task,
 } from "../shared/types.js";
+import { configuredSessions, sessionLabel } from "../shared/types.js";
 import { Collection } from "./collection.js";
 import { Filter } from "./filter.js";
 import type { Judge } from "./jev.js";
@@ -14,6 +17,7 @@ import { Store } from "./store.js";
 export interface ControllerOptions {
   mode: "live" | "rehearsal";
   runnerMode?: "docker" | "native";
+  sessions?: SessionConfig[];
   singleAgent?: Agent;
   codexModel: string;
   codexEffort?: string;
@@ -46,10 +50,11 @@ export interface Integrations {
 export class Controller extends EventEmitter {
   state: ShowState;
   collection: Collection;
-  private handles?: Partial<Record<Agent, RunHandle>>;
+  private handles?: Record<SessionId, RunHandle>;
   private busy = false;
   private launching = false;
   private lastQuota = 0;
+  private checkingQuota = false;
   private ending = false;
   private generation = 0;
   private launchSettled?: Promise<void>;
@@ -63,7 +68,13 @@ export class Controller extends EventEmitter {
     filter: Filter,
     judge: Judge,
     private runner: PairRunner,
-    private preview: { validate(agent: Agent, round: number): Promise<string> },
+    private preview: {
+      validate(
+        agent: SessionId,
+        round: number,
+        sessionCount?: number,
+      ): Promise<string>;
+    },
     private integrations: Integrations,
     private options: ControllerOptions,
     private clean: (s: string, limit?: number) => string,
@@ -164,13 +175,13 @@ export class Controller extends EventEmitter {
   }
   private view() {
     const value = structuredClone(this.state);
-    value.agents = this.options.singleAgent
-      ? [this.options.singleAgent]
-      : ["cursor", "codex"];
-    value.models = {
-      codex: `${this.options.codexModel} · ${this.options.codexEffort ?? "high"}`,
-      cursor: this.options.cursorModel,
-    };
+    // A saved result keeps its own configuration, even after startup choices change.
+    const sessions = value.round?.sessions ?? configuredSessions(this.options);
+    value.sessions = sessions;
+    value.agents = sessions.map((s) => s.id);
+    value.models = Object.fromEntries(
+      sessions.map((s) => [s.id, sessionLabel(s)]),
+    );
     if (value.round) {
       value.round.task.text = this.clean(value.round.task.text, 600);
       value.round.task.author = this.clean(value.round.task.author, 80);
@@ -465,24 +476,26 @@ export class Controller extends EventEmitter {
         id,
         task,
         launchedAt: at,
-        attempts: {
-          codex: {
-            model: `${this.options.codexModel} · ${this.options.codexEffort ?? "high"}`,
-            status: this.options.singleAgent === "cursor" ? "idle" : "running",
-            startedAt: this.options.singleAgent === "cursor" ? undefined : at,
-          },
-          cursor: {
-            model: this.options.cursorModel,
-            status: this.options.singleAgent === "codex" ? "idle" : "running",
-            startedAt: this.options.singleAgent === "codex" ? undefined : at,
-          },
-        },
+        sessions: structuredClone(configuredSessions(this.options)),
+        attempts: Object.fromEntries(
+          configuredSessions(this.options).map((session) => [
+            session.id,
+            {
+              cli: session.cli,
+              model: session.model,
+              effort: session.effort,
+              status: "running",
+              startedAt: at,
+            },
+          ]),
+        ),
       };
       this.state.events = [];
       this.state.status = "running";
-      const launching = this.options.singleAgent
-        ? `A fresh ${this.options.singleAgent === "codex" ? "Codex" : "Cursor"} session is launching`
-        : "Both fresh sessions are launching";
+      const launching =
+        configuredSessions(this.options).length === 1
+          ? "A fresh session is launching"
+          : "Both fresh sessions are launching";
       this.state.reason = this.usingPlaylist()
         ? `Prompt list ${this.state.playlistIndex ?? 0} of ${this.state.playlistTotal ?? 0}. ${launching}`
         : launching;
@@ -493,7 +506,7 @@ export class Controller extends EventEmitter {
         this.activity(e),
       );
       this.handles = handles;
-      for (const agent of ["codex", "cursor"] as const) {
+      for (const agent of Object.keys(handles)) {
         const handle = handles[agent];
         if (handle) void this.finished(agent, id, handle);
       }
@@ -519,7 +532,7 @@ export class Controller extends EventEmitter {
       this.persist();
     }
   }
-  private async finished(agent: Agent, id: number, handle: RunHandle) {
+  private async finished(agent: SessionId, id: number, handle: RunHandle) {
     const outcome = await handle.done;
     if (this.state.round?.id !== id) return;
     const attempt = this.state.round.attempts[agent];
@@ -530,7 +543,11 @@ export class Controller extends EventEmitter {
       attempt.status = "validating";
       this.persist();
       try {
-        attempt.preview = await this.preview.validate(agent, id);
+        attempt.preview = await this.preview.validate(
+          agent,
+          id,
+          this.state.round.sessions?.length,
+        );
         attempt.status = "complete";
       } catch {
         attempt.status = "error";
@@ -543,7 +560,7 @@ export class Controller extends EventEmitter {
       );
     else if (outcome.failure === "usage") {
       this.pause(`${agent} usage limit reached.`);
-      if (agent === "codex") await this.checkQuota();
+      if (attempt.cli === "codex") await this.checkQuota();
       for (const [other, h] of Object.entries(this.handles ?? {}))
         if (other !== agent)
           await h
@@ -570,7 +587,10 @@ export class Controller extends EventEmitter {
     this.persist();
   }
   private async checkQuota() {
-    if (this.options.singleAgent === "cursor") return;
+    if (!configuredSessions(this.options).some((s) => s.cli === "codex"))
+      return;
+    if (this.checkingQuota) return;
+    this.checkingQuota = true;
     this.lastQuota = this.now();
     try {
       const quota = await this.runner.quota();
@@ -590,6 +610,8 @@ export class Controller extends EventEmitter {
     } catch {
       if (this.state.status !== "break")
         this.pause("Could not verify Codex five-hour quota. Show paused.");
+    } finally {
+      this.checkingQuota = false;
     }
     this.persist();
   }

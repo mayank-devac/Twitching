@@ -21,7 +21,6 @@
   "relevanceThreshold": 0.85,
   "minScore": 50,
   "blockedWords": [
-    // Add words here that you want to block from being used in prompts. For example:
     "nsfw",
     "violence",
     "illegal"

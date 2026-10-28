@@ -1,20 +1,26 @@
 import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir, cp, writeFile, lstat } from "node:fs/promises";
+import {
+  mkdir,
+  cp,
+  writeFile,
+  lstat,
+  readdir,
+  readFile,
+  realpath,
+} from "node:fs/promises";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, relative } from "node:path";
 import { randomUUID, createHash } from "node:crypto";
-import type { Agent } from "../shared/types.js";
+import type { Agent, SessionId } from "../shared/types.js";
 import { JsonLines } from "./activity.js";
 import { enforceDiskBudget } from "./disk-budget.js";
 import { removeProbeWorkspace } from "./probe-workspace-cleanup.js";
 import { AGENT_NETWORK, EGRESS_PROXY, RUNNER_LIMITS } from "./constants.js";
 import { missingLoginError } from "./cli-startup-repair.js";
+import { LoginRefreshConflict } from "./cli/types.js";
 import { Store } from "./store.js";
-import {
-  preserveSandboxResult,
-  sandboxPromptPath,
-} from "./sandbox-results.js";
+import { preserveSandboxResult, sandboxPromptPath } from "./sandbox-results.js";
 import {
   assertCodexProfile,
   prepareCodexHome,
@@ -28,6 +34,47 @@ const clientVersion = (
     version: string;
   }
 ).version;
+// Fingerprint only Cursor's retained login/config files; never expose their contents.
+async function cursorLoginFingerprint(home: string) {
+  const hash = createHash("sha256");
+  const walk = async (dir: string) => {
+    const directory = await lstat(dir).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return undefined;
+      throw error;
+    });
+    if (!directory) return;
+    if (
+      !directory.isDirectory() ||
+      directory.isSymbolicLink() ||
+      (await realpath(dir)) !==
+        resolve(await realpath(home), relative(home, dir))
+    )
+      throw new Error("Unsafe Cursor login directory");
+    const entries = await readdir(dir).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return [] as string[];
+      throw error;
+    });
+    for (const name of entries.sort()) {
+      const path = resolve(dir, name);
+      const info = await lstat(path);
+      if (info.isSymbolicLink()) continue;
+      if (info.isDirectory()) {
+        if (
+          !["sessions", "logs", "projects", "skills", "plugins"].includes(name)
+        )
+          await walk(path);
+      } else if (
+        ["auth.json", "config.toml", "cli-config.json"].includes(name)
+      ) {
+        hash.update(path.slice(home.length)).update(await readFile(path));
+      }
+    }
+  };
+  for (const folder of [".config/cursor", ".cursor"])
+    await walk(resolve(home, folder));
+  return hash.digest("hex");
+}
+
 export interface DockerOptions {
   root: string;
   image: string;
@@ -35,6 +82,13 @@ export interface DockerOptions {
 export class Docker {
   readonly executionBoundary: "docker" | "native" = "docker";
   label: string;
+  private cursorAuthQueue: Promise<unknown> = Promise.resolve();
+  private cursorBaselines = new Map<string, string>();
+  private withCursorAuth<T>(operation: () => Promise<T>): Promise<T> {
+    const next = this.cursorAuthQueue.catch(() => {}).then(operation);
+    this.cursorAuthQueue = next;
+    return next;
+  }
   constructor(
     private store: Store,
     private options: DockerOptions,
@@ -51,14 +105,19 @@ export class Docker {
     });
     return result.stdout;
   }
-  name(agent: Agent, round: number | string) {
+  name(agent: SessionId, round: number | string) {
     return `stram-${this.label}-${agent}-${round}`;
   }
-  async workspace(agent: Agent, round: number | string, auth = true) {
+  async workspace(
+    agent: Agent,
+    round: number | string,
+    auth = true,
+    session: SessionId = agent,
+  ) {
     const dir = resolve(
       this.options.root,
       "runtime/workspaces",
-      agent,
+      session,
       String(round),
     );
     await mkdir(resolve(dir, ".tmp"), { recursive: true, mode: 0o700 });
@@ -68,21 +127,25 @@ export class Docker {
       await prepareCodexHome(this.options.root, home, auth);
       return dir;
     }
-    if (auth) {
-      const source = resolve(this.options.root, "runtime/auth", agent);
-      const info = await lstat(source).catch((error: NodeJS.ErrnoException) => {
-        if (error.code === "ENOENT") return undefined;
-        throw error;
+    if (auth)
+      await this.withCursorAuth(async () => {
+        const source = resolve(this.options.root, "runtime/auth", agent);
+        const info = await lstat(source).catch(
+          (error: NodeJS.ErrnoException) => {
+            if (error.code === "ENOENT") return undefined;
+            throw error;
+          },
+        );
+        if (!info || info.isSymbolicLink() || !info.isDirectory())
+          throw missingLoginError(agent, "docker");
+        // CLI-owned credentials are copied only at runtime, never parsed or sent to the web UI.
+        await cp(source, home, {
+          recursive: true,
+          dereference: false,
+          filter: async (path) => !(await lstat(path)).isSymbolicLink(),
+        });
+        this.cursorBaselines.set(dir, await cursorLoginFingerprint(home));
       });
-      if (!info || info.isSymbolicLink() || !info.isDirectory())
-        throw missingLoginError(agent, "docker");
-      // CLI-owned credentials are copied only at runtime, never parsed or sent to the web UI.
-      await cp(source, home, {
-        recursive: true,
-        dereference: false,
-        filter: async (path) => !(await lstat(path)).isSymbolicLink(),
-      });
-    }
     await mkdir(resolve(home, ".codex"), { recursive: true, mode: 0o700 });
     await writeFile(
       resolve(home, ".codex/config.toml"),
@@ -125,23 +188,29 @@ export class Docker {
     round: number | string,
     command: string[],
     dir?: string,
+    session: SessionId = agent,
   ) {
-    const name = this.name(agent, round);
+    const name = this.name(session, round);
     this.store.container(name);
     let workspace: string;
     try {
-      workspace = dir ?? (await this.workspace(agent, round));
+      workspace = dir ?? (await this.workspace(agent, round, true, session));
     } catch (error) {
       this.store.forgetContainer(name);
       throw error;
     }
-    await this.command([
-      "create",
-      "-i",
-      ...this.args(name, workspace),
-      this.options.image,
-      ...command,
-    ]);
+    try {
+      await this.command([
+        "create",
+        "-i",
+        ...this.args(name, workspace),
+        this.options.image,
+        ...command,
+      ]);
+    } catch (error) {
+      await this.stop(name);
+      throw error;
+    }
     return { name, dir: workspace };
   }
   attach(name: string) {
@@ -304,35 +373,49 @@ export class Docker {
       await retainCodexLogin(this.options.root, resolve(dir, ".home"));
       return;
     }
-    const dest = resolve(this.options.root, "runtime/auth", agent);
-    await mkdir(dest, { recursive: true, mode: 0o700 });
-    // Save only the CLI auth/config directories, never session history or output HTML.
-    for (const folder of [".config/cursor", ".cursor"]) {
-      const source = resolve(dir, ".home", folder);
-      try {
-        await lstat(source);
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
-        throw error;
+    await this.withCursorAuth(async () => {
+      const baseline = this.cursorBaselines.get(dir);
+      if (baseline === undefined) return;
+      const home = resolve(dir, ".home");
+      const updated = await cursorLoginFingerprint(home);
+      if (updated === baseline) return;
+      const dest = resolve(this.options.root, "runtime/auth", agent);
+      const current = await cursorLoginFingerprint(dest);
+      if (current === updated) return;
+      if (current !== baseline)
+        throw new LoginRefreshConflict(
+          "Concurrent Cursor login refresh conflicted; saved login was preserved",
+        );
+      await mkdir(dest, { recursive: true, mode: 0o700 });
+      // Save only the CLI auth/config directories, never session history or output HTML.
+      for (const folder of [".config/cursor", ".cursor"]) {
+        const source = resolve(dir, ".home", folder);
+        try {
+          await lstat(source);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+          throw error;
+        }
+        await cp(source, resolve(dest, folder), {
+          recursive: true,
+          filter: async (path) => {
+            const stat = await lstat(path);
+            if (stat.isSymbolicLink()) return false;
+            if (stat.isDirectory())
+              return !/\/(sessions|logs|projects|skills|plugins)(\/|$)/.test(
+                path,
+              );
+            return /\/(auth\.json|config\.toml|cli-config\.json)$/.test(path);
+          },
+        });
       }
-      await cp(source, resolve(dest, folder), {
-        recursive: true,
-        filter: async (path) => {
-          const stat = await lstat(path);
-          if (stat.isSymbolicLink()) return false;
-          if (stat.isDirectory())
-            return !/\/(sessions|logs|projects|skills|plugins)(\/|$)/.test(
-              path,
-            );
-          return /\/(auth\.json|config\.toml|cli-config\.json)$/.test(path);
-        },
-      });
-    }
+      this.cursorBaselines.set(dir, updated);
+    });
   }
-  async preserveOutput(agent: Agent, round: number, dir: string) {
+  async preserveOutput(agent: SessionId, round: number, dir: string) {
     return preserveSandboxResult(this.options.root, agent, round, dir);
   }
-  async output(agent: Agent, round: number, dir: string) {
+  async output(agent: SessionId, round: number, dir: string) {
     const path = await sandboxPromptPath(dir, round, true);
     if (!path) throw new Error("Output missing");
     const folder = resolve(this.options.root, "main", agent);

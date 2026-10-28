@@ -4,7 +4,7 @@ import { Controller, type ControllerOptions } from "../server/controller.js";
 import { Store } from "../server/store.js";
 import { Filter } from "../server/filter.js";
 import type { PairRunner, RunHandle, RunOutcome } from "../server/runner.js";
-import type { Activity, Agent, Task } from "../shared/types.js";
+import type { Activity, Agent, SessionConfig, Task } from "../shared/types.js";
 import { redactor } from "../server/redact.js";
 const options: ControllerOptions = {
   mode: "live",
@@ -24,9 +24,10 @@ const options: ControllerOptions = {
 class FakeRunner implements PairRunner {
   onActivity?: (event: Activity) => void;
   singleAgent?: Agent;
+  sessions?: SessionConfig[];
   launches: Array<{ round: number; task: Task; at: number }> = [];
-  resolvers: Partial<Record<Agent, (outcome: RunOutcome) => void>> = {};
-  stopped: Agent[] = [];
+  resolvers: Record<string, (outcome: RunOutcome) => void> = {};
+  stopped: string[] = [];
   recovered = 0;
   quotaValue = { remainingPercent: 90, resetsAt: 900000 };
   async recover() {
@@ -38,10 +39,15 @@ class FakeRunner implements PairRunner {
   async quota() {
     return this.quotaValue;
   }
-  async launch(round: number, task: Task, at: number, emit: (event: Activity) => void): Promise<Partial<Record<Agent, RunHandle>>> {
+  async launch(
+    round: number,
+    task: Task,
+    at: number,
+    emit: (event: Activity) => void,
+  ): Promise<Record<string, RunHandle>> {
     this.onActivity = emit;
     this.launches.push({ round, task, at });
-    const handle = (agent: Agent): RunHandle => ({
+    const handle = (agent: string): RunHandle => ({
       done: new Promise((resolve) => {
         this.resolvers[agent] = resolve;
       }),
@@ -50,7 +56,12 @@ class FakeRunner implements PairRunner {
         this.resolvers[agent]?.({ status: reason });
       },
     });
-    if (this.singleAgent) return { [this.singleAgent]: handle(this.singleAgent) };
+    if (this.sessions)
+      return Object.fromEntries(
+        this.sessions.map((session) => [session.id, handle(session.id)]),
+      );
+    if (this.singleAgent)
+      return { [this.singleAgent]: handle(this.singleAgent) };
     return { codex: handle("codex"), cursor: handle("cursor") };
   }
 }
@@ -58,11 +69,13 @@ async function fixture(
   mode: "live" | "rehearsal" = "live",
   singleAgent?: Agent,
   clean: (text: string, limit?: number) => string = (text) => text,
+  sessions?: SessionConfig[],
 ) {
   let now = 1000;
   const store = new Store(":memory:");
   const runner = new FakeRunner();
   runner.singleAgent = singleAgent;
+  runner.sessions = sessions;
   if (singleAgent === "cursor")
     runner.quota = async () => {
       throw new Error("Codex must not be queried");
@@ -94,7 +107,7 @@ async function fixture(
         broadcastStops++;
       },
     },
-    { ...options, mode, singleAgent },
+    { ...options, mode, singleAgent, sessions },
     clean,
     () => now,
   );
@@ -151,8 +164,14 @@ test("long activity remains complete through controller snapshots and persistenc
   try {
     const text = "x".repeat(90_000) + "TAIL!";
     for (const kind of ["message", "summary", "edit", "command"] as const) {
-      f.runner.onActivity!({ id: `long:${kind}`, agent: "codex", round: 1,
-        at: 1, kind, text });
+      f.runner.onActivity!({
+        id: `long:${kind}`,
+        agent: "codex",
+        round: 1,
+        at: 1,
+        kind,
+        text,
+      });
       assert.equal(f.controller.snapshot().events.at(-1)?.text, text);
       assert.equal(f.store.state()?.events.at(-1)?.text, text);
     }
@@ -537,10 +556,49 @@ for (const agent of ["codex", "cursor"] as const) {
       f.runner.resolvers[agent]?.({ status: "complete" });
       await new Promise((resolve) => setImmediate(resolve));
       assert.equal(f.controller.state.status, "results");
-      assert.equal(f.controller.state.round?.attempts[agent].status, "complete");
+      assert.equal(
+        f.controller.state.round?.attempts[agent].status,
+        "complete",
+      );
       assert.ok(f.controller.state.round?.attempts[agent].preview);
     } finally {
       await f.cleanup();
     }
   });
 }
+
+test("two Codex sessions keep independent results and cancellation identity", async () => {
+  const sessions: SessionConfig[] = [
+    { id: "session-1", cli: "codex", model: "fixture-a" },
+    { id: "session-2", cli: "codex", model: "fixture-b", effort: "high" },
+  ];
+  const f = await fixture("live", undefined, (text) => text, sessions);
+  try {
+    assert.deepEqual(f.controller.snapshot().sessions, sessions);
+    f.runner.resolvers["session-1"]({ status: "complete" });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(
+      f.controller.state.round!.attempts["session-1"].status,
+      "complete",
+    );
+    assert.equal(
+      f.controller.state.round!.attempts["session-2"].status,
+      "running",
+    );
+    assert.equal(f.controller.state.status, "running");
+    await f.controller.skip();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.ok(f.runner.stopped.includes("session-2"));
+    assert.equal(
+      f.controller.state.round!.attempts["session-1"].model,
+      "fixture-a",
+    );
+    assert.equal(
+      f.controller.state.round!.attempts["session-2"].status,
+      "cancelled",
+    );
+    assert.deepEqual(f.store.state()!.round!.sessions, sessions);
+  } finally {
+    await f.cleanup();
+  }
+});

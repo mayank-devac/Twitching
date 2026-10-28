@@ -5,6 +5,7 @@ import type {
   ActivityKind,
   ActivityLane,
   Agent,
+  SessionId,
 } from "../shared/types.js";
 export class JsonLines {
   private buffer = "";
@@ -57,6 +58,7 @@ export class ActivityAdapter {
     private clean: (s: string, limit?: number, streaming?: boolean) => string,
     private emit: (e: Activity) => void,
     private now = Date.now,
+    private session: SessionId = agent,
   ) {}
   private publish(
     kind: ActivityKind,
@@ -67,9 +69,9 @@ export class ActivityAdapter {
     if (this.seen.has(key)) return;
     this.seen.add(key);
     this.emit({
-      id: `${this.round}:${this.agent}:${key}`,
+      id: `${this.round}:${this.session}:${key}`,
       round: this.round,
-      agent: this.agent,
+      agent: this.session,
       at: this.now(),
       kind,
       text: this.clean(text, Infinity),
@@ -87,9 +89,9 @@ export class ActivityAdapter {
     if (!next || next === prev) return;
     this.shown.set(key, next);
     this.emit({
-      id: `${this.round}:${this.agent}:${key}`,
+      id: `${this.round}:${this.session}:${key}`,
       round: this.round,
-      agent: this.agent,
+      agent: this.session,
       at: this.now(),
       kind,
       text: next,
@@ -259,9 +261,9 @@ export class ActivityAdapter {
     if (!shown || this.seen.has(key)) return;
     this.seen.add(key);
     this.emit({
-      id: `${this.round}:${this.agent}:${key}`,
+      id: `${this.round}:${this.session}:${key}`,
       round: this.round,
-      agent: this.agent,
+      agent: this.session,
       at: this.now(),
       kind: "command",
       text: shown,
@@ -312,13 +314,16 @@ export class ActivityAdapter {
     const key = `${callId}:html`;
     const redacted = this.clean(text, Infinity);
     const previous = this.shown.get(key);
-    if (previous === redacted || (previous && previous.length > redacted.length))
+    if (
+      previous === redacted ||
+      (previous && previous.length > redacted.length)
+    )
       return;
     this.shown.set(key, redacted);
     this.emit({
-      id: `${this.round}:${this.agent}:${key}`,
+      id: `${this.round}:${this.session}:${key}`,
       round: this.round,
-      agent: this.agent,
+      agent: this.session,
       at: this.now(),
       kind: "edit",
       text: redacted,

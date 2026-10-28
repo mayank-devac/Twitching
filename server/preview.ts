@@ -5,7 +5,7 @@ import { parse, serialize } from "parse5";
 import type { Browser, BrowserContext, Page } from "playwright";
 import express from "express";
 import { z } from "zod";
-import type { Agent } from "../shared/types.js";
+import type { SessionId } from "../shared/types.js";
 import { credentialGuard } from "./redact.js";
 export const previewPolicy =
   "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; media-src data:; connect-src 'none'; webrtc 'block'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; sandbox allow-scripts";
@@ -53,6 +53,7 @@ export function sanitizeHtml(html: string) {
   return serialize(doc);
 }
 interface View {
+  viewport: { width: number; height: number };
   token: string;
   html: string;
   context: BrowserContext;
@@ -182,8 +183,10 @@ export class Previews {
           return;
         }
         const input = parsed.data;
-        if ((input.type === "click" || input.type === "move") &&
-            (input.x > this.viewport.width || input.y > this.viewport.height)) {
+        if (
+          (input.type === "click" || input.type === "move") &&
+          (input.x > view.viewport.width || input.y > view.viewport.height)
+        ) {
           res.status(400).end();
           return;
         }
@@ -217,7 +220,7 @@ export class Previews {
       const base=${base},token=${token},image=document.querySelector('img');let timer;
       const next=()=>{image.src=base+'/frame/'+token+'?t='+Date.now()};image.onload=()=>{timer=setTimeout(next,180)};image.onerror=()=>{image.style.display='none';document.querySelector('#error').style.display='block'};next();
       const send=data=>fetch(base+'/input/'+token,{method:'POST',mode:'no-cors',credentials:'omit',headers:{'Content-Type':'text/plain'},body:JSON.stringify(data)}).catch(()=>{});
-      function position(e){const rect=image.getBoundingClientRect(),scale=Math.min(rect.width/${this.viewport.width},rect.height/${this.viewport.height}),left=rect.left+(rect.width-${this.viewport.width}*scale)/2,top=rect.top+(rect.height-${this.viewport.height}*scale)/2;return{x:Math.max(0,Math.min(${this.viewport.width},(e.clientX-left)/scale)),y:Math.max(0,Math.min(${this.viewport.height},(e.clientY-top)/scale))}};
+      function position(e){const rect=image.getBoundingClientRect(),scale=Math.min(rect.width/${view.viewport.width},rect.height/${view.viewport.height}),left=rect.left+(rect.width-${view.viewport.width}*scale)/2,top=rect.top+(rect.height-${view.viewport.height}*scale)/2;return{x:Math.max(0,Math.min(${view.viewport.width},(e.clientX-left)/scale)),y:Math.max(0,Math.min(${view.viewport.height},(e.clientY-top)/scale))}};
       image.onclick=e=>{document.body.focus();send({type:'click',...position(e)})};let moved=0;image.onmousemove=e=>{if(Date.now()-moved>60){moved=Date.now();send({type:'move',...position(e)})}};
       onkeydown=e=>{const key=e.key===' '?'Space':e.key;if(/^(ArrowUp|ArrowDown|ArrowLeft|ArrowRight|Enter|Escape|Space|Backspace|Tab|[a-zA-Z0-9])$/.test(key)){e.preventDefault();send({type:'key',key})}};onwheel=e=>{e.preventDefault();send({type:'wheel',dy:Math.max(-1000,Math.min(1000,e.deltaY))})};
     </script></body></html>`;
@@ -226,16 +229,17 @@ export class Previews {
     if (!this.browser?.isConnected())
       this.browser = await this.browserFactory();
   }
-  private async render(html: string): Promise<View> {
+  private async render(html: string, viewport = this.viewport): Promise<View> {
     if (!this.browser) throw new Error("Preview browser is not ready");
     const token = randomBytes(24).toString("hex");
     const url = `${this.origin}/isolated/${token}`;
     const context = await this.browser.newContext({
       acceptDownloads: false,
-      viewport: this.viewport,
+      viewport,
     });
     const page = await context.newPage();
     const view: View = {
+      viewport,
       token,
       html,
       context,
@@ -319,7 +323,7 @@ export class Previews {
         });
     return view.capture;
   }
-  async validate(agent: Agent, round: number) {
+  async validate(agent: SessionId, round: number, sessionCount?: number) {
     const file = resolve(this.root, "main", agent, `prompt_${round}.html`);
     const stat = await lstat(file);
     if (
@@ -339,7 +343,12 @@ export class Previews {
     this.assertSafeHtml(html);
     if (!/<(?:html|body|canvas|div|main|svg|button)\b/i.test(html))
       throw new Error("Output is not HTML");
-    const view = await this.render(html);
+    const view = await this.render(
+      html,
+      sessionCount === undefined
+        ? this.viewport
+        : { width: sessionCount === 1 ? 1920 : 960, height: 1044 },
+    );
     for (const [key, old] of this.views)
       if (key.startsWith(`${agent}:`)) {
         await old.context.close();
@@ -348,9 +357,9 @@ export class Previews {
     this.views.set(`${agent}:${round}`, view);
     return `${this.origin}/page/${agent}/${round}`;
   }
-  async restore(agent: Agent, round: number) {
+  async restore(agent: SessionId, round: number, sessionCount?: number) {
     try {
-      return await this.validate(agent, round);
+      return await this.validate(agent, round, sessionCount);
     } catch {
       return undefined;
     }
