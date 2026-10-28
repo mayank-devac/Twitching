@@ -1749,3 +1749,6 @@ textarea {
   width: 72px;
   height: 72px;
 }
+
+/* Approved uploaded images fill the same break stage as the original visual. */
+.break-screen > .break-upload { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }

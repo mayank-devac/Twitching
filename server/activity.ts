@@ -256,7 +256,13 @@ export class ActivityAdapter {
       this.publish("error", "CLI reported an error", "error");
     }
   }
-  private track(lane: ActivityLane, text: string, key: string) {
+  // Public filenames are separate from host-only search strings and raw tool arguments.
+  private track(
+    lane: ActivityLane,
+    text: string,
+    key: string,
+    publicFile?: string,
+  ) {
     const shown = this.clean(text, Infinity).trim();
     if (!shown || this.seen.has(key)) return;
     this.seen.add(key);
@@ -267,6 +273,7 @@ export class ActivityAdapter {
       at: this.now(),
       kind: "command",
       text: shown,
+      publicFile,
       lane,
     });
   }
@@ -277,11 +284,16 @@ export class ActivityAdapter {
     subtype: string,
   ) {
     const name = String(args.name ?? tool);
-    const path = String(
+    const rawPath = String(
       args.path ?? args.target_file ?? args.file_path ?? args.file ?? "",
-    )
-      .split("/")
-      .pop();
+    );
+    const path = rawPath.split("/").pop();
+    const publicFile = [
+      `prompt_${this.round}.html`,
+      `/workspace/prompt_${this.round}.html`,
+    ].includes(rawPath)
+      ? `prompt_${this.round}.html`
+      : undefined;
     const pattern = String(
       args.pattern ?? args.glob ?? args.glob_pattern ?? args.query ?? "",
     );
@@ -298,7 +310,12 @@ export class ActivityAdapter {
       lane = "read";
       text = path || pattern || name;
     } else if (path) text = `${name} ${path}`;
-    this.track(lane, text, `${callId}:${lane}:${subtype || "once"}`);
+    this.track(
+      lane,
+      text,
+      `${callId}:${lane}:${subtype || "once"}`,
+      lane === "read" ? publicFile : undefined,
+    );
   }
   private showWrittenHtml(
     callId: string,

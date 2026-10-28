@@ -5,7 +5,7 @@ export const DISK_SOFT_BYTES = 520 * 1024 * 1024;
 export const DISK_HARD_BYTES = 1024 * 1024 * 1024;
 
 const ROOTS = ["runtime/workspaces", "runtime/native-workspaces"] as const;
-const AGENTS = ["codex", "cursor", "session-1", "session-2"] as const;
+import { SESSION_IDS } from "../shared/types.js";
 
 async function entries(dir: string) {
   return readdir(dir).catch((error: NodeJS.ErrnoException) => {
@@ -70,7 +70,7 @@ async function moveOlderRounds(sourceAgent: string, archiveAgent: string) {
 async function archivedRounds(archive: string) {
   const found: { path: string; mtimeMs: number }[] = [];
   for (const base of ROOTS) {
-    for (const agent of AGENTS) {
+    for (const agent of SESSION_IDS) {
       const dir = resolve(archive, base.slice("runtime/".length), agent);
       for (const name of await entries(dir)) {
         if (!/^\d+$/.test(name)) continue;
@@ -101,7 +101,7 @@ export async function enforceDiskBudget(
   let moved = 0;
   if (size > soft) {
     for (const base of ROOTS) {
-      for (const agent of AGENTS)
+      for (const agent of SESSION_IDS)
         moved += await moveOlderRounds(
           resolve(root, base, agent),
           archiveAgent(root, base, agent),

@@ -121,6 +121,29 @@ Keep the terminal open. **Ctrl+C ends the activated show and broadcast.**
 
 **Run the show:** open the [host control panel](http://127.0.0.1:3210/control).
 
+**Quick Settings:** use the control panel's **Quick Settings ↗** link to open a separate host tab at `/control/settings`.
+
+- Each CLI contains distinct Left/Right session cards, including two sessions of the same CLI. Refresh installed models to discover the actual account model/effort choices; unavailable choices are rejected rather than substituted. Saved model or harness changes apply to the next round; current sessions finish normally. **Run a new harness** configures another slot or an explicit next-round replacement (maximum two).
+- Overlay visibility saves immediately per session. Hiding activity does not delete stored history. Read-name visibility exposes only structured reads of the exact arena output filename, never arbitrary file paths, search patterns or file contents. The CLI must report a structured read; commands are not guessed to be file reads. Commands remain redacted.
+- Mode changes require paused/stopped coding with no active work. Live startup still requires the normal rehearsal, quota and OBS checks. Platform switches apply on the next Start/Resume with no active work; account identifiers and credentials stay in the existing startup flow. Prompt-list mode does not connect chat until the explicit switch to chat. Explicit guided-startup mode/session/platform selections take precedence over previous web choices for that process. This page does not edit remote stream titles or account metadata.
+- Collection/extension timings and Jev criteria apply at the next collection reset. Results timing applies when a round next finishes. Existing deadlines do not move. Criteria supplement mandatory safety/offline-HTML rules and are part of evaluation cache keys, so old cached scores cannot be reused for new criteria. `jevProbe` is used at the next live Start/Resume; saving it does not call Jev.
+- The prepared prompt pencil edits only an unlaunched frozen prompt, with **Host edited** attribution. If selection or launch wins the race, Save rejects the stale version. Past prompts are a separate read-only panel, in pages of 20 rounds.
+- **Play break with timer** schedules a manual break after both sessions and their result display. **Stop work and break now** explicitly cancels active work first. The deadline is stored on the server, so refreshing a browser cannot reset it. A manual break ends paused; Resume rechecks quota. Manual breaks cannot replace quota breaks. **Stop stream** asks for confirmation, cancels coding and requests actual OBS StopStream; an unconfirmed OBS stop reports an error. It is disabled in rehearsal.
+- Break music and GIF/static images can be uploaded, previewed and selected. The file limit is **12 MB**, with **64 files** maximum in `runtime/break-media/`; oversized/unsupported uploads are rejected. Files get opaque IDs and format checks, and explicit media routes reject traversal and symlinks. HTML/SVG uploads are not accepted and no runtime folder is a static root. Removing a selection restores the original music/visual but keeps the uploaded library file. Missing or undecodable selected media falls back to the original media. Only the overlay autoplays music; settings previews need a Play gesture and OBS may need autoplay enabled.
+
+Safe web preferences are stored separately in SQLite's `quick_settings` row, not in environment/credential files. Every save carries a revision; a stale tab must reload instead of silently overwriting another tab. Unsaved model/media/Jev edits stay local to that tab. No build, real CLI run, paid Jev request or broadcast operation is performed just by opening settings (model discovery happens only when requested).
+
+Focused verification (run manually):
+
+```sh
+npm run check &&
+npx tsx --test tests/quick-settings.test.ts tests/controller.test.ts tests/http.test.ts tests/sessions.test.ts tests/activity-stream.test.ts &&
+npm run build
+```
+
+Then exercise two settings tabs in private rehearsal: stale save rejection, two same-CLI cards, a pending model change during a round, stale prepared-prompt editing, a scheduled/immediate break, reload during the timer, uploaded/missing media, and blocked audio. Verify actual OBS shutdown separately in a deliberately started test broadcast; unit fixtures cannot prove OBS or installed CLI integration.
+
+
 **Display the show:** add the [overlay](http://127.0.0.1:3210/overlay) as an OBS Browser Source at **1920 × 1080**.
 
 Use these exact `127.0.0.1` addresses; other Host headers are rejected. Refresh reconnects to the current show and recent events.

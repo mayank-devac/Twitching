@@ -1,6 +1,7 @@
 export type Platform = "youtube" | "twitch" | "kick" | "fallback";
 export type Agent = "codex" | "cursor";
 // CLI identity selects a protocol; session identity owns files and results.
+export const SESSION_IDS = ["codex", "cursor", "session-1", "session-2"] as const;
 export type SessionId = string;
 export interface SessionConfig {
   id: SessionId;
@@ -27,11 +28,25 @@ export function configuredSessions(options: SessionOptions): SessionConfig[] {
     ...(cli === "codex" ? { effort: options.codexEffort ?? "high" } : {}),
   }));
 }
-export function sessionLabel(session: SessionConfig) {
+export function sessionLabel(session: Pick<SessionConfig, "model" | "effort">) {
   return session.model + (session.effort ? ` · ${session.effort}` : "");
 }
 export function validSessionId(id: string) {
-  return /^(codex|cursor|session-[12])$/.test(id);
+  return SESSION_IDS.some((value) => value === id);
+}
+export function legacyCli(id: string): Agent | undefined {
+  return id === "codex" || id === "cursor" ? id : undefined;
+}
+export function sessionCli(state: Pick<ShowState, "round" | "sessions">, id: SessionId): Agent | undefined {
+  return state.round?.attempts[id]?.cli
+    ?? state.round?.sessions?.find((s) => s.id === id)?.cli
+    ?? state.sessions?.find((s) => s.id === id)?.cli
+    ?? legacyCli(id);
+}
+// Old rounds stored the model and reasoning effort as one display label.
+export function legacyModel(label: string): Pick<SessionConfig, "model" | "effort"> {
+  const match = label.match(/^(.*?) · (minimal|low|medium|high|xhigh|max|ultra)$/);
+  return match ? { model: match[1], effort: match[2] } : { model: label };
 }
 export interface ChatMessage {
   id: string;
@@ -90,6 +105,8 @@ export interface Activity {
   append?: boolean;
   diff?: boolean;
   lane?: ActivityLane;
+  // Set only by a parser that validated an exact arena workspace filename.
+  publicFile?: string;
 }
 export interface Attempt {
   cli?: Agent;
@@ -124,11 +141,20 @@ export interface ShowState {
   reason: string;
   round?: Round;
   prepared?: Task;
+  preparedVersion?: string;
   candidates: Candidate[];
   candidateCount: number;
   collectionDeadline?: number;
   resultUntil?: number;
+  // Manual breaks never use the quota recovery transition.
   breakUntil?: number;
+  breakKind?: "manual" | "quota";
+  manualBreak?: { durationMs: number; deadline?: number };
+  quickSettings?: {
+    revision: number;
+    visibility: import("./settings.js").QuickPreferences["visibility"];
+    media: import("./settings.js").QuickPreferences["media"];
+  };
   obsReconnectDeadline?: number;
   quota?: { remainingPercent: number; resetsAt: number };
   events: Activity[];

@@ -4,6 +4,7 @@ import { Filter, rank } from "./filter.js";
 import type { Judge } from "./jev.js";
 import { Store } from "./store.js";
 export interface CollectionOptions {
+  jevCriteria?: string;
   collectionMs: number;
   extensionMs: number;
   safetyThreshold: number;
@@ -22,6 +23,8 @@ export class Collection {
   private latest = new Map<string, string>();
   private revision = 0;
   private closed = false;
+  private criteria = "";
+  private windowOptions: CollectionOptions;
   constructor(
     private filter: Filter,
     private judge: Judge,
@@ -30,14 +33,22 @@ export class Collection {
     private changed: () => void,
     private now = Date.now,
   ) {
+    this.windowOptions = { ...options };
+    // Capture a stable rubric for every candidate in this collection window.
+    this.criteria = options.jevCriteria ?? "";
+    this.judge.setCriteria?.(this.criteria);
     this.window = this.now();
     this.openedAt = this.now();
     this.deadline = this.now() + options.collectionMs;
   }
   reset() {
+    this.windowOptions = { ...this.options };
+    // Old evaluations remain stored, but a new rubric gets a different cache key.
+    this.criteria = this.options.jevCriteria ?? "";
+    this.judge.setCriteria?.(this.criteria);
     this.window++;
     this.openedAt = this.now();
-    this.deadline = this.openedAt + this.options.collectionMs;
+    this.deadline = this.openedAt + this.windowOptions.collectionMs;
     this.extended = false;
     this.prepared = undefined;
     this.candidates = [];
@@ -92,7 +103,7 @@ export class Collection {
     this.pending++;
     try {
       const cacheKey = createHash("sha256")
-        .update(`rubric-v1:jev-latest:${filtered.normalized}`)
+        .update(`rubric-v2:jev-latest:${this.criteria}:${filtered.normalized}`)
         .digest("hex");
       const evaluation =
         this.store.cache(cacheKey) ??
@@ -147,7 +158,7 @@ export class Collection {
       if (this.candidates.includes(candidate)) this.store.candidate(candidate);
       // New audience activity re-arms an idle window; the show waits for chat instead of inventing a task.
       if (!Number.isFinite(this.deadline))
-        this.deadline = this.now() + this.options.collectionMs;
+        this.deadline = this.now() + this.windowOptions.collectionMs;
       this.revision++;
       this.changed();
     } catch {
@@ -215,7 +226,7 @@ export class Collection {
       this.store.candidateStatus(chosen.id, "selected");
     } else if (!this.extended) {
       this.extended = true;
-      this.deadline = this.now() + this.options.extensionMs;
+      this.deadline = this.now() + this.windowOptions.extensionMs;
     } else {
       // No audience prompt after the extension. Ask Jev for a surprise task to
       // keep the show going; if that fails, wait for new chat activity.

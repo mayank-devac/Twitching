@@ -1,1 +1,4 @@
 ./start_stream.sh --mode rehearsal --runner native 
+./with_colima.sh ./start_stream.sh --mode rehearsal --runner native --codex --no-prompts
+lsof -tiTCP:3210 -sTCP:LISTEN | xargs kill -TERM
+./with_colima.sh ./check_stream_start.sh --mode rehearsal --runner native --codex

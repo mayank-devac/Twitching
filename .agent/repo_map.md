@@ -2,6 +2,28 @@
 
 Purpose: Route agents to the most relevant source files quickly. Verify details against current source before making changes.
 
+## Quick Settings
+
+`shared/settings.ts`, `server/quick-settings.ts`, `server/settings-http.ts`
+
+- Work: Define safe durable host preferences, strict validation, revision conflicts and host/CSRF-protected settings/model/history/action routes.
+- Useful for: Adding an allowlisted operational field, model discovery through existing CLI adapters, and settings save timing.
+- Contains: `QuickPreferences`, `SessionVisibility`, `QuickSettings`, `settingsRoutes`.
+- Used by: `server/index.ts`, `server/http.ts`, `server/controller.ts`, `web/settings/` and `tests/quick-settings.test.ts`.
+
+`server/manual-break.ts`, `server/settings-view.ts`, `server/break-media.ts`
+
+- Work: Keep manual timers distinct from quota recovery, filter public activity without deleting history, redact paginated history, and store/serve bounded approved media by opaque IDs.
+- Useful for: Break cancellation/deadlines, safe public read names, and media traversal/symlink/format checks.
+- Contains: `ManualBreakControls`, `publicActivity`, `historyView`, `BreakMedia`, `detectMedia`.
+- Used by: `server/controller.ts`, `server/settings-http.ts` and the focused settings/controller tests.
+
+`web/settings/QuickSettings.tsx`, `web/settings/SessionCard.tsx`, `web/settings/PreparedPrompt.tsx`, `web/settings/HistoryPanel.tsx`, `web/settings/BreakMedia.tsx`, `web/settings/ActionBar.tsx`, `web/settings/api.ts`, `web/settings/settings.css`, `web/break-screen.tsx`
+
+- Work: Render the separate `/control/settings` host page, independent session cards, prompt/history panels, media selection, and explicit stream/break/harness actions. The shared break screen owns overlay-only music playback and media fallbacks.
+- Useful for: Settings layout, unsaved drafts, current/pending models, immediate visibility saves, stale-tab feedback, and browser autoplay failures.
+- Used by: `web/main.tsx`.
+
 ## `server/`
 
 `server/cli/index.ts`, `server/cli/types.ts`, `server/cli/codex.ts`, `server/cli/cursor.ts`
@@ -71,7 +93,7 @@ Purpose: Route agents to the most relevant source files quickly. Verify details 
 `server/store.ts`
 
 - Work: Persists show state, candidates, evaluations, decisions, events, seen messages, gifts, and container names in SQLite.
-- Useful for: What survives a restart, legacy codex/cursor round migration, and the evaluation cache key storage.
+- Useful for: What survives a restart, legacy codex/cursor round migration, web-preferences persistence, bounded round history and evaluation cache storage.
 - Contains: `Store`.
 - Used by: `server/index.ts`, `server/collection.ts`, `server/controller.ts`, `server/chat.ts`, `server/docker.ts`, `scripts/replay.ts`, and the tests that open `:memory:`.
 

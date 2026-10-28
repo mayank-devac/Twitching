@@ -22,6 +22,7 @@ export type Clean = (
 ) => string;
 export interface CliAdapter {
   cli: Agent;
+  check(host: Docker): Promise<void>;
   discover(host: Docker): Promise<CliCatalog>;
   edited(event: any): boolean;
   command(session: SessionConfig, prompt: string): string[];

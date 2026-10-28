@@ -1,3 +1,4 @@
+import { settingsRoutes, type SettingsServices } from "./settings-http.js";
 import { createServer } from "node:http";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { resolve } from "node:path";
@@ -36,6 +37,7 @@ export function makeHttp(
     previewOrigin: string;
     root: string;
     musicPath: string;
+    quick?: SettingsServices;
     boot?: { rootId: string; configurationId: string; startedAt: number };
   },
 ) {
@@ -106,6 +108,8 @@ export function makeHttp(
     }
     res.json(controller.hostSnapshot());
   });
+  // Settings routes share the existing host cookie and CSRF token checks.
+  if (options.quick) settingsRoutes(app, controller, options.quick, hostAuthorized);
   app.post("/api/action", express.json({ limit: "2kb" }), async (req, res) => {
     if (!hostAuthorized(req)) {
       res
@@ -167,7 +171,7 @@ export function makeHttp(
       dotfiles: "deny",
     }),
   );
-  app.get(["/", "/overlay", "/control"], (_req, res) =>
+  app.get(["/", "/overlay", "/control", "/control/settings"], (_req, res) =>
     res.sendFile(resolve(options.root, "dist/index.html")),
   );
   app.use((_req, res) => res.status(404).json({ error: "Not found" }));

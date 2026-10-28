@@ -24,7 +24,7 @@ import { enforceDiskBudget } from "./disk-budget.js";
 import { removeProbeWorkspace } from "./probe-workspace-cleanup.js";
 import { prepareCodexHome, retainCodexLogin } from "./codex-profile.js";
 import type { Store } from "./store.js";
-import type { Agent, SessionId } from "../shared/types.js";
+import { SESSION_IDS, type Agent, type SessionId } from "../shared/types.js";
 
 interface ProcessRecord {
   pid: number;
@@ -74,11 +74,10 @@ export class NativeHost extends Docker {
     return dir;
   }
   private recordPath(name: string) {
-    if (
-      !/^native-stram-[a-f0-9]+-(codex|cursor|session-[12])-[a-zA-Z0-9-]+$/.test(
-        name,
-      )
-    )
+    const prefix = `native-stram-${this.label}-`;
+    const suffix = name.startsWith(prefix) ? name.slice(prefix.length) : "";
+    const id = SESSION_IDS.find((id) => suffix.startsWith(`${id}-`));
+    if (!id || !/^[a-zA-Z0-9-]+$/.test(suffix.slice(id.length + 1)))
       throw new Error("Invalid native runner record");
     return resolve(this.nativeRoot, "runtime/native-processes", `${name}.json`);
   }

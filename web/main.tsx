@@ -1,3 +1,7 @@
+import { sessionCli, sessionLabel } from "../shared/types.js";
+import { QuickSettings } from "./settings/QuickSettings.js";
+import { BreakScreen } from "./break-screen.js";
+import { defaultVisibility } from "../shared/settings.js";
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import ReactMarkdown from "react-markdown";
@@ -12,7 +16,9 @@ import codexLogo from "../assets/codex/codex.svg";
 import botLogo from "../assets/chatgpt/chatgpt-icon.svg";
 import cursorLogo from "../assets/cursor/Cube/SVG/CUBE_2D_DARK.svg";
 import { mergeActivityPatches } from "../shared/activity-stream.js";
-const control = location.pathname === "/control";
+// The settings tab shares host authentication but renders its own focused page.
+const settingsPage = location.pathname === "/control/settings";
+const control = location.pathname === "/control" || settingsPage;
 function MarkdownText({ children }: { children: string }) {
   return (
     <div className="markdown">
@@ -54,8 +60,6 @@ function App() {
   const [csrf, setCsrf] = useState("");
   const csrfRef = useRef("");
   const [previewOrigin, setPreviewOrigin] = useState("");
-  const [audioError, setAudioError] = useState("");
-  const audio = useRef<HTMLAudioElement>(null);
   useEffect(() => {
     let closed = false;
     let ws: WebSocket;
@@ -149,20 +153,6 @@ function App() {
     };
   }, []);
   useEffect(() => {
-    if (state?.status === "break")
-      void audio.current
-        ?.play()
-        .catch(() =>
-          setAudioError(
-            "Audio was blocked. Enable autoplay in OBS or press Play music in control.",
-          ),
-        );
-    else {
-      audio.current?.pause();
-      setAudioError("");
-    }
-  }, [state?.status]);
-  useEffect(() => {
     if (state?.awaitingHostChoice) setStopMenu(true);
     if (state?.status === "stopped") setStopMenu(false);
   }, [state?.awaitingHostChoice, state?.status]);
@@ -221,6 +211,8 @@ function App() {
         <p>OBS refreshes reconnect to the same round.</p>
       </main>
     );
+  // A normal route keeps Quick Settings separate from the broadcast layout.
+  if (settingsPage) return <QuickSettings state={state} token={csrf} connected={connected}/>;
   const round = state.round;
   const countdown =
     state.status === "break"
@@ -287,19 +279,7 @@ function App() {
         </footer>
       )}
       {state.status === "break" ? (
-        <section className="break-screen">
-          <iframe
-            title="Pixel eye break visual"
-            src={`${previewOrigin}/break`}
-            sandbox="allow-scripts"
-            referrerPolicy="no-referrer"
-          />
-          <div className="break-label">
-            <h2>{clock((state.breakUntil ?? now) - now)}</h2>
-            {audioError && <p className="error">{audioError}</p>}
-          </div>
-          <audio ref={audio} src="/media/break.mp3" autoPlay loop />
-        </section>
+        <BreakScreen state={state} now={now} previewOrigin={previewOrigin} host={control}/>
       ) : (
         <>
           {!control && round?.task.text && (
@@ -328,7 +308,9 @@ function App() {
       )}
       {control && (
         <section className="controls">
+          {/* Host settings open in a separate accessible tab. */}
           <div className="control-heading">
+            <a href="/control/settings" target="_blank" rel="noopener noreferrer">Quick Settings ↗</a>
             <a href="/overlay" target="_blank" rel="noreferrer">
               overlay ↗
             </a>
@@ -501,19 +483,6 @@ function App() {
                 </button>
               </>
             )}
-            {state.status === "break" && (
-              <button
-                onClick={() =>
-                  void audio.current
-                    ?.play()
-                    .catch(() =>
-                      setAudioError("Could not play the configured music"),
-                    )
-                }
-              >
-                Music
-              </button>
-            )}
             </div>
             <button
               type="button"
@@ -606,7 +575,7 @@ function CliColumn({
   rows,
 }: {
   agent: SessionId;
-  cli: string;
+  cli: string | undefined;
   lane: ActivityLane;
   rows: Activity[];
 }) {
@@ -671,7 +640,7 @@ function CliBoards({ state }: { state: ShowState }) {
                 <CliColumn
                   key={lane}
                   agent={agent}
-                  cli={state.sessions?.find((s) => s.id === agent)?.cli ?? agent}
+                  cli={sessionCli(state, agent)}
                   lane={lane}
                   rows={rows}
                 />
@@ -693,8 +662,11 @@ function AgentPanel({
   now: number;
 }) {
   const attempt = state.round?.attempts[agent];
-  const cli = attempt?.cli ?? state.sessions?.find((s) => s.id === agent)?.cli ?? agent;
-  const model = attempt ? attempt.model + (attempt.effort ? ` · ${attempt.effort}` : "") : state.models?.[agent];
+  const cli = sessionCli(state, agent);
+  const model = attempt ? sessionLabel(attempt) : state.models?.[agent];
+  // Visibility affects public presentation only; host inspection keeps the full view.
+  const visibility = control ? defaultVisibility : state.quickSettings?.visibility[agent] ?? defaultVisibility;
+  const cliLabel = `${cli === "codex" ? "Codex" : "Cursor"} ${(state.agents?.indexOf(agent) ?? 0) === 0 ? "Left" : "Right"}`;
   const showIntro = !control && !state.round;
   const events = state.events.filter((e) => e.agent === agent && !e.lane);
   const log = useRef<HTMLDivElement>(null);
@@ -736,15 +708,15 @@ function AgentPanel({
   return (
     <section className={`agent-panel ${cli}`}>
       <div className="agent-header">
-        <div className="agent-icon">
+        {visibility.cliIcon && <div className="agent-icon">
           <img
             src={cli === "codex" ? codexLogo : cursorLogo}
             alt={cli === "codex" ? "Codex" : "Cursor"}
           />
-        </div>
+        </div>}
         <div>
-          <h2>{cli === "codex" ? "Codex" : "Cursor"}</h2>
-          {model && <p>{model}</p>}
+          {visibility.cliName && <h2>{cliLabel}</h2>}
+          {visibility.model && model && <p>{model}</p>}
         </div>
         <div className="agent-state" aria-label={attempt?.status ?? "idle"}>
           <span
@@ -756,13 +728,13 @@ function AgentPanel({
       <div className="agent-content">
         {showIntro ? (
           <div className="empty-state model-intro">
-            <img
+            {visibility.cliIcon && <img
               className="empty-logo"
               src={cli === "codex" ? codexLogo : cursorLogo}
               alt=""
-            />
-            <h3>{cli === "codex" ? "Codex" : "Cursor"}</h3>
-            {model && <p>{model}</p>}
+            />}
+            {visibility.cliName && <h3>{cliLabel}</h3>}
+            {visibility.model && model && <p>{model}</p>}
           </div>
         ) : attempt?.status === "complete" && attempt.preview && !failed ? (
           <>
@@ -791,7 +763,7 @@ function AgentPanel({
           <div className="failure-card">
             <span>!</span>
             <h3>{attempt?.status}</h3>
-            <p>{attempt?.error ?? ""}</p>
+            <p>{visibility.error ? attempt?.error ?? "" : "Error details hidden by overlay settings"}</p>
           </div>
         ) : (
           <div className="activity-log" ref={log}>
@@ -812,11 +784,11 @@ function AgentPanel({
               ))
             ) : (
               <div className="empty-state">
-                <img
+                {visibility.cliIcon && <img
                   className="empty-logo"
                   src={cli === "codex" ? botLogo : cursorLogo}
                   alt=""
-                />
+                />}
               </div>
             )}
           </div>

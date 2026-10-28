@@ -1,69 +1,12 @@
-import { configuredSessions, validSessionId } from "../shared/types.js";
+import { resolveStartup } from "./startup-config.js";
 import { readFileSync, chmodSync } from "node:fs";
 import { resolve } from "node:path";
 import dotenv from "dotenv";
-import { z } from "zod";
 import {
   DEFAULT_PROMPT_FILE,
   loadPromptList,
   promptPlaylistEnabled,
 } from "./prompt-playlist.js";
-const schema = z.object({
-  host: z.string().regex(/^[\w.-]+$/),
-  port: z.number().int().min(1024).max(65535),
-  previewPort: z.number().int().min(1024).max(65535),
-  webhookPort: z.number().int().min(1024).max(65535),
-  collectionMs: z.number().positive(),
-  extensionMs: z.number().positive(),
-  resultMs: z.number().positive(),
-  reconnectLimitMs: z.number().positive().default(900_000),
-  quotaGraceMs: z.number().positive(),
-  quotaPollMs: z.number().min(10000),
-  codexModel: z.string().min(1),
-  codexEffort: z.string().min(1).default("high"),
-  cursorModel: z.string().min(1),
-  agentImage: z.string().regex(/^[\w./:-]+$/),
-  previewImage: z.string().regex(/^[\w./:-]+$/),
-  browserPort: z.number().int().min(1024).max(65535),
-  mode: z.enum(["live", "rehearsal"]),
-  previewView: z.enum(["jpeg", "live"]).default("live"),
-  runnerMode: z.enum(["docker", "native"]).default("docker"),
-  sessions: z
-    .array(
-      z.object({
-        id: z
-          .string()
-          .refine(validSessionId, "Use codex, cursor, session-1 or session-2"),
-        cli: z.enum(["codex", "cursor"]),
-        model: z.string().trim().min(1),
-        effort: z.string().trim().min(1).optional(),
-      }),
-    )
-    .min(1)
-    .max(2)
-    .refine(
-      (sessions) => new Set(sessions.map((s) => s.id)).size === sessions.length,
-      "Session IDs must be unique",
-    )
-    .optional(),
-  singleAgent: z.enum(["codex", "cursor"]).optional(),
-  safetyThreshold: z.number().min(0).max(1),
-  relevanceThreshold: z.number().min(0).max(1),
-  minScore: z.number().min(0).max(100),
-  jevProbe: z.string().min(10),
-  blockedWords: z.array(z.string()),
-  musicPath: z.string(),
-  visualPath: z.string(),
-  obsUrl: z.string().url(),
-  stopObsOnEnd: z.boolean(),
-  kickWebhookUrl: z.string(),
-  kickListenHost: z.enum(["127.0.0.1", "0.0.0.0"]),
-  skipYoutube: z.boolean().default(false),
-  skipTwitch: z.boolean().default(false),
-  skipKick: z.boolean().default(false),
-  promptFile: z.string().min(1).default(DEFAULT_PROMPT_FILE),
-  promptPlaylist: z.boolean().default(false),
-});
 export const root = process.cwd();
 const raw = JSON.parse(
   readFileSync(resolve(root, "settings.json"), "utf8"),
@@ -74,35 +17,7 @@ const promptFile =
     : DEFAULT_PROMPT_FILE;
 export const housePrompts = loadPromptList(resolve(root, promptFile));
 const promptPlaylist = promptPlaylistEnabled(housePrompts);
-export const settings = schema.parse({
-  ...raw,
-  ...(process.env.ARENA_MODE ? { mode: process.env.ARENA_MODE } : {}),
-  ...(process.env.ARENA_RUNNER ? { runnerMode: process.env.ARENA_RUNNER } : {}),
-  singleAgent: process.env.ARENA_SINGLE_AGENT || raw.singleAgent,
-  sessions: process.env.ARENA_SESSIONS
-    ? JSON.parse(process.env.ARENA_SESSIONS)
-    : process.env.ARENA_SINGLE_AGENT
-      ? undefined
-      : raw.sessions,
-  skipYoutube: process.env.ARENA_SKIP_YOUTUBE === "1" || promptPlaylist,
-  skipTwitch: process.env.ARENA_SKIP_TWITCH === "1" || promptPlaylist,
-  skipKick: process.env.ARENA_SKIP_KICK === "1" || promptPlaylist,
-  promptFile,
-  promptPlaylist,
-});
-settings.sessions ??= configuredSessions(settings);
-if (
-  new Set([
-    settings.port,
-    settings.previewPort,
-    settings.webhookPort,
-    settings.browserPort,
-  ]).size !== 4
-)
-  throw new Error("Use four different ports");
-// Relative media paths resolve against the project root; absolute paths pass through.
-for (const key of ["musicPath", "visualPath"] as const)
-  settings[key] = resolve(root, settings[key]);
+export const settings = resolveStartup({ ...raw, promptFile }, process.env, root, promptPlaylist);
 // Only the controller reads credentials, at runtime. Never return this object in an API response.
 try {
   chmodSync(resolve(root, ".env.local"), 0o600);

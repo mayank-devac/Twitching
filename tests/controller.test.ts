@@ -602,3 +602,53 @@ test("two Codex sessions keep independent results and cancellation identity", as
     await f.cleanup();
   }
 });
+
+// A scheduled manual break waits for both sessions and result display, then ends paused.
+test("manual break keeps a server deadline and Resume cannot skip it", async () => {
+  const f = await fixture();
+  try {
+    await f.controller.manualBreak(10000,false);
+    assert.equal(f.controller.state.status,"running");
+    f.runner.resolvers.codex({status:"complete"});
+    f.runner.resolvers.cursor({status:"complete"});
+    await new Promise(resolve=>setImmediate(resolve));
+    f.setTime(1031);await f.controller.tick();
+    assert.equal(f.controller.state.breakKind,"manual");
+    assert.equal(f.store.state()!.manualBreak!.deadline,11031);
+    await assert.rejects(f.controller.resume(),/break is active/);
+    await assert.rejects(f.controller.start(),/break transition/);
+    f.setTime(11031);await f.controller.tick();
+    assert.equal(f.controller.state.status,"paused");
+    assert.equal(f.controller.state.breakUntil,undefined);
+    assert.equal(f.broadcastStops(),0);
+  } finally {await f.cleanup();}
+});
+
+// An immediate break cancels both processes, while quota breaks keep their own transition.
+test("immediate break stops both sessions and a quota break cannot be replaced", async()=>{
+  const f=await fixture();
+  try {
+    await f.controller.manualBreak(10000,true);
+    assert.deepEqual(new Set(f.runner.stopped),new Set(["codex","cursor"]));
+    assert.equal(f.controller.state.breakKind,"manual");
+    f.setTime(11000);await f.controller.tick();
+    f.runner.quotaValue.remainingPercent=0;
+    await f.controller.resume();
+    assert.equal(f.controller.state.breakKind,"quota");
+    await assert.rejects(f.controller.manualBreak(10000,true),/quota breaks cannot be replaced/);
+  } finally {await f.cleanup();}
+});
+
+// Editing the queued prompt leaves the launched task untouched and invalidates old editors.
+test("prepared prompt edits check the exact version and preserve the active round",async()=>{
+  const f=await fixture();
+  try {
+    const active=f.controller.state.round!.task.text;
+    f.controller.collection.prepared={text:"Draw a quiet ocean with drifting boats",author:"Viewer",platform:"youtube"};
+    const version=f.controller.hostSnapshot().preparedVersion!;
+    f.controller.editPrepared(version,"Draw a bright garden with moving flowers");
+    assert.equal(f.controller.state.prepared!.author,"Host edited");
+    assert.equal(f.controller.state.round!.task.text,active);
+    assert.throws(()=>f.controller.editPrepared(version,"Draw another colourful garden"),/changed or launched/);
+  } finally {await f.cleanup();}
+});

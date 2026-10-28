@@ -1,3 +1,7 @@
+import { createHash } from "node:crypto";
+import type { QuickPreferences, SettingsDocument } from "../shared/settings.js";
+import { publicActivity, historyView } from "./settings-view.js";
+import { ManualBreakControls } from "./manual-break.js";
 import { EventEmitter } from "node:events";
 import type {
   Activity,
@@ -15,6 +19,7 @@ import type { Judge } from "./jev.js";
 import type { PairRunner, RunHandle } from "./runner.js";
 import { Store } from "./store.js";
 export interface ControllerOptions {
+  jevCriteria?: string;
   mode: "live" | "rehearsal";
   runnerMode?: "docker" | "native";
   sessions?: SessionConfig[];
@@ -63,6 +68,122 @@ export class Controller extends EventEmitter {
   private playlistReleased = false;
   private pendingStop?: "chat" | "stream";
   private pendingPlatforms: ChatPlatforms = {};
+  // Cancellation remains owned by the controller; the helper owns only manual timing.
+  private breaks = new ManualBreakControls({
+    state: () => this.state,
+    now: () => this.now(),
+    busy: () => this.busy || this.ending,
+    roundOpen: () => this.roundStillOpen(),
+    persist: () => this.persist(),
+    stopWork: async () => {
+      this.pause("Stopping active work for a manual break");
+      if (this.launchSettled) await this.launchSettled;
+      if (this.handles)
+        await Promise.all(
+          Object.values(this.handles).map((h) => h.stop("cancelled")),
+        );
+      await this.runner.recover();
+    },
+  });
+  private quick?: {
+    get(): SettingsDocument;
+    apply(value: QuickPreferences): void;
+  };
+  // One owner supplies durable preferences; the runner changes only at safe boundaries.
+  configureQuick(quick: {
+    get(): SettingsDocument;
+    apply(value: QuickPreferences): void;
+  }) {
+    this.quick = quick;
+    this.settingsChanged();
+  }
+  assertSettingsChange(value: QuickPreferences) {
+    if (
+      value.stream.mode !== this.state.mode &&
+      (this.breaks.transitioning ||
+        this.busy ||
+        this.launching ||
+        this.handles ||
+        !["paused", "stopped"].includes(this.state.status))
+    )
+      throw new Error(
+        "Pause and finish active work before changing rehearsal/live mode",
+      );
+  }
+  settingsChanged() {
+    const doc = this.quick?.get();
+    if (!doc) return;
+    // Collection reads pending timings/rubrics on reset, never halfway through a window.
+    this.options.jevCriteria = doc.value.jevCriteria;
+    this.options.collectionMs = doc.value.stream.collectionMs;
+    this.options.extensionMs = doc.value.stream.extensionMs;
+    this.options.resultMs = doc.value.stream.resultMs;
+    if (this.state.mode !== doc.value.stream.mode) {
+      this.integrations.stop();
+      this.state.mode = doc.value.stream.mode;
+      this.options.mode = doc.value.stream.mode;
+    }
+    this.persist();
+  }
+  private applyQuick() {
+    const value = this.quick?.get().value;
+    if (!value) return;
+    this.options.sessions = structuredClone(value.sessions);
+    this.quick!.apply(value);
+  }
+  // Compare the exact frozen prompt and window; a launched/replaced prompt cannot be edited.
+  private preparedVersion() {
+    return createHash("sha256")
+      .update(
+        JSON.stringify([this.collection.window, this.collection.prepared]),
+      )
+      .digest("hex");
+  }
+  editPrepared(version: string, text: string) {
+    if (
+      this.busy ||
+      this.launching ||
+      !this.collection.prepared ||
+      version !== this.preparedVersion()
+    )
+      throw new Error(
+        "This prepared prompt changed or launched. Reload before editing.",
+      );
+    const value = text.trim();
+    if (
+      value.length < 10 ||
+      value.length > 600 ||
+      /[\u0000-\u0008]/.test(value) ||
+      this.clean(value, Infinity) !== value
+    )
+      throw new Error(
+        "Use 10–600 characters without private paths, credentials or control characters",
+      );
+    this.collection.prepared = {
+      text: value,
+      author: "Host edited",
+      platform: "fallback",
+    };
+    this.syncCollection();
+  }
+  // Manual expiry pauses; Resume runs the normal quota/rehearsal checks.
+  manualBreak(durationMs: number, immediate: boolean) {
+    return this.breaks.request(durationMs, immediate);
+  }
+  async stopStream() {
+    if (this.state.mode !== "live")
+      throw new Error("Rehearsal does not control a public broadcast");
+    await this.stop("Host requested Stop stream", false);
+    // Report OBS failure to the caller instead of treating a paused controller as success.
+    try {
+      await this.integrations.stopBroadcast();
+    } catch {
+      this.state.reason =
+        "Coding stopped, but OBS broadcast shutdown was not confirmed. Open OBS and stop streaming, or retry Stop stream.";
+      this.persist();
+      throw new Error(this.state.reason);
+    }
+  }
   constructor(
     private store: Store,
     filter: Filter,
@@ -88,6 +209,15 @@ export class Controller extends EventEmitter {
       reason: saved
         ? "Controller restarted. Show is paused."
         : "Ready for a private rehearsal.",
+      // A controller restart keeps the original manual-break deadline and resumes paused afterwards.
+      ...(saved?.breakKind === "manual" && saved.manualBreak?.deadline
+        ? {
+            status: "break" as const,
+            breakKind: "manual" as const,
+            manualBreak: saved.manualBreak,
+            breakUntil: saved.manualBreak.deadline,
+          }
+        : {}),
       round: saved?.round,
       candidates: [],
       candidateCount: 0,
@@ -167,14 +297,30 @@ export class Controller extends EventEmitter {
   }
   snapshot() {
     const value = this.view();
-    value.events = value.events.filter((event) => !event.lane);
+    value.events = publicActivity(
+      value.events,
+      this.quick?.get().value.visibility ?? {},
+    );
     return value;
+  }
+  // Read-only pages share the same public-text redactor as live snapshots.
+  safeHistory(page: import("../shared/settings.js").HistoryPage) {
+    return historyView(page, this.clean);
   }
   hostSnapshot() {
     return this.view();
   }
   private view() {
     const value = structuredClone(this.state);
+    const doc = this.quick?.get();
+    if (doc)
+      value.quickSettings = {
+        revision: doc.revision,
+        visibility: doc.value.visibility,
+        media: doc.value.media,
+      };
+    if (this.collection?.prepared)
+      value.preparedVersion = this.preparedVersion();
     // A saved result keeps its own configuration, even after startup choices change.
     const sessions = value.round?.sessions ?? configuredSessions(this.options);
     value.sessions = sessions;
@@ -239,6 +385,9 @@ export class Controller extends EventEmitter {
     this.persist();
   }
   async start() {
+    // Start cannot skip a server-owned break deadline or quota recovery.
+    if (this.breaks.transitioning || this.state.status === "break")
+      throw new Error("Wait for the break transition or timer to finish");
     if (this.busy || this.launching || this.handles)
       throw new Error("Current round is still running");
     if (
@@ -258,6 +407,7 @@ export class Controller extends EventEmitter {
       "Checking CLI accounts, models, previews and chat connections…";
     this.persist();
     try {
+      this.applyQuick();
       await this.runner.recover();
       const checks = await this.runner.preflight();
       checks.push(...(await this.integrations.preflight()));
@@ -299,7 +449,7 @@ export class Controller extends EventEmitter {
     this.generation++;
     if (this.state.status === "break") {
       this.resumeAfterBreak = false;
-      this.state.reason = `${reason}. Quota break continues.`;
+      this.state.reason = `${reason}. ${this.state.breakKind === "manual" ? "Timed" : "Quota"} break continues.`;
       this.persist();
       return;
     }
@@ -308,7 +458,12 @@ export class Controller extends EventEmitter {
     this.persist();
   }
   async resume() {
-    if (this.state.status === "break") throw new Error("Quota break is active");
+    if (this.breaks.transitioning)
+      throw new Error("Work is stopping for a break");
+    if (this.state.status === "break")
+      throw new Error(
+        "A break is active; wait for its timer or quota recovery",
+      );
     if (this.handles || this.launching) {
       this.state.status = "running";
       this.state.reason = "Current round running; next rounds enabled";
@@ -364,7 +519,7 @@ export class Controller extends EventEmitter {
     }
   }
   async tick() {
-    if (this.busy || this.ending) return;
+    if (this.busy || this.ending || this.breaks.transitioning) return;
     this.busy = true;
     try {
       if (!["stopped", "break"].includes(this.state.status))
@@ -386,6 +541,28 @@ export class Controller extends EventEmitter {
         await this.stop(
           `Broadcast did not reconnect within ${Math.round(this.options.reconnectLimitMs / 60000)} minutes; ending the stream`,
         );
+        return;
+      }
+      if (this.state.status === "break" && this.state.breakKind === "manual") {
+        if (this.now() >= (this.state.manualBreak?.deadline ?? Infinity)) {
+          this.state.manualBreak = undefined;
+          this.state.breakKind = undefined;
+          this.state.breakUntil = undefined;
+          this.pause(
+            "Timed break finished. Resume to recheck quota and continue.",
+          );
+        }
+        return;
+      }
+      // Scheduled breaks start only after both sessions and their results finish.
+      if (
+        this.state.manualBreak &&
+        !this.handles &&
+        !this.launching &&
+        !this.roundStillOpen() &&
+        this.state.status !== "break"
+      ) {
+        this.breaks.begin();
         return;
       }
       if (this.state.status === "break") {
@@ -463,6 +640,7 @@ export class Controller extends EventEmitter {
       settled = resolve;
     });
     try {
+      this.applyQuick();
       // Recover any leftovers before every launch, not only at application startup.
       await this.runner.recover();
       if (
@@ -600,6 +778,8 @@ export class Controller extends EventEmitter {
           this.generation++;
           this.resumeAfterBreak = true;
           this.state.status = "break";
+          this.state.breakKind = "quota";
+          this.state.manualBreak = undefined;
           this.state.breakUntil = this.now() + this.options.quotaGraceMs;
           this.state.reason =
             "Codex five-hour quota exhausted. Music break; waiting up to ten minutes.";
@@ -617,6 +797,7 @@ export class Controller extends EventEmitter {
   }
   private recoveredQuota() {
     this.state.breakUntil = undefined;
+    this.state.breakKind = undefined;
     this.state.status = !this.resumeAfterBreak
       ? "paused"
       : this.handles
@@ -712,6 +893,8 @@ export class Controller extends EventEmitter {
     this.state.obsReconnectDeadline = undefined;
     this.state.awaitingHostChoice = false;
     this.pendingStop = undefined;
+    this.state.manualBreak = undefined;
+    this.state.breakKind = undefined;
     this.integrations.stop();
     this.persist();
     try {

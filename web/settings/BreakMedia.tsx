@@ -1,0 +1,243 @@
+import React, { useEffect, useState } from "react";
+import type { QuickPreferences } from "../../shared/settings.js";
+import { hostRequest } from "./api.js";
+type Asset = { id: string; name: string; type: string; bytes: number };
+type Defaults = Record<"audio" | "visual", { name: string; url?: string }>;
+
+// The eye button mounts a preview on demand; closing it also stops preview audio.
+function Eye({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      aria-hidden="true"
+    >
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+      <circle cx="12" cy="12" r="3" />
+      {open && <path d="m3 3 18 18" />}
+    </svg>
+  );
+}
+// Upload names are labels; the server keeps opaque IDs as the only media addresses.
+export function BreakMedia({
+  token,
+  value,
+  change,
+  disabled,
+  onBusy,
+}: {
+  token: string;
+  value: QuickPreferences["media"];
+  change(value: QuickPreferences["media"]): void;
+  disabled: boolean;
+  onBusy(value: boolean): void;
+}) {
+  const [files, setFiles] = useState<Asset[]>([]);
+  const [defaults, setDefaults] = useState<Defaults>({
+    audio: { name: "break.mp3", url: "/media/break.mp3" },
+    visual: { name: "Break visual" },
+  });
+  const [preview, setPreview] = useState<"audio" | "visual">();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (token)
+      hostRequest<{ files: Asset[]; defaults?: Defaults }>(
+        token,
+        "/api/break-media",
+      )
+        .then((r) => {
+          setFiles(r.files);
+          if (r.defaults) setDefaults(r.defaults);
+        })
+        .catch(() => setError("Could not load saved media"));
+  }, [token]);
+  async function upload(file?: File) {
+    if (!file) return;
+    setError("");
+    if (file.size > 12 * 1024 * 1024) {
+      setError("Choose a file smaller than 12 MB");
+      return;
+    }
+    setBusy(true);
+    onBusy(true);
+    try {
+      const response = await fetch("/api/break-media", {
+        method: "POST",
+        headers: {
+          "X-Host-Token": token,
+          "Content-Type": "application/octet-stream",
+          "X-File-Name": encodeURIComponent(file.name),
+        },
+        body: file,
+      });
+      const asset = await response.json();
+      if (!response.ok) throw new Error(asset.error ?? "Upload failed");
+      setFiles((old) => [...old, asset]);
+      change({
+        ...value,
+        [asset.type.startsWith("audio/") ? "audio" : "visual"]: asset.id,
+      });
+      setPreview(undefined);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setBusy(false);
+      onBusy(false);
+    }
+  }
+  return (
+    <section className="qs-card">
+      <div className="qs-section-heading">
+        <div>
+          <h2>Break media</h2>
+          <p className="qs-hint">
+            Choose music and a visual for the break screen.
+          </p>
+        </div>
+        <span className="qs-badge">12 MB / file</span>
+      </div>
+      <div className="qs-media-grid">
+        {(["audio", "visual"] as const).map((kind) => {
+          const selected = files.find((f) => f.id === value[kind]);
+          const url = value[kind]
+            ? `/media/break/${value[kind]}`
+            : defaults[kind].url;
+          const open = preview === kind;
+          return (
+            <article className="qs-media-tile" key={kind}>
+              <div className="qs-row">
+                <h3>{kind === "audio" ? "Music" : "GIF or image"}</h3>
+                <button
+                  type="button"
+                  className="qs-icon-button"
+                  aria-label={`${open ? "Hide" : "Show"} ${kind === "audio" ? "music" : "visual"} preview`}
+                  title={open ? "Hide preview" : "Preview media"}
+                  aria-expanded={open}
+                  onClick={() => setPreview(open ? undefined : kind)}
+                >
+                  <Eye open={open} />
+                </button>
+              </div>
+              <label className="qs-sr-only" htmlFor={`break-${kind}`}>
+                {kind === "audio" ? "Break music" : "Break visual"}
+              </label>
+              <select
+                id={`break-${kind}`}
+                disabled={disabled || busy}
+                value={value[kind] ?? ""}
+                onChange={(e) => {
+                  change({ ...value, [kind]: e.target.value || undefined });
+                  setPreview(undefined);
+                  setError("");
+                }}
+              >
+                <option value="">{defaults[kind].name}</option>
+                {value[kind] && !selected && (
+                  <option value={value[kind]}>{value[kind]} (missing)</option>
+                )}
+                {files
+                  .filter((f) =>
+                    f.type.startsWith(kind === "audio" ? "audio/" : "image/"),
+                  )
+                  .map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name || f.id}
+                    </option>
+                  ))}
+              </select>
+              <div className="qs-media-meta">
+                <span>
+                  {selected
+                    ? `${Math.ceil(selected.bytes / 1024)} KB`
+                    : value[kind]
+                      ? "File unavailable"
+                      : "Default file"}
+                </span>
+                {value[kind] && (
+                  <button
+                    className="qs-text-button"
+                    disabled={disabled || busy}
+                    onClick={() => {
+                      change({ ...value, [kind]: undefined });
+                      setPreview(undefined);
+                    }}
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+              {open && (
+                <div className="qs-media-preview">
+                  {kind === "audio" ? (
+                    <audio
+                      controls
+                      preload="metadata"
+                      src={url}
+                      onError={() =>
+                        setError("Cannot play this file. Choose another track.")
+                      }
+                    />
+                  ) : value.visual ? (
+                    <img
+                      alt={selected?.name ?? "Selected break image"}
+                      src={url}
+                      onError={() =>
+                        setError(
+                          "Cannot display this image. Choose another file.",
+                        )
+                      }
+                    />
+                  ) : url ? (
+                    <iframe
+                      title="Default break visual preview"
+                      src={url}
+                      sandbox="allow-scripts"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <p>Default preview unavailable.</p>
+                  )}
+                </div>
+              )}
+            </article>
+          );
+        })}
+      </div>
+      <label className="qs-upload">
+        <span>
+          <b>Upload a file</b>
+          <small>Audio, GIF, PNG, JPEG or WebP</small>
+        </span>
+        <input
+          type="file"
+          accept=".png,.jpg,.jpeg,.gif,.webp,.mp3,.wav,.ogg"
+          disabled={disabled || busy}
+          onChange={(e) => {
+            void upload(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+      </label>
+      <details className="qs-details">
+        <summary>Formats and playback</summary>
+        <p>
+          MP3, WAV, Ogg audio, GIF, PNG, JPEG or WebP. Up to 64 files, 12 MB
+          each. Save settings to apply a new selection. Reset restores the
+          default file; uploads stay in your library. Preview music plays only
+          when you press Play.
+        </p>
+      </details>
+      {busy && <p role="status">Uploading…</p>}
+      {error && (
+        <p className="qs-error" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}

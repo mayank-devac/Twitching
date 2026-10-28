@@ -20,13 +20,7 @@ export const cursor: CliAdapter = {
   cli: "cursor",
   edited: (event) =>
     event.type === "tool_call" && event.subtype === "completed",
-  async discover(host) {
-    const status = await host.capture("cursor", ["cursor-agent", "status"]);
-    if (
-      !/logged in|authenticated/i.test(status) ||
-      /not logged|not authenticated|api.?key|unauthenticated/i.test(status)
-    )
-      throw missingLoginError("cursor", host.executionBoundary);
+  async check(host) {
     const help = await host.capture("cursor", ["cursor-agent", "--help"]);
     for (const flag of [
       "--print",
@@ -37,6 +31,14 @@ export const cursor: CliAdapter = {
     ])
       if (!help.includes(flag))
         throw new Error(`Installed Cursor CLI lacks required ${flag}`);
+  },
+  async discover(host) {
+    const status = await host.capture("cursor", ["cursor-agent", "status"]);
+    if (
+      !/logged in|authenticated/i.test(status) ||
+      /not logged|not authenticated|api.?key|unauthenticated/i.test(status)
+    )
+      throw missingLoginError("cursor", host.executionBoundary);
     const models = cursorModels(
       await host.capture("cursor", ["cursor-agent", "--list-models"]),
     );

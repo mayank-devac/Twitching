@@ -76,13 +76,20 @@ export class Obs {
     }
     throw new Error("OBS did not confirm that streaming started");
   }
-  async stop() {
-    if (!this.stopOnEnd) return;
+  // Explicit host stops bypass the automatic-stop preference and confirm OBS completion.
+  async stop(force = false) {
+    if (!this.stopOnEnd && !force) return;
     if (!this.connected) await this.connect();
     if ((await this.client.call("GetStreamStatus")).outputActive)
       await this.client.call("StopStream");
-    if ((await this.client.call("GetStreamStatus")).outputActive)
-      throw new Error("OBS is still streaming");
+    const deadline = Date.now() + 5000;
+    while ((await this.client.call("GetStreamStatus")).outputActive) {
+      if (Date.now() >= deadline)
+        throw new Error(
+          "OBS is still streaming. Check OBS and retry Stop stream.",
+        );
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
     this.status("Stream stopped");
   }
   async close() {

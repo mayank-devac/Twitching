@@ -1,3 +1,8 @@
+import { startupConfigurationId } from "./startup-config.js";
+import { QuickSettings, defaultCriteria } from "./quick-settings.js";
+import { BreakMedia } from "./break-media.js";
+import { defaultVisibility } from "../shared/settings.js";
+import type { QuickPreferences } from "../shared/settings.js";
 import { configuredSessions } from "../shared/types.js";
 import { resolve } from "node:path";
 import { createHash } from "node:crypto";
@@ -47,7 +52,61 @@ try {
   await handle.writeFile(String(process.pid));
   await handle.close();
 }
+const bootConfigurationId = startupConfigurationId(settings);
 const store = new Store(resolve(root, "runtime/show.sqlite"));
+// Durable web preferences overlay safe operational fields; process-only execution stays unchanged.
+const preferences = new QuickSettings(
+  store,
+  {
+    sessions: configuredSessions(settings),
+    visibility: Object.fromEntries(
+      configuredSessions(settings).map((s) => [s.id, { ...defaultVisibility }]),
+    ),
+    stream: {
+      mode: settings.mode,
+      youtube: !settings.skipYoutube,
+      twitch: !settings.skipTwitch,
+      kick: !settings.skipKick,
+      collectionMs: settings.collectionMs,
+      extensionMs: settings.extensionMs,
+      resultMs: settings.resultMs,
+    },
+    jevCriteria: defaultCriteria,
+    jevProbe: settings.jevProbe,
+    media: {},
+  },
+  {
+    platforms: [
+      process.env.ARENA_SKIP_YOUTUBE,
+      process.env.ARENA_SKIP_TWITCH,
+      process.env.ARENA_SKIP_KICK,
+    ].some((value) => value !== undefined)
+      ? {
+          youtube: !settings.skipYoutube,
+          twitch: !settings.skipTwitch,
+          kick: !settings.skipKick,
+        }
+      : undefined,
+    mode: process.env.ARENA_MODE ? settings.mode : undefined,
+    sessions:
+      process.env.ARENA_SESSIONS || process.env.ARENA_SINGLE_AGENT
+        ? configuredSessions(settings)
+        : undefined,
+  },
+);
+const applyPreferences = (value: QuickPreferences) => {
+  settings.sessions = structuredClone(value.sessions);
+  settings.mode = value.stream.mode;
+  settings.skipYoutube = !value.stream.youtube;
+  settings.skipTwitch = !value.stream.twitch;
+  settings.skipKick = !value.stream.kick;
+  settings.collectionMs = value.stream.collectionMs;
+  settings.extensionMs = value.stream.extensionMs;
+  settings.resultMs = value.stream.resultMs;
+  settings.jevProbe = value.jevProbe;
+};
+applyPreferences(preferences.get().value);
+const media = new BreakMedia(root, store);
 const privateValues = [
   secrets.jev,
   secrets.youtube.access,
@@ -121,7 +180,6 @@ const obs = new Obs(
   },
   (active) => controller?.setReconnecting(active),
 );
-let chatsStarted = false;
 async function startSelectedChats(platforms: {
   youtube: boolean;
   twitch: boolean;
@@ -193,7 +251,10 @@ const integrations = {
       if (!secrets.jev) throw new Error("TypeSafe API key is missing");
       if (!settings.stopObsOnEnd)
         throw new Error("Enable stopObsOnEnd for automatic public rounds");
-      const result = await new Jev(secrets.jev).evaluate(settings.jevProbe);
+      // Startup probe uses the saved text; mandatory safety questions remain fixed.
+      const probe = new Jev(secrets.jev);
+      probe.setCriteria(preferences.get().value.jevCriteria);
+      const result = await probe.evaluate(settings.jevProbe);
       if (result.safety < settings.safetyThreshold)
         throw new Error("Jev startup safety check failed");
       if (!(await obs.streaming()))
@@ -217,8 +278,9 @@ const integrations = {
     return checks;
   },
   async start() {
-    if (settings.mode !== "live" || chatsStarted) return;
-    chatsStarted = true;
+    if (settings.mode !== "live" || controller.state.playlistTotal) return;
+    // Start/Resume reconnects the selected platforms using the latest saved switches.
+    this.stop();
     try {
       await startSelectedChats({
         youtube: !settings.skipYoutube,
@@ -231,7 +293,7 @@ const integrations = {
     }
   },
   async startChats(platforms: ChatPlatforms) {
-    chatsStarted = true;
+    this.stop();
     await startSelectedChats({
       youtube: !!platforms.youtube,
       twitch: !!platforms.twitch,
@@ -242,10 +304,12 @@ const integrations = {
     youtube.stop();
     twitch.stop();
     kick.stop();
-    chatsStarted = false;
+    // Closed connections must not look Connected when the selected chats restart.
+    for (const platform of ["youtube", "twitch", "kick"])
+      connection(platform, "Stopped");
   },
   stopBroadcast() {
-    return obs.stop();
+    return obs.stop(true);
   },
 };
 controller = new Controller(
@@ -255,10 +319,30 @@ controller = new Controller(
   runner,
   preview,
   integrations,
-  { ...settings, playlist: settings.promptPlaylist ? housePrompts : [] },
+  {
+    ...settings,
+    jevCriteria: preferences.get().value.jevCriteria,
+    playlist: settings.promptPlaylist ? housePrompts : [],
+  },
   clean,
 );
+// This callback is invoked only before preflight/start or a new round launch.
+controller.configureQuick({
+  get: () => preferences.get(),
+  apply: applyPreferences,
+});
 const http = makeHttp(controller, {
+  quick: {
+    preferences,
+    media,
+    store,
+    discover: (cli) => runner.discover(cli),
+    defaults: {
+      audio: settings.musicPath,
+      visual: settings.visualPath,
+      visualUrl: `${preview.origin}/break`,
+    },
+  },
   host: settings.host,
   port: settings.port,
   previewOrigin: preview.origin,
@@ -266,9 +350,7 @@ const http = makeHttp(controller, {
   musicPath: settings.musicPath,
   boot: {
     rootId: createHash("sha256").update(root).digest("hex"),
-    configurationId: createHash("sha256")
-      .update(JSON.stringify(settings))
-      .digest("hex"),
+    configurationId: bootConfigurationId,
     startedAt: Date.now(),
   },
 });

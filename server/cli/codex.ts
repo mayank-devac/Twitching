@@ -7,13 +7,15 @@ export const codex: CliAdapter = {
   edited: (event) =>
     event.type === "item.completed" &&
     ["file_change", "command_execution"].includes(event.item?.type),
-  async discover(host) {
+  async check(host) {
     const help = await host.capture("codex", ["codex", "exec", "--help"]);
     for (const flag of ["--ignore-user-config", "--ignore-rules", "--disable"])
       if (!help.includes(flag))
         throw new Error(
           `Installed Codex CLI lacks required isolation control ${flag}`,
         );
+  },
+  async discover(host) {
     const info = await host.codexInfo();
     if (info.account !== "chatgpt")
       throw missingLoginError("codex", host.executionBoundary);

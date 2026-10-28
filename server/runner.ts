@@ -55,6 +55,19 @@ export function parseQuota(limits: any) {
   };
 }
 export class CliRunner implements PairRunner {
+  private capabilityChecks = new Map<Agent, Promise<void>>();
+  private async ensureCapabilities(cli: Agent) {
+    let check = this.capabilityChecks.get(cli);
+    if (!check) {
+      check = (async () => {
+        await this.docker.inspect([cli]);
+        await cliAdapters[cli].check(this.docker);
+      })();
+      this.capabilityChecks.set(cli, check);
+    }
+    try { await check; }
+    catch (error) { this.capabilityChecks.delete(cli); throw error; }
+  }
   constructor(
     private docker: Docker,
     private options: SessionOptions,
@@ -64,13 +77,13 @@ export class CliRunner implements PairRunner {
     return this.docker.recover();
   }
   async discover(cli: Agent) {
-    await this.docker.inspect([cli]);
+    await this.ensureCapabilities(cli);
     return (await cliAdapters[cli].discover(this.docker)).models;
   }
-  async preflight() {
+  preflight() { return this.checkSelections(); }
+  private async checkSelections() {
     const sessions = configuredSessions(this.options);
     validateSessions(sessions);
-    await this.docker.inspect([...new Set(sessions.map((s) => s.cli))]);
     const models = new Map<Agent, CliCatalog>();
     const checks = [
       this.docker.executionBoundary === "native"
@@ -78,11 +91,13 @@ export class CliRunner implements PairRunner {
         : "Docker isolation and internal egress network ready",
     ];
     for (const session of sessions) {
-      if (!models.has(session.cli))
+      if (!models.has(session.cli)) {
+        await this.ensureCapabilities(session.cli);
         models.set(
           session.cli,
           await cliAdapters[session.cli].discover(this.docker),
         );
+      }
       validateModel(session, models.get(session.cli)!.models);
       checks.push(
         `${session.id}: ${session.cli} · ${sessionLabel(session)} available`,
@@ -101,8 +116,8 @@ export class CliRunner implements PairRunner {
     emit: (event: Activity) => void,
   ) {
     const sessions = configuredSessions(this.options);
-    // Recheck account capabilities before allocating any round resources.
-    await this.preflight();
+    // Refresh account/model availability; fixed host/help checks are cached.
+    await this.checkSelections();
     let prompt = instructions(task, round).replace(
       "Do not ask questions.",
       "Do not ask questions, request sign-ins or approvals, or tag or mention users. Choose a safe self-contained interpretation and continue.",
@@ -153,10 +168,10 @@ export class CliRunner implements PairRunner {
             : this.docker.stop(c.name),
         ),
       );
-      if (cleanup.some((result) => result.status === "rejected"))
-        throw new Error(
-          "Session startup failed and cleanup could not be confirmed; recover runners before restarting",
-        );
+      const failed = cleanup.flatMap((result) => result.status === "rejected" ? [result.reason] : []);
+      if (failed.length)
+        throw new AggregateError([error, ...failed],
+          `Session startup failed (${this.clean(error instanceof Error ? error.message : String(error))}); cleanup could not be confirmed; recover runners before restarting`, { cause: error });
       await Promise.allSettled(Object.values(handles).map((h) => h.done));
       throw error;
     }
