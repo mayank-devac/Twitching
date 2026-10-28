@@ -59,6 +59,6 @@ export const cursor: CliAdapter = {
     "--force",
     prompt,
   ],
-  activity: (session, round, clean, emit) =>
-    new ActivityAdapter("cursor", round, clean, emit, Date.now, session.id),
+  activity: (session, round, clean, emit, general) =>
+    new ActivityAdapter("cursor", round, clean, emit, Date.now, session.id, general),
 };

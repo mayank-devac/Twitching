@@ -8,6 +8,8 @@ import { WebSocketServer, WebSocket } from "ws";
 import { z } from "zod";
 import type { Controller } from "./controller.js";
 import { activityPatches } from "../shared/activity-stream.js";
+import { sessionRoutes } from "./sessions/http.js";
+import type { Sessions } from "./sessions/service.js";
 const requestSchema = z.object({
   action: z.enum([
     "start",
@@ -39,6 +41,8 @@ export function makeHttp(
     root: string;
     musicPath: string;
     quick?: SettingsServices;
+    sessions?: Sessions;
+    openObs?: () => Promise<void>;
     boot?: { rootId: string; configurationId: string; startedAt: number };
   },
 ) {
@@ -63,7 +67,8 @@ export function makeHttp(
     }
     next();
   });
-  app.get("/api/state", (_req, res) => res.json(controller.snapshot()));
+  const publicState = () => options.sessions?.snapshot(controller.snapshot()) ?? controller.snapshot();
+  app.get("/api/state", (_req, res) => res.json(publicState()));
   app.get("/api/boot", (_req, res) => res.json(options.boot ?? {}));
   const hostAuthorized = (req: express.Request) => {
     const token = String(req.headers["x-host-token"] ?? "");
@@ -107,11 +112,14 @@ export function makeHttp(
         .json({ error: "Use the local control panel to operate the show" });
       return;
     }
-    res.json(controller.hostSnapshot());
+    res.json({ ...controller.hostSnapshot(), experience: options.sessions?.experience,
+      sharedSession: options.sessions?.snapshot(controller.snapshot()).sharedSession });
   });
   // Settings routes share the existing host cookie and CSRF token checks.
   if (options.quick)
     settingsRoutes(app, controller, options.quick, hostAuthorized);
+  if (options.sessions)
+    sessionRoutes(app, options.sessions, hostAuthorized, options.openObs ?? (async () => { throw new Error("Open OBS manually"); }));
   app.post("/api/action", express.json({ limit: "2kb" }), async (req, res) => {
     if (!hostAuthorized(req)) {
       res
@@ -126,6 +134,8 @@ export function makeHttp(
     }
     const { action, id, text, choice, youtube, twitch, kick } = parsed.data;
     try {
+      if (["start", "resume", "rehearsal-task", "suggest"].includes(action) && options.sessions?.experience !== undefined && options.sessions.experience !== "arena")
+        throw new Error("Choose Existing prompt arena in the welcome dialog first");
       if (action === "start") await controller.start();
       else if (action === "pause") controller.pause();
       else if (action === "resume") await controller.resume();
@@ -191,7 +201,7 @@ export function makeHttp(
       dotfiles: "deny",
     }),
   );
-  app.get(["/", "/overlay", "/control", "/control/settings"], (_req, res) =>
+  app.get(["/", "/overlay", "/control", "/control/welcome", "/control/settings"], (_req, res) =>
     res.sendFile(resolve(options.root, "dist/index.html")),
   );
   app.use((_req, res) => res.status(404).json({ error: "Not found" }));
@@ -223,7 +233,7 @@ export function makeHttp(
   const snapshot = () =>
     JSON.stringify({
       type: "snapshot",
-      state: controller.snapshot(),
+      state: publicState(),
       previewOrigin: options.previewOrigin,
     });
   sockets.on("connection", (socket) => {
@@ -231,17 +241,24 @@ export function makeHttp(
     socket.on("error", () => socket.terminate());
     socket.on("message", () => socket.close(1008, "Read-only overlay socket"));
   });
-  let previousEvents = controller.snapshot().events;
+  let previousEvents = publicState().events;
+  let previousSession = publicState().sharedSession;
   const broadcast = () => {
-    const state = controller.snapshot();
+    const state = publicState();
+    const session = state.sharedSession;
+    // General conversations reuse text patches; only reconnects send a full current page.
+    const previousItems = previousSession?.conversation.id === session?.conversation.id ? previousSession?.page.items ?? [] : [];
     const payload = JSON.stringify({
       type: "update",
-      state: { ...state, events: [] },
+      state: { ...state, events: [], sharedSession: session ? { ...session, page: { ...session.page, items: [] } } : undefined },
+      sessionPatches: activityPatches(previousItems, session?.page.items ?? []),
+      sessionItemIds: session?.page.items.map((item) => item.id) ?? [],
       patches: activityPatches(previousEvents, state.events),
       eventIds: state.events.map((event) => event.id),
       previewOrigin: options.previewOrigin,
     });
     previousEvents = state.events;
+    previousSession = session;
     for (const socket of sockets.clients)
       if (socket.readyState === WebSocket.OPEN) {
         if (socket.bufferedAmount > 1_000_000) socket.terminate();
@@ -249,6 +266,7 @@ export function makeHttp(
       }
   };
   controller.on("state", broadcast);
+  options.sessions?.on("state", broadcast);
   const heartbeat = setInterval(() => {
     for (const socket of sockets.clients) socket.ping();
   }, 20000);
@@ -259,6 +277,7 @@ export function makeHttp(
     close: () => {
       clearInterval(heartbeat);
       controller.off("state", broadcast);
+      options.sessions?.off("state", broadcast);
       for (const socket of sockets.clients) socket.terminate();
       sockets.close();
       return new Promise<void>((resolve) => server.close(() => resolve()));

@@ -28,6 +28,28 @@ Developed with the help of Codex. Started for the [TwitchCon Codex hackathon](ht
 
 ## Start locally
 
+After installing dependencies, double-click **Start Twitching.command** on macOS, or run `./start_stream.sh` without flags. The launcher builds the local UI when its bundle is missing or older than `web/` source, then opens `/control/welcome` and starts an idle server: no model, chat collection or broadcast is started. Keep its terminal open while using Twitching.
+
+Choose **Share existing session**, **Start new session**, or **Existing prompt arena**. The welcome dialog and Quick Settings share the same saved visibility choices. Each selected conversation can override the defaults. The default keeps previous prompt runs visible; hiding previous runs only filters the view. **Show previous prompts** and **Load older messages** still read saved history. Nothing is deleted by this option.
+
+| Source | Browse/history | Live activity | What it can control |
+| --- | --- | --- | --- |
+| Managed Codex/Cursor | SQLite history, 60 items per page | Structured events from this app's own process | Send the next prompt in a managed workspace |
+| Existing Codex | Documented app-server list/read/item pagination, when supported by the installed CLI/history store | Saved history refreshed every 5 seconds; unsaved output may be absent, runtime status is unknown | Read-only; never starts or resumes an external turn |
+| Existing Cursor | Unavailable: documented CLI selection/resume is interactive; passive history/attachment is unverified | Unavailable | Use a managed Cursor session instead |
+
+Installed CLI compatibility checked during development: Codex `0.164.0` (its generated schemas include the history endpoints); Cursor was absent from this shell's PATH. History API runtime calls have **not** been exercised. See the [Codex app-server reference](https://learn.chatgpt.com/docs/app-server), [Cursor parameters](https://cursor.com/docs/cli/reference/parameters), and [Cursor output format](https://cursor.com/docs/cli/reference/output-format).
+
+Selecting a session opens a **private preview**. **Show conversation on stream** publishes only that session's filtered conversation. Switching the private preview does not change publication. **Stop publication** blanks the overlay without stopping coding, and never kills an external CLI. Live publication requires confirming this session's private rehearsal in the current server process, then starting OBS manually. OBS disconnection removes live publication without stopping coding. **Open OBS** only opens the app; **Preview overlay** only opens the overlay page.
+
+New managed sessions default to Docker. Native runs require typing **NATIVE** in the welcome dialog because commands then run on this computer without Docker isolation. Each prompt starts a fresh CLI process in the same isolated session workspace, with up to 24,000 characters of recent redacted conversation as context; it is not a resumed provider thread. Older messages remain in SQLite and workspace files remain on disk. This flow does not import arbitrary local repositories. Model and effort changes apply to future prompts, never an active process.
+
+General sessions can explain code, debug or edit files without generating HTML. A successful CLI completion stays successful when HTML is missing. Process, authentication, quota and cleanup errors remain visible failures. **Result** is a separate private option for the latest supported `prompt_<run>.html`, rendered through the existing isolated preview; it requires Docker even for native agents. Missing/unsafe HTML leaves Conversation available and never replaces it with a failed preview. Only conversation is published by this flow. Arbitrary apps and project directories are never served.
+
+The timeline uses a normal scrollbar. Older pages retain the reader's position; new events follow the bottom only while the reader is already there. At most 600 display fragments are retained in the browser, and older history can be paged indefinitely through a bounded window. Managed messages longer than 16,000 characters are saved as fragments, preserving their text; external Codex items show a labelled 16,000-character excerpt while full text remains in the original CLI. Read names require structured, validated workspace paths; shell commands are not parsed to guess filenames. Command arguments and read contents stay private.
+
+The existing arena still requires one valid HTML result. Pass startup flags to retain the terminal arena workflow, for example `./start_stream.sh --mode rehearsal --runner docker --codex --no-prompts`.
+
 Copy `.env.example` to `.env.local` and fill in your own credentials privately. 
 Add your own `assets/break.mp3` for break music. 
 The blocked-word filter starts empty. For example, add `"blockedWords": ["example-word"]` to `settings.json` to reject that word. Replace it with your own list before accepting public chat.
@@ -77,6 +99,16 @@ Agent logins and private settings are local only; the repository does not includ
 
 ### 2. Use guided startup
 
+To install the one-command launcher in your zsh profile, run this once from the repository:
+
+```sh
+./install_start_stream.sh
+source ~/.zshrc
+start_stream
+```
+
+`start_stream` opens the welcome page. The page lets you choose the sandbox (Docker) or native runner. If Docker is not reachable and Colima is installed, the launcher starts Colima and uses its isolated Docker socket automatically. The installer only adds a marked function to `~/.zshrc`; it does not copy credentials.
+
 With **Docker Desktop insalled**
 ```sh
 ./check_stream_start.sh
@@ -112,7 +144,7 @@ On this Mac, Colima is configured for **4 CPUs, 6 GB RAM and a 12 GB container d
 ```
 
 - **Check:** defaults to live readiness; starts no broadcast or coding job.
-- **Start:** asks for private/live mode and Docker/native agents, checks readiness, then starts or safely reuses a paused app.
+- **Start without flags:** opens the idle welcome UI. **Start with flags:** keeps the guided arena readiness and launch flow.
 - **First run:** choose private rehearsal and Docker. Public mode requires a recorded rehearsal confirmation.
 
 Keep the terminal open. **Ctrl+C ends the activated show and broadcast.**

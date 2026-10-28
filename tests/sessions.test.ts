@@ -25,6 +25,9 @@ import {
   type SessionConfig,
 } from "../shared/types.js";
 import { availableSandboxResults } from "../server/sandbox-results.js";
+import { visibleTimeline, mergeTimeline } from "../shared/timeline.js";
+import { defaultVisibility } from "../shared/settings.js";
+import type { TimelineItem } from "../shared/sessions.js";
 
 const sessions: SessionConfig[] = [
   { id: "session-1", cli: "codex", model: "model-a", effort: "high" },
@@ -144,6 +147,61 @@ async function fixture() {
     },
   };
 }
+
+test("successful general coding without HTML keeps messages and completes", async () => {
+  const f = await fixture();
+  try {
+    const events: Activity[] = [];
+    const runner = new CliRunner(f.host, { ...options, sessions: [sessions[0]], experience: "session" }, (text) => text);
+    const handles = await runner.launch(9, { ...task, text: "Explain this function" }, 0, (e) => events.push(e));
+    const created = f.host.created[0];
+    assert.doesNotMatch(created.command.at(-1)!, /Build exactly one|AUDIENCE_COMMENT_JSON/);
+    f.host.children.get(created.name)!.stdout.emit("data", Buffer.from(JSON.stringify({ type: "item.completed", item: { id: "answer", type: "agent_message", text: "This function adds two numbers." } }) + "\n"));
+    f.host.finish(created.name);
+    assert.equal((await handles["session-1"].done).status, "complete");
+    assert.ok(events.some((e) => e.text === "This function adds two numbers."));
+    assert.ok(events.every((e) => !e.text.includes("checking HTML")));
+  } finally { await f.close(); }
+});
+
+test("old runs page independently for two Codex sessions and hiding never deletes", () => {
+  const store = new Store(":memory:");
+  try {
+    for (let index = 0; index < 125; index++) {
+      store.conversationItem("managed:first", { id: `item-${index}`, run: index < 120 ? "old-run" : "new-run", at: index, kind: "prompt", text: `First ${index}` });
+      store.conversationItem("managed:second", { id: `item-${index}`, run: "second-run", at: index, kind: "message", text: `Second ${index}` });
+    }
+    const latest = store.conversationPage("managed:first");
+    assert.equal(latest.items.length, 60);
+    assert.ok(latest.items.every((i) => i.text.startsWith("First")));
+    const older = store.conversationPage("managed:first", Number(latest.before));
+    const all = mergeTimeline(older.items, latest.items);
+    assert.equal(all.length, 120);
+    assert.equal(visibleTimeline(all, defaultVisibility, false, false, "new-run").length, 120);
+    assert.equal(visibleTimeline(all, defaultVisibility, true, false, "new-run").length, 5);
+    assert.equal(visibleTimeline(all, defaultVisibility, true, true, "new-run").length, 120);
+    assert.equal(store.conversationPage("managed:first").items.length, 60);
+    assert.ok(store.conversationPage("managed:second").items.every((i) => i.text.startsWith("Second")));
+    const replacement: TimelineItem = { ...latest.items[0], text: "First revised" };
+    store.conversationItem("managed:first", replacement);
+    assert.equal(mergeTimeline(all, [replacement]).length, 120);
+    assert.equal(store.conversationPage("managed:first").items[0].text, "First revised");
+  } finally { store.close(); }
+});
+
+test("arena still requires HTML and a general CLI process failure still fails", async () => {
+  for (const experience of ["arena", "session"] as const) {
+    const f = await fixture();
+    try {
+      const runner = new CliRunner(f.host, { ...options, sessions: [sessions[0]], experience }, (text) => text);
+      const handles = await runner.launch(10, task, 0, () => {});
+      const created = f.host.created[0];
+      if (experience === "arena") f.host.finish(created.name);
+      else f.host.children.get(created.name)!.emit("close", 1);
+      assert.equal((await handles["session-1"].done).status, "error");
+    } finally { await f.close(); }
+  }
+});
 
 test("two Codex models have separate handles, prompts, files and exports; discovery runs once", async () => {
   const f = await fixture();

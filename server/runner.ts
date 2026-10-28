@@ -17,6 +17,7 @@ import type { CliCatalog } from "./cli/types.js";
 import { LoginRefreshConflict } from "./login-guard.js";
 import { HtmlDiffs } from "./file-diff.js";
 export interface RunOutcome {
+  hasResult?: boolean;
   status: "complete" | "error" | "timeout" | "cancelled";
   failure?: "auth" | "usage" | "other";
   error?: string;
@@ -77,7 +78,7 @@ export class CliRunner implements PairRunner {
   }
   constructor(
     private docker: Docker,
-    private options: SessionOptions,
+    private options: SessionOptions & { experience?: "welcome" | "session" | "arena"; workspaceKey?: string },
     private clean: (s: string, limit?: number, streaming?: boolean) => string,
   ) {}
   recover() {
@@ -112,7 +113,7 @@ export class CliRunner implements PairRunner {
         `${session.id}: ${session.cli} · ${sessionLabel(session)} available`,
       );
     }
-    if (models.has("codex")) parseQuota(models.get("codex")!.limits);
+    if (models.has("codex") && this.options.experience !== "session") parseQuota(models.get("codex")!.limits);
     return checks;
   }
   async quota() {
@@ -131,7 +132,10 @@ export class CliRunner implements PairRunner {
       "Do not ask questions.",
       "Do not ask questions, request sign-ins or approvals, or tag or mention users. Choose a safe self-contained interpretation and continue.",
     );
-    if (sessions.length === 1)
+    // General coding runs receive the host's request, without the arena HTML contract.
+    if (this.options.experience === "session")
+      prompt = `Work only in /workspace. Do not read authentication files or private CLI homes. Do not request sign-ins or approvals. Complete the following coding or conversation request safely. HTML output is optional; if you choose to produce one self-contained HTML result, save it as /workspace/prompt_${round}.html.\n${task.text}`;
+    if (sessions.length === 1 && this.options.experience !== "session")
       prompt = prompt.replace(
         "a 960 by 1044 box, aspect ratio 80:87, half of a 1920 by 1080 frame",
         "a 1920 by 1044 box, aspect ratio 160:87, filling a 1920 by 1080 frame",
@@ -144,7 +148,9 @@ export class CliRunner implements PairRunner {
           session.cli,
           round,
           cliAdapters[session.cli].command(session, prompt),
-          undefined,
+          this.options.workspaceKey
+            ? await this.docker.workspace({ cli: session.cli, round: this.options.workspaceKey, session: session.id })
+            : undefined,
           session.id,
         );
       // Initialise watchers before starting either process.
@@ -157,7 +163,7 @@ export class CliRunner implements PairRunner {
           this.clean,
           emit,
         );
-        await diffs.begin();
+        if (this.options.experience !== "session") await diffs.begin();
         watchers.set(session.id, diffs);
       }
       for (const session of sessions)
@@ -199,6 +205,7 @@ export class CliRunner implements PairRunner {
       round,
       this.clean,
       emit,
+      this.options.experience === "session",
     );
     const process = this.docker.attach(container.name);
     let stderr = "";
@@ -217,7 +224,7 @@ export class CliRunner implements PairRunner {
         const e = parseCliEvent(value);
         if (!e) return;
         adapter.receive(e);
-        if (cliAdapters[session.cli].edited(e)) void diffs.capture();
+        if (this.options.experience !== "session" && cliAdapters[session.cli].edited(e)) void diffs.capture();
         if (adapter.failure) interrupt(adapter.failure);
       },
       () =>
@@ -245,7 +252,7 @@ export class CliRunner implements PairRunner {
         if (settled) return;
         settled = true;
         lines.end();
-        await diffs.capture();
+        if (this.options.experience !== "session") await diffs.capture();
         let outcome: RunOutcome;
         if (interruption)
           outcome = {
@@ -278,15 +285,26 @@ export class CliRunner implements PairRunner {
           };
         } else outcome = { status: "complete" };
         try {
+          // Optional result errors are display notices, never a failed coding/conversation run.
+          if (this.options.experience === "session" && outcome.status === "complete") {
+            try {
+              if (await this.docker.preserveOutput(agent, round, container.dir)) {
+                await this.docker.output(agent, round, container.dir);
+                outcome.hasResult = true;
+              }
+            } catch {
+              emit({ id: `${round}:${agent}:result-unavailable`, round, agent, at: Date.now(), kind: "output", text: "Optional HTML result unavailable; conversation is kept" });
+            }
+          }
           // Save a finished or partial page before runner cleanup. Hidden CLI
           // homes are never copied; preserveOutput accepts only the expected HTML.
           try {
-            await this.docker.preserveOutput(agent, round, container.dir);
+            if (this.options.experience !== "session") await this.docker.preserveOutput(agent, round, container.dir);
           } finally {
             await (stopping ?? this.docker.stop(container.name));
           }
           if (outcome.status === "complete") {
-            await this.docker.output(agent, round, container.dir);
+            if (this.options.experience !== "session") await this.docker.output(agent, round, container.dir);
             await this.docker.retainAuth(session.cli, container.dir);
           }
         } catch (error) {
@@ -296,7 +314,7 @@ export class CliRunner implements PairRunner {
             error:
               error instanceof LoginRefreshConflict
                 ? "Shared login changed during this session; saved login kept. Check authentication before resuming."
-                : "Runner cleanup or HTML output failed; show must pause",
+                : this.options.experience === "session" ? "Runner cleanup failed" : "Runner cleanup or HTML output failed; show must pause",
           };
         }
         resolve(outcome);

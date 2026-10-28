@@ -2,6 +2,7 @@ import type { ActivityKind, SessionConfig } from "./types.js";
 
 // Public display choices hide presentation only; stored activity is retained.
 export interface SessionVisibility {
+  hidePreviousRuns?: boolean;
   tool: boolean;
   command: boolean;
   read: boolean;
@@ -31,6 +32,7 @@ export const defaultVisibility: SessionVisibility = {
 };
 // The allowlist deliberately excludes credentials, host paths and native execution.
 export interface QuickPreferences {
+  managedModels?: Record<string, { model: string; effort?: string }>;
   sessions: SessionConfig[];
   visibility: Record<string, SessionVisibility>;
   stream: {

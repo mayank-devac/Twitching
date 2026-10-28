@@ -1,5 +1,8 @@
 import { sessionCli, sessionLabel } from "../shared/types.js";
 import { QuickSettings } from "./settings/QuickSettings.js";
+import { Welcome } from "./welcome/Welcome.js";
+import { Timeline } from "./welcome/Timeline.js";
+import type { SessionView } from "../shared/sessions.js";
 import { BreakScreen } from "./break-screen.js";
 import { defaultVisibility } from "../shared/settings.js";
 import React, { useEffect, useRef, useState } from "react";
@@ -18,7 +21,8 @@ import cursorLogo from "../assets/cursor/Cube/SVG/CUBE_2D_DARK.svg";
 import { mergeActivityPatches } from "../shared/activity-stream.js";
 // The settings tab shares host authentication but renders its own focused page.
 const settingsPage = location.pathname === "/control/settings";
-const control = location.pathname === "/control" || settingsPage;
+const welcomePage = location.pathname === "/control/welcome";
+const control = location.pathname === "/control" || settingsPage || welcomePage;
 function MarkdownText({ children }: { children: string }) {
   return (
     <div className="markdown">
@@ -76,7 +80,7 @@ function App() {
           return response.json() as Promise<ShowState>;
         })
         .then((hostState) => {
-          if (!closed && ticket === hostTicket) setState(hostState);
+          if (!closed && ticket === hostTicket) setState((current) => ({ ...hostState, experience: current?.experience ?? hostState.experience, sharedSession: current?.sharedSession ?? hostState.sharedSession }));
         })
         .catch(() => {
           if (!closed && ticket === hostTicket && fallback) setState(fallback);
@@ -98,6 +102,11 @@ function App() {
             setState((current) => {
               try {
                 const events = mergeActivityPatches(current?.events ?? [], payload.patches, payload.eventIds);
+                const session = payload.state.sharedSession as SessionView | undefined;
+                if (session) session.page.items = mergeActivityPatches(
+                  current?.sharedSession?.conversation.id === session.conversation.id ? current.sharedSession.page.items : [],
+                  payload.sessionPatches ?? [], payload.sessionItemIds ?? [],
+                );
                 return { ...payload.state, events: [
                   ...events,
                   ...(control ? current?.events.filter((event) => event.lane) ?? [] : []),
@@ -107,7 +116,7 @@ function App() {
                 return current;
               }
             });
-            if (control && csrfRef.current) void loadHostState(csrfRef.current);
+            if (control && csrfRef.current && (settingsPage || payload.state.experience === "arena")) void loadHostState(csrfRef.current);
           } else if (payload.type === "snapshot") {
             setPreviewOrigin(payload.previewOrigin);
             if (control && csrfRef.current) {
@@ -213,6 +222,17 @@ function App() {
     );
   // A normal route keeps Quick Settings separate from the broadcast layout.
   if (settingsPage) return <QuickSettings state={state} token={csrf} connected={connected}/>;
+  if (welcomePage || (control && state.experience !== "arena")) return <Welcome token={csrf} publishedId={state.sharedSession?.conversation.id} />;
+  if (!control && state.experience && state.experience !== "arena") {
+    const view = state.sharedSession;
+    if (!view) return <main className="session-overlay-empty">No session on stream</main>;
+    return <main className="session-overlay"><Timeline key={view.conversation.id} view={view} older={async (before) => {
+      const response = await fetch(`/api/public-session?${new URLSearchParams({ id: view.conversation.id, before })}`);
+      const page = await response.json();
+      if (!response.ok) throw new Error(page.error ?? "History unavailable");
+      return page as SessionView;
+    }} /></main>;
+  }
   const round = state.round;
   const countdown =
     state.status === "break"
@@ -310,6 +330,7 @@ function App() {
         <section className="controls">
           {/* Host settings open in a separate accessible tab. */}
           <div className="control-heading">
+            <a href="/control/welcome">Sessions</a>
             <a href="/control/settings" target="_blank" rel="noopener noreferrer">Quick Settings ↗</a>
             <a href="/overlay" target="_blank" rel="noreferrer">
               overlay ↗

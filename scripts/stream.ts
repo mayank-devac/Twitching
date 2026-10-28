@@ -1,4 +1,5 @@
 import { chooseSessions, parseSessionSpec } from "./session-selection.js";
+import { chooseExistingServer, stopExistingServer } from "./existing-server.js";
 import {
   normalizeStartup,
   selectStartupSessions,
@@ -28,6 +29,12 @@ import { assertProviderProxy } from "../server/provider-proxy.js";
 
 const args = process.argv.slice(2);
 const command = args.shift();
+// Flags retain the guided arena flow; no flags opens the idle local welcome UI.
+if (command === "start" && args.length === 0) {
+  await import("./welcome-launcher.js");
+  await new Promise(() => {});
+}
+process.env.ARENA_EXPERIENCE = "arena";
 const help = `Prompt Arena guided startup
 
   ./check_stream_start.sh [--cli codex|cursor] [--mode live|rehearsal] [--runner docker|native] [--verify] [--non-interactive] [--chat yt|twitch|kick] [--skip yt|twitch|kick] [--prompts] [--no-prompts]
@@ -333,7 +340,7 @@ try {
     }
     if (!runnerMode) {
       const choice = await question(
-        "Agents: 1 = Docker protection, 2 = native Mac terminals [1]: ",
+        "Agents: 1 = sandbox (Docker protection), 2 = native Mac terminals [1]: ",
         "1",
       );
       if (!["", "1", "2"].includes(choice))
@@ -450,16 +457,61 @@ try {
         .then((s) => s.mtimeMs)
         .catch(() => 0),
     );
-    if (newest > boot.startedAt)
+    // Starting against an owned server is an explicit choice, including stale or active shows.
+    if (command === "start") {
+      if (newest > boot.startedAt)
+        console.log("The running server predates local code/settings changes.");
+      console.log(
+        "Keep leaves the old server untouched. Restart stops active coding and may end an OBS broadcast managed by its old startup terminal.",
+      );
+      const choice = interactive
+        ? await chooseExistingServer(question)
+        : "keep";
+      if (choice === "keep") {
+        console.log(
+          `Keeping the existing server: ${origin}/control. Requested startup changes were not applied.`,
+        );
+        await shutdown();
+        process.exit(0);
+      }
+      console.log(
+        "Waiting for the old server and its startup terminal to finish graceful shutdown…",
+      );
+      await stopExistingServer(
+        root,
+        settings.port,
+        async () => {
+          const response = await fetch(`${origin}/api/boot`, {
+            signal: AbortSignal.timeout(1000),
+          });
+          const current = response.ok
+            ? ((await response.json()) as typeof boot)
+            : {};
+          if (
+            current.rootId !== rootId ||
+            current.startedAt !== boot.startedAt ||
+            current.configurationId !== boot.configurationId
+          )
+            throw new Error("The running server changed");
+        },
+        () => stopping,
+      );
+      existing = false;
+      existingConfigurationId = undefined;
+      state = undefined;
+      console.log("Old server stopped. Continuing normal startup checks.");
+    }
+    if (existing && newest > boot.startedAt)
       fix(
         "The running app has older code/settings/credentials.",
         "Close it and rerun start_stream.sh to load your changes.",
       );
     if (
-      !["paused", "stopped"].includes(state.status) ||
-      Object.values(state.round?.attempts ?? {}).some((a: any) =>
-        ["running", "validating"].includes(a.status),
-      )
+      existing &&
+      (!["paused", "stopped"].includes(state.status) ||
+        Object.values(state.round?.attempts ?? {}).some((a: any) =>
+          ["running", "validating"].includes(a.status),
+        ))
     )
       fix(
         "The show is already active.",
@@ -1056,7 +1108,7 @@ try {
   // Do not dump exception stacks, subprocess output, cookies, CLI account info or secret values.
   if (!stopping) {
     console.error(
-      `\nERROR: ${safeMessage(error instanceof Error ? error.message : "Startup failed")}\nNothing will silently switch models or start a second round.`,
+      `\nERROR: ${safeMessage(error instanceof Error ? error.message : "Startup failed")}\nstopping....`,
     );
     process.exitCode = 1;
   }

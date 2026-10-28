@@ -31,5 +31,6 @@ export interface CliAdapter {
     round: number,
     clean: Clean,
     emit: (event: Activity) => void,
+    general?: boolean,
   ): CliActivity;
 }

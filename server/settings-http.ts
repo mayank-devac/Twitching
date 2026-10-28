@@ -14,7 +14,7 @@ export interface SettingsServices {
   preferences: QuickSettings;
   media: BreakMedia;
   store: Store;
-  discover(cli: Agent): Promise<CliModel[]>;
+  discover(cli: Agent, runner?: "docker" | "native"): Promise<CliModel[]>;
   defaults?: { audio: string; visual: string; visualUrl: string };
 }
 // Every host route authenticates before parsing a body or doing expensive discovery.
@@ -61,7 +61,8 @@ export function settingsRoutes(
       return;
     }
     try {
-      res.json({ models: await discover(cli.data) });
+      const boundary = z.enum(["docker", "native"]).optional().parse(req.query.runner);
+      res.json({ models: boundary ? await services.discover(cli.data, boundary) : await discover(cli.data) });
     } catch {
       res.status(409).json({
         error:
@@ -73,6 +74,8 @@ export function settingsRoutes(
     "/api/settings",
     express.json({ limit: "24kb" }),
     async (req, res) => {
+      const runner = z.enum(["docker", "native"]).optional().safeParse(req.query.runner);
+      if (!runner.success) { res.status(400).json({ error: "Invalid runner" }); return; }
       const parsed = saveSettingsSchema.safeParse(req.body);
       if (!parsed.success) {
         res.status(400).json({
@@ -95,7 +98,7 @@ export function settingsRoutes(
           for (const cli of new Set(value.sessions.map((s) => s.cli))) {
             let models: CliModel[];
             try {
-              models = await discover(cli);
+              models = runner.data ? await services.discover(cli, runner.data) : await discover(cli);
             } catch {
               throw new Error(
                 "Could not verify installed models. Check CLI login and retry; no settings were saved.",
@@ -104,6 +107,13 @@ export function settingsRoutes(
             for (const session of value.sessions.filter((s) => s.cli === cli))
               validateModel(session, models);
           }
+        }
+        // Each managed conversation owns its future model, independent of an arena slot or another conversation.
+        for (const [id, selection] of Object.entries(value.managedModels ?? {})) {
+          if (JSON.stringify(selection) === JSON.stringify(old.value.managedModels?.[id])) continue;
+          const conversation = store.conversation(id);
+          if (conversation?.source !== "managed" || !conversation.config) throw new Error("Managed session no longer exists");
+          validateModel({ ...conversation.config, ...selection }, await services.discover(conversation.cli, conversation.runner));
         }
         for (const kind of ["audio", "visual"] as const) {
           const id = value.media[kind];

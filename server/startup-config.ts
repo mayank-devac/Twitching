@@ -9,6 +9,7 @@ import {
 } from "../shared/types.js";
 import { DEFAULT_PROMPT_FILE } from "./prompt-playlist.js";
 export const startupSchema = z.object({
+  experience: z.enum(["welcome", "session", "arena"]).default("welcome"),
   host: z.string().regex(/^[\w.-]+$/),
   port: z.number().int().min(1024).max(65535),
   previewPort: z.number().int().min(1024).max(65535),
@@ -93,6 +94,7 @@ export function resolveStartup(
   return normalizeStartup(
     {
       ...raw,
+      ...(env.ARENA_EXPERIENCE ? { experience: env.ARENA_EXPERIENCE } : {}),
       ...(env.ARENA_MODE ? { mode: env.ARENA_MODE } : {}),
       ...(env.ARENA_RUNNER ? { runnerMode: env.ARENA_RUNNER } : {}),
       singleAgent: env.ARENA_SINGLE_AGENT || raw.singleAgent,

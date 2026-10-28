@@ -4,6 +4,17 @@ Purpose: Route agents to the most relevant source files quickly. Verify details 
 
 ## Quick Settings
 
+`shared/sessions.ts`, `shared/timeline.ts`, `shared/safe-file-name.ts`, `server/sessions/service.ts`, `server/sessions/codex-history.ts`, `server/sessions/http.ts`
+
+- Work: Separate provider history identity, managed workspaces, private preview and explicit filtered publication from HTML arena rounds. Codex history uses list/read/item APIs only; arbitrary passive live attachment and external Cursor history are explicitly unavailable.
+- Contains: `Sessions`, `CodexHistory`, session capability declarations, bounded timeline pages, display-only old-run filtering and safe structured read names. `Store` owns conversation metadata and stable paginated fragments; legacy arena rows remain separate.
+- Limits: Managed prompts are fresh processes sharing workspace files and bounded recent context; general completion never requires HTML. Optional HTML uses the existing isolated preview only after an explicit Result request. Tests in `tests/sessions.test.ts` include no-HTML completion and session-isolated history; execution requires authorization.
+
+`scripts/welcome-launcher.ts`, `Start Twitching.command`, `web/welcome/Welcome.tsx`, `web/welcome/LaunchChoices.tsx`, `web/welcome/SessionBrowser.tsx`, `web/welcome/Timeline.tsx`, `web/welcome/welcome.css`
+
+- Work: No-flag idle welcome startup, host readiness, managed/external session browser, settings reuse and ordinary scrolling. Existing CLI flags retain the guided arena flow.
+- Used by: `scripts/stream.ts`, `web/main.tsx`, `server/index.ts`, `server/http.ts`. Settings changes retain revision checks; publication requires explicit selection and live rehearsal/OBS gates. Never run a model merely to observe an external session.
+
 `server/startup-config.ts`, `scripts/session-selection.ts`
 
 - Work: Normalize startup inputs through one public schema, identify immutable boot inputs before saved web preferences, and keep session flag parsing and interactive model selection out of the main stream script.

@@ -11,10 +11,12 @@ const visibility = z
       Object.keys(defaultVisibility).map((k) => [k, z.boolean()]),
     ) as Record<keyof typeof defaultVisibility, z.ZodBoolean>,
   )
+  .extend({ hidePreviousRuns: z.boolean().optional() })
   .strict();
 const duration = z.number().int().min(1000).max(3_600_000);
 export const preferencesSchema = z
   .object({
+    managedModels: z.record(z.string().regex(/^managed:[a-zA-Z0-9_-]+$/), z.object({ model: z.string().trim().min(1).max(160), effort: z.string().trim().min(1).max(40).optional() }).strict()).optional(),
     sessions: z
       .array(
         z
@@ -29,7 +31,7 @@ export const preferencesSchema = z
       .min(1)
       .max(2)
       .refine((s) => new Set(s.map((v) => v.id)).size === s.length),
-    visibility: z.record(z.string().refine(validSessionId), visibility),
+    visibility: z.record(z.string().max(220).refine((id) => validSessionId(id) || /^(managed|codex):[a-zA-Z0-9_-]+$/.test(id)), visibility),
     stream: z
       .object({
         mode: z.enum(["live", "rehearsal"]),

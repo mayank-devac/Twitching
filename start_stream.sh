@@ -6,7 +6,8 @@ if ! command -v node >/dev/null 2>&1 || ! node -e 'process.exit(Number(process.v
   printf '%s\n' 'ERROR: Node.js 24 or newer is required. Install it, reopen your terminal, then run this file again.' >&2
   exit 1
 fi
-if ! command -v docker >/dev/null 2>&1; then
+# Idle welcome startup does not need Docker until the host chooses a managed runner.
+if [ "$#" -gt 0 ] && ! command -v docker >/dev/null 2>&1; then
   printf '%s\n' 'ERROR: Docker is required for previews and for the arena Codex login. Install Docker Desktop, open it, then run this file again.' >&2
   exit 1
 fi

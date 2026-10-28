@@ -1,6 +1,7 @@
 import { parseCliEvent, jsonObject, type CliEvent } from "./cli/events.js";
 import { createHash } from "node:crypto";
 import { StringDecoder } from "node:string_decoder";
+import { safeFileName } from "../shared/safe-file-name.js";
 import type {
   Activity,
   ActivityKind,
@@ -62,6 +63,7 @@ export class ActivityAdapter {
     private emit: (e: Activity) => void,
     private now = Date.now,
     private session: SessionId = agent,
+    private general = false,
   ) {}
   private publish(
     kind: ActivityKind,
@@ -111,7 +113,7 @@ export class ActivityAdapter {
       this.successful = true;
       this.publish(
         "complete",
-        "Agent finished; checking HTML",
+        this.general ? "Agent finished" : "Agent finished; checking HTML",
         "turn.completed",
       );
     }
@@ -252,7 +254,7 @@ export class ActivityAdapter {
       this.publish(
         this.successful ? "complete" : "error",
         this.successful
-          ? "Agent finished; checking HTML"
+          ? this.general ? "Agent finished" : "Agent finished; checking HTML"
           : "CLI reported an error",
         "result",
       );
@@ -293,7 +295,7 @@ export class ActivityAdapter {
       args.path ?? args.target_file ?? args.file_path ?? args.file ?? "",
     );
     const path = rawPath.split("/").pop();
-    const publicFile = [
+    const publicFile = this.general ? safeFileName(rawPath) : [
       `prompt_${this.round}.html`,
       `/workspace/prompt_${this.round}.html`,
     ].includes(rawPath)
@@ -387,7 +389,7 @@ function toolArgs(value: unknown): Record<string, unknown> {
   if (typeof detail.name === "string" && detail.name) args = { ...args, name: detail.name };
   return args;
 }
-function commandName(command: string) {
+export function commandName(command: string) {
   const match = command.match(/(?:^|[;\s])([a-zA-Z][a-zA-Z0-9._-]*)(?=\s|$)/);
   return match?.[1] ?? "shell";
 }

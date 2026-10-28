@@ -70,7 +70,7 @@ export function QuickSettings({
     try {
       const result = await hostRequest<{ models: ModelChoice[] }>(
         token,
-        `/api/models/${cli}`,
+        `/api/models/${cli}${state.sharedSession?.conversation.source === "managed" && state.sharedSession.conversation.cli === cli ? `?runner=${state.sharedSession.conversation.runner}` : ""}`,
       );
       setModels((old) => ({ ...old, [cli]: result.models }));
     } catch (e) {
@@ -266,6 +266,20 @@ export function QuickSettings({
       <div className="qs-layout">
         <fieldset className="qs-main" disabled={busy || stale}>
           <section className="qs-card" hidden={section !== "sessions"}>
+            {state.sharedSession && <div className="qs-card">
+              <h2>Published session display</h2>
+              <p>These choices apply only to {state.sharedSession.conversation.title}. Previous prompts are hidden only in the view; history is kept.</p>
+              <SessionCard
+                displayOnly={state.sharedSession.conversation.source !== "managed"}
+                session={{ id: state.sharedSession.conversation.id, cli: state.sharedSession.conversation.cli, model: state.sharedSession.conversation.model ?? "Model unknown", ...draft.managedModels?.[state.sharedSession.conversation.id] }}
+                models={models[state.sharedSession.conversation.cli]}
+                index={0}
+                visibility={draft.visibility[state.sharedSession.conversation.id] ?? state.sharedSession.visibility}
+                busy={busy || stale} change={(selection) => setDraft({ ...draft, managedModels: { ...draft.managedModels, [selection.id]: { model: selection.model, effort: selection.effort } } })}
+                toggle={(v) => toggle(state.sharedSession!.conversation.id, v)}
+              />
+              {state.sharedSession.conversation.source === "managed" && <button disabled={busy} onClick={() => void discover(state.sharedSession!.conversation.cli)}>Refresh models for this session</button>}
+            </div>}
             <div className="qs-section-heading">
               <div>
                 <h2>CLI sessions</h2>

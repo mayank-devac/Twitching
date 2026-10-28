@@ -22,8 +22,11 @@ import { Obs } from "./obs.js";
 import { makeHttp } from "./http.js";
 import { BrowserSandbox } from "./browser-sandbox.js";
 import { NativeHost } from "./native-host.js";
+import { Sessions } from "./sessions/service.js";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 await mkdir(resolve(root, "runtime"), { recursive: true, mode: 0o700 });
-if (settings.promptPlaylist && housePrompts.length === 0)
+if (settings.experience === "arena" && settings.promptPlaylist && housePrompts.length === 0)
   throw new Error(
     `No tasks in ${settings.promptFile}. Add one prompt per line, or set ARENA_NO_PROMPTS=1 to use live chat.`,
   );
@@ -120,8 +123,8 @@ const privateValues = [
 ];
 const clean = redactor(privateValues, root);
 const docker = new Docker(store, { root, image: settings.agentImage });
-const runnerHost =
-  settings.runnerMode === "native" ? new NativeHost(store, root) : docker;
+const native = new NativeHost(store, root);
+const runnerHost = settings.runnerMode === "native" ? native : docker;
 const runner = new CliRunner(runnerHost, settings, clean);
 const browserSandbox = new BrowserSandbox(
   docker,
@@ -139,8 +142,11 @@ const preview = new Previews(
 );
 const previewServer = preview.app().listen(settings.previewPort, settings.host);
 let controller: Controller;
-const connection = (platform: string, status: string, fatal = false) =>
+let sessionService: Sessions | undefined;
+const connection = (platform: string, status: string, fatal = false) => {
+  if (platform === "obs" && status === "Disconnected") sessionService?.obsDisconnected();
   controller?.connection(platform, status, fatal);
+};
 const receive = (message: Parameters<Controller["ingest"]>[0]) => {
   void controller.ingest(message);
 };
@@ -169,6 +175,7 @@ const obs = new Obs(
   settings.stopObsOnEnd,
   (status) => connection("obs", status),
   () => {
+    sessionService?.obsDisconnected();
     if (
       controller?.state.mode === "live" &&
       controller.state.status !== "stopped"
@@ -328,12 +335,23 @@ controller.configureQuick({
   get: () => preferences.get(),
   apply: applyPreferences,
 });
+// Welcome startup stays idle; provider discovery and model runs require explicit host actions.
+const sessions = new Sessions(store, preferences, { docker, native }, clean, settings.experience,
+  () => obs.streaming(), () => ["stopped", "paused"].includes(controller.state.status) && !Object.values(controller.state.round?.attempts ?? {}).some((a) => ["running", "validating"].includes(a.status)),
+  async (agent, round) => { await preview.ready(); return preview.validate(agent, round, 1); });
+sessionService = sessions;
+controller.on("state", () => sessions.settingsChanged());
 const http = makeHttp(controller, {
+  sessions,
+  openObs: async () => {
+    if (process.platform !== "darwin") throw new Error("Open OBS from your computer's app menu, then retry publication");
+    await promisify(execFile)("open", ["-a", "OBS"], { timeout: 5000 });
+  },
   quick: {
     preferences,
     media,
     store,
-    discover: (cli) => runner.discover(cli),
+    discover: (cli, boundary) => boundary ? sessions.models(cli, boundary) : runner.discover(cli),
     defaults: {
       audio: settings.musicPath,
       visual: settings.visualPath,
@@ -351,20 +369,18 @@ const http = makeHttp(controller, {
     startedAt: Date.now(),
   },
 });
-http.server.listen(settings.port, settings.host, () =>
-  console.log(
-    `Prompt Arena: http://${settings.host}:${settings.port}/control · OBS: http://${settings.host}:${settings.port}/overlay`,
-  ),
-);
 await controller.recover();
-await browserSandbox
+// Recover only app-owned orphan runners; external provider sessions have no managed PID here.
+if (sessions.recoveryRunners.has("native") && settings.runnerMode !== "native") await native.recover();
+if (sessions.recoveryRunners.has("docker") && settings.runnerMode !== "docker") await docker.recover();
+if (settings.experience === "arena") await browserSandbox
   .recover()
   .catch(() =>
     controller.pause(
       "Docker is not ready. Start Docker Desktop before running the show.",
     ),
   );
-if (controller.state.round)
+if (settings.experience === "arena" && controller.state.round)
   for (const agent of Object.keys(controller.state.round.attempts)) {
     const attempt = controller.state.round.attempts[agent];
     if (attempt.status === "complete") {
@@ -389,14 +405,20 @@ if (controller.state.round)
       }
     }
   }
+http.server.listen(settings.port, settings.host, () =>
+  console.log(
+    `Prompt Arena: http://${settings.host}:${settings.port}/control · OBS: http://${settings.host}:${settings.port}/overlay`,
+  ),
+);
 const timer = setInterval(() => {
-  void controller.tick();
+  if (sessions.experience === "arena") void controller.tick();
 }, 250);
 let closing = false;
 const close = async () => {
   if (closing) return;
   closing = true;
   clearInterval(timer);
+  await sessions.close();
   await controller.stop("Controller shut down", false);
   await http.close();
   await preview.close();

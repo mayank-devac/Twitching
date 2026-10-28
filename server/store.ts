@@ -33,6 +33,9 @@ export class Store {
       mkdirSync(resolve(path, ".."), { recursive: true, mode: 0o700 });
     this.db = new DatabaseSync(path);
     this.db.exec(`PRAGMA journal_mode=WAL;
+      CREATE TABLE IF NOT EXISTS conversations (id TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS conversation_items (seq INTEGER PRIMARY KEY AUTOINCREMENT, conversation TEXT NOT NULL, id TEXT NOT NULL, value TEXT NOT NULL, UNIQUE(conversation,id));
+      CREATE INDEX IF NOT EXISTS conversation_page ON conversation_items(conversation,seq);
       CREATE TABLE IF NOT EXISTS media_assets (id TEXT PRIMARY KEY, name TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS quick_settings (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL);
@@ -44,6 +47,53 @@ export class Store {
       CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS containers (name TEXT PRIMARY KEY);
       CREATE TABLE IF NOT EXISTS gifts (viewer TEXT PRIMARY KEY, at INTEGER NOT NULL, evidence TEXT NOT NULL);`);
+  }
+  // Session-scoped keyset pages retain old prompts without loading a whole transcript.
+  conversation(id: string): import("../shared/sessions.js").Conversation | undefined {
+    const row = this.db.prepare("SELECT value FROM conversations WHERE id=?").get(id) as { value: string } | undefined;
+    return row ? JSON.parse(row.value) : undefined;
+  }
+  saveConversation(value: import("../shared/sessions.js").Conversation) {
+    this.db.prepare("INSERT INTO conversations VALUES (?,?) ON CONFLICT(id) DO UPDATE SET value=excluded.value").run(value.id, JSON.stringify(value));
+  }
+  conversations(search = "", before = Number.MAX_SAFE_INTEGER) {
+    const rows = this.db.prepare("SELECT rowid,value FROM conversations WHERE rowid<? ORDER BY rowid DESC LIMIT 31").all(before) as { rowid: number; value: string }[];
+    return { conversations: rows.slice(0, 30).map((r) => JSON.parse(r.value) as import("../shared/sessions.js").Conversation)
+      .filter((c) => `${c.title} ${c.project} ${c.cli}`.toLowerCase().includes(search.toLowerCase())),
+      before: rows.length > 30 ? String(rows[29].rowid) : undefined };
+  }
+  conversationItem(conversation: string, item: import("../shared/sessions.js").TimelineItem) {
+    // Long messages become stable page-sized fragments instead of losing their tail.
+    const write = this.db.prepare("INSERT INTO conversation_items(conversation,id,value) VALUES (?,?,?) ON CONFLICT(conversation,id) DO UPDATE SET value=excluded.value");
+    const prefix = `${item.id}:fragment:`;
+    let offset = 0, part = 0;
+    do {
+      let end = Math.min(offset + 16000, item.text.length);
+      if (end < item.text.length && /[\uD800-\uDBFF]/.test(item.text[end - 1])) end--;
+      const id = part === 0 ? item.id : `${prefix}${part}`;
+      write.run(conversation, id, JSON.stringify({ ...item, id, text: item.text.slice(offset, end) }));
+      offset = end; part++;
+    } while (offset < item.text.length);
+    const old = this.db.prepare("SELECT id FROM conversation_items WHERE conversation=? AND id>=? AND id<?").all(conversation, prefix, `${prefix}\uffff`) as { id: string }[];
+    for (const row of old) if (Number(row.id.slice(prefix.length)) >= part)
+      this.db.prepare("DELETE FROM conversation_items WHERE conversation=? AND id=?").run(conversation, row.id);
+  }
+  conversationPage(conversation: string, before = Number.MAX_SAFE_INTEGER): import("../shared/sessions.js").TimelinePage {
+    const rows = this.db.prepare("SELECT seq,value FROM conversation_items WHERE conversation=? AND seq<? ORDER BY seq DESC LIMIT 61")
+      .all(conversation, before) as { seq: number; value: string }[];
+    return { items: rows.slice(0,60).reverse().map((r) => JSON.parse(r.value)), before: rows.length > 60 ? String(rows[59].seq) : undefined };
+  }
+  disconnectConversations() {
+    const runners = new Set<"docker" | "native">();
+    // A previous process being alive is never inferred from a saved status badge.
+    for (const row of this.db.prepare("SELECT value FROM conversations").all() as {value: string}[]) {
+      const c = JSON.parse(row.value) as import("../shared/sessions.js").Conversation;
+      if (c.status === "running" || c.pendingRun) {
+        if (c.runner) runners.add(c.runner);
+        this.saveConversation({...c, status: "disconnected", pendingRun: false});
+      }
+    }
+    return runners;
   }
   // Upload names are display labels only; file access always uses an opaque asset ID.
   mediaName(id: string): string | undefined {

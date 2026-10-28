@@ -4,6 +4,7 @@ import type { ModelChoice, SessionVisibility } from "../../shared/settings.js";
 import { defaultVisibility } from "../../shared/settings.js";
 
 const choices: [keyof SessionVisibility, string][] = [
+  ["hidePreviousRuns", "Hide previous prompt runs (history is kept)"],
   ["tool", "Tool use"],
   ["command", "Commands"],
   ["read", "Read file names"],
@@ -28,6 +29,8 @@ export function SessionCard({
   change,
   toggle,
   remove,
+  visibilitySaveLabel = "Saves immediately",
+  displayOnly = false,
 }: {
   session: SessionConfig;
   index: number;
@@ -38,6 +41,8 @@ export function SessionCard({
   change(value: SessionConfig): void;
   toggle(value: SessionVisibility): void;
   remove?: () => void;
+  visibilitySaveLabel?: string;
+  displayOnly?: boolean;
 }) {
   const supported = models?.find((m) => m.id === session.model);
   const display = visibility ?? defaultVisibility;
@@ -46,7 +51,7 @@ export function SessionCard({
       <div className="qs-row">
         <h3>
           {session.cli === "codex" ? "Codex" : "Cursor"}{" "}
-          {index === 0 ? "Left" : "Right"}
+          {displayOnly ? "session" : index === 0 ? "Left" : "Right"}
         </h3>
         <small>{session.id}</small>
         {remove && (
@@ -57,7 +62,7 @@ export function SessionCard({
       </div>
       {/* Model controls and a vertical visibility list occupy separate readable columns. */}
       <div className="qs-session-layout">
-        <div className="qs-session-models">
+        <div className="qs-session-models" hidden={displayOnly}>
           <p className="qs-current">
             <span>Current</span>{" "}
             {current
@@ -127,7 +132,7 @@ export function SessionCard({
         </div>
         <details open className="qs-details qs-visibility-details">
           <summary>
-            Overlay visibility <small>Saves immediately</small>
+            Overlay visibility <small>{visibilitySaveLabel}</small>
           </summary>
           <fieldset className="qs-visibility" disabled={busy}>
             <legend className="qs-sr-only">Overlay visibility</legend>
@@ -135,7 +140,7 @@ export function SessionCard({
               <label key={key}>
                 <input
                   type="checkbox"
-                  checked={display[key]}
+                  checked={!!display[key]}
                   onChange={(e) =>
                     toggle({ ...display, [key]: e.target.checked })
                   }
