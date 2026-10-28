@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { Agent, SessionConfig, ShowState } from "../../shared/types.js";
 import type {
   ModelChoice,
@@ -11,6 +11,7 @@ import { SessionCard } from "./SessionCard.js";
 import { PreparedPrompt } from "./PreparedPrompt.js";
 import { HistoryPanel } from "./HistoryPanel.js";
 import { BreakMedia } from "./BreakMedia.js";
+import { HarnessForm } from "./HarnessForm.js";
 import { StreamSettings } from "./StreamSettings.js";
 import { ActionBar } from "./ActionBar.js";
 import "./settings.css";
@@ -37,20 +38,6 @@ export function QuickSettings({
     "sessions" | "stream" | "media" | "jev"
   >("sessions");
   const [harness, setHarness] = useState(false);
-  const harnessHeading = useRef<HTMLHeadingElement>(null);
-  // Footer actions reveal and focus the form even when the host has scrolled away.
-  useEffect(() => {
-    if (harness && section === "sessions") {
-      harnessHeading.current?.focus();
-      harnessHeading.current?.scrollIntoView({
-        block: "center",
-        behavior: "smooth",
-      });
-    }
-  }, [harness, section]);
-  const [harnessCli, setHarnessCli] = useState<Agent>("codex");
-  const [harnessModel, setHarnessModel] = useState("");
-  const [replacement, setReplacement] = useState("");
   async function reload() {
     setBusy(true);
     setError("");
@@ -133,8 +120,18 @@ export function QuickSettings({
         : old,
     );
   }
-  function prepareHarness() {
+  function prepareHarness(
+    harnessCli: Agent,
+    harnessModel: string,
+    replacement: string,
+  ) {
     if (!draft || !harnessModel) return;
+    if (replacement && !draft.sessions.some((s) => s.id === replacement)) {
+      setError(
+        "That slot changed. Reopen the harness form and choose a current slot.",
+      );
+      return;
+    }
     const target =
       replacement ||
       ["session-1", "session-2"].find(
@@ -308,84 +305,14 @@ export function QuickSettings({
             </details>
           </section>
           {harness && section === "sessions" && (
-            <section className="qs-card qs-harness">
-              <h2 ref={harnessHeading} tabIndex={-1}>
-                New harness
-              </h2>
-              <p className="qs-hint">
-                Configure a CLI session for the next round.
-              </p>
-              <div className="qs-fields">
-                <label>
-                  CLI
-                  <select
-                    value={harnessCli}
-                    onChange={(e) => {
-                      setHarnessCli(e.target.value as Agent);
-                      setHarnessModel("");
-                    }}
-                  >
-                    <option value="codex">Codex</option>
-                    <option value="cursor">Cursor</option>
-                  </select>
-                </label>
-                <label>
-                  Slot
-                  <select
-                    value={replacement}
-                    onChange={(e) => setReplacement(e.target.value)}
-                  >
-                    <option disabled={draft.sessions.length >= 2} value="">
-                      {draft.sessions.length >= 2
-                        ? "Choose a slot to replace"
-                        : "Add second session"}
-                    </option>
-                    {draft.sessions.map((s, i) => (
-                      <option key={s.id} value={s.id}>
-                        Replace {i === 0 ? "Left" : "Right"} next round ({s.cli}
-                        )
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <div className="qs-fields">
-                <label>
-                  Model
-                  <select
-                    value={harnessModel}
-                    onChange={(e) => setHarnessModel(e.target.value)}
-                  >
-                    <option value="">Choose a model</option>
-                    {models[harnessCli]?.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.id}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <button
-                  className="qs-field-action"
-                  disabled={busy}
-                  onClick={() => void discover(harnessCli)}
-                >
-                  Load models
-                </button>
-              </div>
-              <div className="qs-row">
-                <button
-                  disabled={
-                    busy ||
-                    !harnessModel ||
-                    (draft.sessions.length >= 2 && !replacement)
-                  }
-                  onClick={prepareHarness}
-                >
-                  Use next round
-                </button>
-                <button onClick={() => setHarness(false)}>Cancel</button>
-              </div>
-            </section>
+            <HarnessForm
+              sessions={draft.sessions}
+              models={models}
+              busy={busy}
+              discover={(cli) => void discover(cli)}
+              apply={prepareHarness}
+              cancel={() => setHarness(false)}
+            />
           )}
           <div hidden={section !== "stream"}>
             <StreamSettings
@@ -462,8 +389,6 @@ export function QuickSettings({
         onHarness={() => {
           setSection("sessions");
           setHarness(true);
-          setReplacement("");
-          setHarnessModel("");
           setNotice("");
         }}
         onError={setError}

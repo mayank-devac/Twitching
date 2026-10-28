@@ -52,22 +52,27 @@ class SessionHost extends Docker {
   children = new Map<string, ChildProcessWithoutNullStreams>();
   failCreate?: string;
   failAttach?: string;
+  failStop?: string;
   probes = 0;
+  inspections = 0;
+  helpChecks = 0;
+  models = ["model-a", "model-b"];
   constructor(
     store: Store,
     private fixtureRoot: string,
   ) {
     super(store, { root: fixtureRoot, image: "unused" });
   }
-  override async inspect() {}
+  override async inspect() { this.inspections++; }
   override async capture() {
+    this.helpChecks++;
     return "--ignore-user-config --ignore-rules --disable";
   }
   override async codexInfo() {
     this.probes++;
     return {
       account: "chatgpt",
-      models: ["model-a", "model-b"].map((model) => ({
+      models: this.models.map((model) => ({
         model,
         supportedReasoningEfforts: [{ reasoningEffort: "high" }],
       })),
@@ -109,6 +114,7 @@ class SessionHost extends Docker {
     return child;
   }
   override async stop(name: string) {
+    if (this.failStop && name.includes(this.failStop)) throw new Error("fixture cleanup failure");
     this.stopped.push(name);
     const child = this.children.get(name);
     this.children.delete(name);
@@ -296,6 +302,54 @@ test("identical CLI item IDs stay separate through activity deltas and SQLite", 
   }
 });
 
+test("fixed CLI checks are cached while account/model availability is refreshed", async () => {
+  const f = await fixture();
+  try {
+    const runner = new CliRunner(f.host, options, (text) => text);
+    await runner.preflight();
+    await runner.preflight();
+    assert.equal(f.host.inspections, 1);
+    assert.equal(f.host.helpChecks, 1);
+    assert.equal(f.host.probes, 2);
+    f.host.models = ["model-a"];
+    await assert.rejects(runner.preflight(), /model-b.*unavailable/);
+    assert.equal(f.host.probes, 3);
+  } finally { await f.close(); }
+});
+
+test("failed cleanup preserves the original startup error and cleanup errors", async () => {
+  const f = await fixture();
+  try {
+    f.host.failCreate = "session-2";
+    f.host.failStop = "session-1";
+    await assert.rejects(new CliRunner(f.host, options, (text) => text).launch(1, task, 0, () => {}), (error: unknown) => {
+      assert.ok(error instanceof AggregateError);
+      assert.match(error.message, /fixture create failure.*cleanup could not be confirmed/);
+      assert.ok(error.cause instanceof Error);
+      assert.equal(error.cause, error.errors[0]);
+      assert.match(error.errors[1].message, /fixture cleanup failure/);
+      return true;
+    });
+  } finally { await f.close(); }
+});
+
+test("Docker creation preserves both errors when its own cleanup fails", async () => {
+  const f = await fixture();
+  try {
+    const host = new Docker(f.store, { root: f.root, image: "unused" });
+    const original = new Error("fixture docker create failed");
+    const cleanup = new Error("fixture docker stop failed");
+    host.command = async () => { throw original; };
+    host.stop = async () => { throw cleanup; };
+    await assert.rejects(host.create("codex", 1, [], f.root, "session-1"), (error: unknown) => {
+      assert.ok(error instanceof AggregateError);
+      assert.equal(error.cause, original);
+      assert.deepEqual(error.errors, [original, cleanup]);
+      return true;
+    });
+  } finally { await f.close(); }
+});
+
 test("legacy saved rounds keep their original directory and model identity", () => {
   const store = new Store(":memory:");
   try {
@@ -321,9 +375,24 @@ test("legacy saved rounds keep their original directory and model identity", () 
     });
     const saved = store.state()!;
     assert.deepEqual(saved.round!.sessions, [
-      { id: "codex", cli: "codex", model: "old-model · high" },
+      { id: "codex", cli: "codex", model: "old-model", effort: "high" },
     ]);
     assert.equal(saved.round!.attempts.codex.cli, "codex");
+    assert.equal(saved.round!.attempts.codex.model, "old-model");
+    assert.equal(saved.round!.attempts.codex.effort, "high");
+    // Earlier versions already added sessions but left the display label in model.
+    // Read a separate fixture: the assertions above narrow `saved` to require effort.
+    const previouslyMigrated = store.state()!;
+    previouslyMigrated.round!.sessions![0] = {
+      id: "codex", cli: "codex", model: "old-model · high",
+    };
+    store.save(previouslyMigrated);
+    assert.deepEqual(store.state()!.round!.sessions![0], {
+      id: "codex", cli: "codex", model: "old-model", effort: "high",
+    });
+    const id = store.roundId();
+    store.round({ ...previouslyMigrated.round!, id });
+    assert.equal(store.history().rounds[0].sessions![0].model, "old-model");
   } finally {
     store.close();
   }

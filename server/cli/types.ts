@@ -1,11 +1,11 @@
+import type { CliEvent } from "./events.js";
 import type { Activity, Agent, SessionConfig } from "../../shared/types.js";
 import type { Docker } from "../docker.js";
-export class LoginRefreshConflict extends Error {}
 
 export interface CliActivity {
   successful: boolean;
   failure?: string;
-  receive(event: any): void;
+  receive(event: CliEvent): void;
 }
 export interface CliCatalog {
   models: CliModel[];
@@ -24,7 +24,7 @@ export interface CliAdapter {
   cli: Agent;
   check(host: Docker): Promise<void>;
   discover(host: Docker): Promise<CliCatalog>;
-  edited(event: any): boolean;
+  edited(event: CliEvent): boolean;
   command(session: SessionConfig, prompt: string): string[];
   activity(
     session: SessionConfig,

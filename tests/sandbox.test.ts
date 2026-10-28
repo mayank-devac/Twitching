@@ -24,7 +24,7 @@ test(
     );
     try {
       await docker.inspect();
-      const dir = await docker.workspace("codex", "isolation", false);
+      const dir = await docker.workspace({ cli: "codex", round: "isolation", auth: false });
       await mkdir(resolve(dir, ".home"), { recursive: true });
       const created = await docker.create(
         "codex",

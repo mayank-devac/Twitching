@@ -12,7 +12,7 @@ import type {
   ShowState,
   Task,
 } from "../shared/types.js";
-import { configuredSessions, sessionLabel } from "../shared/types.js";
+import { configuredSessions, sessionLabel, sessionCount, type SessionCount } from "../shared/types.js";
 import { Collection } from "./collection.js";
 import { Filter } from "./filter.js";
 import type { Judge } from "./jev.js";
@@ -193,7 +193,7 @@ export class Controller extends EventEmitter {
       validate(
         agent: SessionId,
         round: number,
-        sessionCount?: number,
+        count: SessionCount,
       ): Promise<string>;
     },
     private integrations: Integrations,
@@ -648,15 +648,16 @@ export class Controller extends EventEmitter {
         !["collecting", "results"].includes(this.state.status)
       )
         return;
+      const sessions = configuredSessions(this.options);
       const id = this.store.roundId();
       const at = this.now();
       this.state.round = {
         id,
         task,
         launchedAt: at,
-        sessions: structuredClone(configuredSessions(this.options)),
+        sessions: structuredClone(sessions),
         attempts: Object.fromEntries(
-          configuredSessions(this.options).map((session) => [
+          sessions.map((session) => [
             session.id,
             {
               cli: session.cli,
@@ -671,7 +672,7 @@ export class Controller extends EventEmitter {
       this.state.events = [];
       this.state.status = "running";
       const launching =
-        configuredSessions(this.options).length === 1
+        sessions.length === 1
           ? "A fresh session is launching"
           : "Both fresh sessions are launching";
       this.state.reason = this.usingPlaylist()
@@ -724,7 +725,7 @@ export class Controller extends EventEmitter {
         attempt.preview = await this.preview.validate(
           agent,
           id,
-          this.state.round.sessions?.length,
+          sessionCount(this.state.round.sessions ?? Object.values(this.state.round.attempts).filter((a) => a.status !== "idle")),
         );
         attempt.status = "complete";
       } catch {

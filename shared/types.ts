@@ -3,6 +3,11 @@ export type Agent = "codex" | "cursor";
 // CLI identity selects a protocol; session identity owns files and results.
 export const SESSION_IDS = ["codex", "cursor", "session-1", "session-2"] as const;
 export type SessionId = string;
+export type SessionCount = 1 | 2;
+export function sessionCount(sessions: readonly unknown[]): SessionCount {
+  if (sessions.length !== 1 && sessions.length !== 2) throw new Error("Choose one or two sessions");
+  return sessions.length;
+}
 export interface SessionConfig {
   id: SessionId;
   cli: Agent;

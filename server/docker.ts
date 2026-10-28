@@ -5,12 +5,9 @@ import {
   cp,
   writeFile,
   lstat,
-  readdir,
-  readFile,
-  realpath,
 } from "node:fs/promises";
 import { readFileSync } from "node:fs";
-import { resolve, relative } from "node:path";
+import { resolve } from "node:path";
 import { randomUUID, createHash } from "node:crypto";
 import type { Agent, SessionId } from "../shared/types.js";
 import { JsonLines } from "./activity.js";
@@ -18,7 +15,7 @@ import { enforceDiskBudget } from "./disk-budget.js";
 import { removeProbeWorkspace } from "./probe-workspace-cleanup.js";
 import { AGENT_NETWORK, EGRESS_PROXY, RUNNER_LIMITS } from "./constants.js";
 import { missingLoginError } from "./cli-startup-repair.js";
-import { LoginRefreshConflict } from "./cli/types.js";
+import { copyLoginFile, fingerprintTree, loginFiles, loginGuard } from "./login-guard.js";
 import { Store } from "./store.js";
 import { preserveSandboxResult, sandboxPromptPath } from "./sandbox-results.js";
 import {
@@ -34,61 +31,24 @@ const clientVersion = (
     version: string;
   }
 ).version;
-// Fingerprint only Cursor's retained login/config files; never expose their contents.
-async function cursorLoginFingerprint(home: string) {
-  const hash = createHash("sha256");
-  const walk = async (dir: string) => {
-    const directory = await lstat(dir).catch((error: NodeJS.ErrnoException) => {
-      if (error.code === "ENOENT") return undefined;
-      throw error;
-    });
-    if (!directory) return;
-    if (
-      !directory.isDirectory() ||
-      directory.isSymbolicLink() ||
-      (await realpath(dir)) !==
-        resolve(await realpath(home), relative(home, dir))
-    )
-      throw new Error("Unsafe Cursor login directory");
-    const entries = await readdir(dir).catch((error: NodeJS.ErrnoException) => {
-      if (error.code === "ENOENT") return [] as string[];
-      throw error;
-    });
-    for (const name of entries.sort()) {
-      const path = resolve(dir, name);
-      const info = await lstat(path);
-      if (info.isSymbolicLink()) continue;
-      if (info.isDirectory()) {
-        if (
-          !["sessions", "logs", "projects", "skills", "plugins"].includes(name)
-        )
-          await walk(path);
-      } else if (
-        ["auth.json", "config.toml", "cli-config.json"].includes(name)
-      ) {
-        hash.update(path.slice(home.length)).update(await readFile(path));
-      }
-    }
-  };
-  for (const folder of [".config/cursor", ".cursor"])
-    await walk(resolve(home, folder));
-  return hash.digest("hex");
-}
+const CURSOR_LOGIN_ROOTS = [".config/cursor", ".cursor"] as const;
+const cursorLoginEntry = (path: string, directory: boolean) => directory
+  ? !path.split("/").some((part) => ["sessions", "logs", "projects", "skills", "plugins"].includes(part))
+  : ["auth.json", "config.toml", "cli-config.json"].includes(path.split("/").at(-1)!);
 
 export interface DockerOptions {
   root: string;
   image: string;
 }
+export interface WorkspaceRequest {
+  cli: Agent;
+  round: number | string;
+  session?: SessionId;
+  auth?: boolean;
+}
 export class Docker {
   readonly executionBoundary: "docker" | "native" = "docker";
   label: string;
-  private cursorAuthQueue: Promise<unknown> = Promise.resolve();
-  private cursorBaselines = new Map<string, string>();
-  private withCursorAuth<T>(operation: () => Promise<T>): Promise<T> {
-    const next = this.cursorAuthQueue.catch(() => {}).then(operation);
-    this.cursorAuthQueue = next;
-    return next;
-  }
   constructor(
     private store: Store,
     private options: DockerOptions,
@@ -108,12 +68,7 @@ export class Docker {
   name(agent: SessionId, round: number | string) {
     return `stram-${this.label}-${agent}-${round}`;
   }
-  async workspace(
-    agent: Agent,
-    round: number | string,
-    auth = true,
-    session: SessionId = agent,
-  ) {
+  async workspace({ cli: agent, round, auth = true, session = agent }: WorkspaceRequest) {
     const dir = resolve(
       this.options.root,
       "runtime/workspaces",
@@ -127,25 +82,18 @@ export class Docker {
       await prepareCodexHome(this.options.root, home, auth);
       return dir;
     }
-    if (auth)
-      await this.withCursorAuth(async () => {
+    if (auth) {
+      await loginGuard(this.options.root, agent).prepare(home, async () => {
         const source = resolve(this.options.root, "runtime/auth", agent);
-        const info = await lstat(source).catch(
-          (error: NodeJS.ErrnoException) => {
-            if (error.code === "ENOENT") return undefined;
-            throw error;
-          },
-        );
-        if (!info || info.isSymbolicLink() || !info.isDirectory())
-          throw missingLoginError(agent, "docker");
-        // CLI-owned credentials are copied only at runtime, never parsed or sent to the web UI.
-        await cp(source, home, {
-          recursive: true,
-          dereference: false,
-          filter: async (path) => !(await lstat(path)).isSymbolicLink(),
+        const info = await lstat(source).catch((error: NodeJS.ErrnoException) => {
+          if (error.code === "ENOENT") return undefined;
+          throw error;
         });
-        this.cursorBaselines.set(dir, await cursorLoginFingerprint(home));
-      });
+        if (!info || info.isSymbolicLink() || !info.isDirectory()) throw missingLoginError(agent, "docker");
+        await cp(source, home, { recursive: true, dereference: false,
+          filter: async (path) => !(await lstat(path)).isSymbolicLink() });
+      }, () => fingerprintTree(home, CURSOR_LOGIN_ROOTS, cursorLoginEntry, dir));
+    }
     await mkdir(resolve(home, ".codex"), { recursive: true, mode: 0o700 });
     await writeFile(
       resolve(home, ".codex/config.toml"),
@@ -194,7 +142,7 @@ export class Docker {
     this.store.container(name);
     let workspace: string;
     try {
-      workspace = dir ?? (await this.workspace(agent, round, true, session));
+      workspace = dir ?? (await this.workspace({ cli: agent, round, session }));
     } catch (error) {
       this.store.forgetContainer(name);
       throw error;
@@ -208,7 +156,15 @@ export class Docker {
         ...command,
       ]);
     } catch (error) {
-      await this.stop(name);
+      try {
+        await this.stop(name);
+      } catch (cleanup) {
+        throw new AggregateError(
+          [error, cleanup],
+          "Container creation failed and cleanup could not be confirmed",
+          { cause: error },
+        );
+      }
       throw error;
     }
     return { name, dir: workspace };
@@ -300,10 +256,10 @@ export class Docker {
       }
     >();
     const lines = new JsonLines((event) => {
-      const request = pending.get(event.id);
+      const request = typeof event.id === "number" ? pending.get(event.id) : undefined;
       if (request) {
         clearTimeout(request.timer);
-        pending.delete(event.id);
+        pending.delete(event.id as number);
         event.error
           ? request.reject(new Error("Codex capability request failed"))
           : request.resolve(event.result);
@@ -373,44 +329,15 @@ export class Docker {
       await retainCodexLogin(this.options.root, resolve(dir, ".home"));
       return;
     }
-    await this.withCursorAuth(async () => {
-      const baseline = this.cursorBaselines.get(dir);
-      if (baseline === undefined) return;
-      const home = resolve(dir, ".home");
-      const updated = await cursorLoginFingerprint(home);
-      if (updated === baseline) return;
-      const dest = resolve(this.options.root, "runtime/auth", agent);
-      const current = await cursorLoginFingerprint(dest);
-      if (current === updated) return;
-      if (current !== baseline)
-        throw new LoginRefreshConflict(
-          "Concurrent Cursor login refresh conflicted; saved login was preserved",
-        );
-      await mkdir(dest, { recursive: true, mode: 0o700 });
-      // Save only the CLI auth/config directories, never session history or output HTML.
-      for (const folder of [".config/cursor", ".cursor"]) {
-        const source = resolve(dir, ".home", folder);
-        try {
-          await lstat(source);
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
-          throw error;
-        }
-        await cp(source, resolve(dest, folder), {
-          recursive: true,
-          filter: async (path) => {
-            const stat = await lstat(path);
-            if (stat.isSymbolicLink()) return false;
-            if (stat.isDirectory())
-              return !/\/(sessions|logs|projects|skills|plugins)(\/|$)/.test(
-                path,
-              );
-            return /\/(auth\.json|config\.toml|cli-config\.json)$/.test(path);
-          },
-        });
-      }
-      this.cursorBaselines.set(dir, updated);
-    });
+    const home = resolve(dir, ".home");
+    const dest = resolve(this.options.root, "runtime/auth", agent);
+    await loginGuard(this.options.root, agent).retain(home,
+      () => fingerprintTree(home, CURSOR_LOGIN_ROOTS, cursorLoginEntry, dir),
+      () => fingerprintTree(dest, CURSOR_LOGIN_ROOTS, cursorLoginEntry, this.options.root),
+      async () => {
+        for (const name of await loginFiles(home, CURSOR_LOGIN_ROOTS, cursorLoginEntry, dir))
+          await copyLoginFile(resolve(home, name), resolve(dest, name), dir, this.options.root);
+      });
   }
   async preserveOutput(agent: SessionId, round: number, dir: string) {
     return preserveSandboxResult(this.options.root, agent, round, dir);

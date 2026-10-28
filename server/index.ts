@@ -3,7 +3,7 @@ import { QuickSettings, defaultCriteria } from "./quick-settings.js";
 import { BreakMedia } from "./break-media.js";
 import { defaultVisibility } from "../shared/settings.js";
 import type { QuickPreferences } from "../shared/settings.js";
-import { configuredSessions } from "../shared/types.js";
+import { configuredSessions, sessionCount } from "../shared/types.js";
 import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { access, mkdir } from "node:fs/promises";
@@ -136,9 +136,6 @@ const preview = new Previews(
   () => browserSandbox.start(),
   credentialGuard(privateValues),
   settings.previewView,
-  configuredSessions(settings).length === 1
-    ? { width: 1920, height: 1044 }
-    : undefined,
 );
 const previewServer = preview.app().listen(settings.previewPort, settings.host);
 let controller: Controller;
@@ -376,7 +373,7 @@ if (controller.state.round)
         attempt.preview = await preview.restore(
           agent,
           controller.state.round.id,
-          controller.state.round.sessions?.length,
+          sessionCount(controller.state.round.sessions ?? Object.values(controller.state.round.attempts).filter((a) => a.status !== "idle")),
         );
       } catch {
         attempt.preview = undefined;

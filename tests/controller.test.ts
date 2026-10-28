@@ -134,6 +134,29 @@ async function fixture(
     },
   };
 }
+test("two Codex usage failures share one in-flight quota request", async () => {
+  const sessions: SessionConfig[] = [
+    { id: "session-1", cli: "codex", model: "fixture-a" },
+    { id: "session-2", cli: "codex", model: "fixture-b" },
+  ];
+  const f = await fixture("live", undefined, (text) => text, sessions);
+  let resolveQuota!: (quota: { remainingPercent: number; resetsAt: number }) => void;
+  let requests = 0;
+  try {
+    f.runner.quota = () => {
+      requests++;
+      return new Promise((resolve) => { resolveQuota = resolve; });
+    };
+    for (const session of sessions)
+      f.runner.resolvers[session.id]({ status: "error", failure: "usage" });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(requests, 1);
+    resolveQuota({ remainingPercent: 90, resetsAt: 900000 });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(f.controller.state.quota?.remainingPercent, 90);
+  } finally { await f.cleanup(); }
+});
+
 test("launches a pair once with the same timestamp and preserves faster preview", async () => {
   const f = await fixture();
   assert.equal(f.runner.launches.length, 1);

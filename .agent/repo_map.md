@@ -4,6 +4,24 @@ Purpose: Route agents to the most relevant source files quickly. Verify details 
 
 ## Quick Settings
 
+`server/startup-config.ts`, `scripts/session-selection.ts`
+
+- Work: Normalize startup inputs through one public schema, identify immutable boot inputs before saved web preferences, and keep session flag parsing and interactive model selection out of the main stream script.
+- Contains: `resolveStartup`, `normalizeStartup`, `selectStartupSessions`, `startupConfigurationId`, `parseSessionSpec`, `chooseSessions`.
+- Used by: `server/config.ts`, `server/index.ts`, `scripts/stream.ts`, `tests/startup-config.test.ts`.
+
+`server/login-guard.ts`, `server/cli/events.ts`
+
+- Work: Share in-process account locks, login fingerprint/baseline checks and per-file atomic replacement; validate incoming CLI events before parsers or edit detection inspect them.
+- Contains: `loginGuard`, `LoginRefreshConflict`, `copyLoginFile`, `fingerprintFile`, `fingerprintTree`, `parseCliEvent`, `CliEvent`.
+- Used by: Docker/native Codex profiles, `server/runner.ts`, `server/activity.ts`, and the focused login/event tests.
+- Limits: Login locks coordinate one process; Cursor multi-file retention is not a crash-safe transaction.
+
+`tests/login-guard.test.ts`, `tests/cli-events.test.ts`, `tests/preview-size.test.ts`
+
+- Work: Cover simultaneous Codex/Cursor refresh conflicts, failed-write lock recovery, malformed event handling, session helpers and explicit one/two-session preview sizes.
+- Verification: Source fixtures added; execute only with Mayank's authorization.
+
 `shared/settings.ts`, `server/quick-settings.ts`, `server/settings-http.ts`
 
 - Work: Define safe durable host preferences, strict validation, revision conflicts and host/CSRF-protected settings/model/history/action routes.

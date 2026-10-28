@@ -93,7 +93,7 @@ test("docker Cursor workspace names a missing login instead of ENOENT", async ()
   const store = new Store(":memory:");
   const docker = new Docker(store, { root, image: "unused" });
   try {
-    await assert.rejects(docker.workspace("cursor", 1), /sandbox:login:cursor/);
+    await assert.rejects(docker.workspace({ cli: "cursor", round: 1 }), /sandbox:login:cursor/);
     store.close();
     store.close();
   } finally {

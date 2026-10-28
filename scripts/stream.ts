@@ -2,6 +2,7 @@ import { chooseSessions, parseSessionSpec } from "./session-selection.js";
 import { normalizeStartup, selectStartupSessions, startupConfigurationId } from "../server/startup-config.js";
 import {
   configuredSessions,
+  sessionCount,
   type SessionConfig,
 } from "../shared/types.js";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -738,9 +739,6 @@ try {
         () => engine.start(),
         credentialGuard(privateValues),
         settings.previewView,
-        configuredSessions(settings).length === 1
-          ? { width: 1920, height: 1044 }
-          : undefined,
       );
       try {
         await mkdir(resolve(tempRoot, "main/codex"), {
@@ -750,10 +748,10 @@ try {
         const { writeFile } = await import("node:fs/promises");
         await writeFile(
           resolve(tempRoot, "main/codex/prompt_1.html"),
-          '<html><body><canvas width="960" height="720"></canvas></body></html>',
+          '<html><body><canvas style="width:100%;height:100%"></canvas></body></html>',
         );
         await previews.ready();
-        await previews.validate("codex", 1);
+        await previews.validate("codex", 1, sessionCount(configuredSessions(settings)));
       } finally {
         await previews.close().catch(() => {});
         await engine.close().catch(() => {});

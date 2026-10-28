@@ -5,7 +5,7 @@ import { parse, serialize } from "parse5";
 import type { Browser, BrowserContext, Page } from "playwright";
 import express from "express";
 import { z } from "zod";
-import type { SessionId } from "../shared/types.js";
+import type { SessionId, SessionCount } from "../shared/types.js";
 import { credentialGuard } from "./redact.js";
 export const previewPolicy =
   "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; media-src data:; connect-src 'none'; webrtc 'block'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; sandbox allow-scripts";
@@ -85,6 +85,10 @@ const inputSchema = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("wheel"), dy: z.number().min(-1000).max(1000) }),
 ]);
+export function viewportFor(count: SessionCount) {
+  if (count !== 1 && count !== 2) throw new Error("Preview requires one or two sessions");
+  return { width: count === 1 ? 1920 : 960, height: 1044 };
+}
 export class Previews {
   private browser?: Browser;
   private views = new Map<string, View>();
@@ -95,7 +99,6 @@ export class Previews {
     private browserFactory: () => Promise<Browser>,
     private assertSafeHtml: (html: string) => void = credentialGuard([]),
     private viewMode: "jpeg" | "live" = "live",
-    private viewport = { width: 960, height: 720 },
   ) {}
   app() {
     const app = express();
@@ -139,7 +142,7 @@ export class Previews {
             html =
               '<body style="background:#101419;color:#b9ef85;display:grid;place-items:center;height:100vh;font:70px monospace">● ‿ ●</body>';
           }
-          this.views.set("break", await this.render(sanitizeHtml(html)));
+          this.views.set("break", await this.render(sanitizeHtml(html), viewportFor(1)));
         }
         res.type("html").send(this.viewer(this.views.get("break")!));
       } catch {
@@ -229,7 +232,7 @@ export class Previews {
     if (!this.browser?.isConnected())
       this.browser = await this.browserFactory();
   }
-  private async render(html: string, viewport = this.viewport): Promise<View> {
+  private async render(html: string, viewport: { width: number; height: number }): Promise<View> {
     if (!this.browser) throw new Error("Preview browser is not ready");
     const token = randomBytes(24).toString("hex");
     const url = `${this.origin}/isolated/${token}`;
@@ -323,7 +326,7 @@ export class Previews {
         });
     return view.capture;
   }
-  async validate(agent: SessionId, round: number, sessionCount?: number) {
+  async validate(agent: SessionId, round: number, count: SessionCount) {
     const file = resolve(this.root, "main", agent, `prompt_${round}.html`);
     const stat = await lstat(file);
     if (
@@ -345,9 +348,7 @@ export class Previews {
       throw new Error("Output is not HTML");
     const view = await this.render(
       html,
-      sessionCount === undefined
-        ? this.viewport
-        : { width: sessionCount === 1 ? 1920 : 960, height: 1044 },
+      viewportFor(count),
     );
     for (const [key, old] of this.views)
       if (key.startsWith(`${agent}:`)) {
@@ -357,9 +358,9 @@ export class Previews {
     this.views.set(`${agent}:${round}`, view);
     return `${this.origin}/page/${agent}/${round}`;
   }
-  async restore(agent: SessionId, round: number, sessionCount?: number) {
+  async restore(agent: SessionId, round: number, count: SessionCount) {
     try {
-      return await this.validate(agent, round, sessionCount);
+      return await this.validate(agent, round, count);
     } catch {
       return undefined;
     }

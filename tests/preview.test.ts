@@ -7,6 +7,32 @@ import { createServer } from "node:http";
 import { chromium, type Browser } from "playwright";
 import { Previews, sanitizeHtml } from "../server/preview.js";
 import { credentialGuard } from "../server/redact.js";
+import { existsSync, readdirSync } from "node:fs";
+import { homedir } from "node:os";
+
+// Prefer an explicit executable, then Playwright's full Chrome, then an existing
+// macOS Chrome for Testing installation. Browser profiles are never reused.
+function testBrowserPath() {
+  if (process.env.ARENA_TEST_BROWSER_PATH)
+    return process.env.ARENA_TEST_BROWSER_PATH;
+  const bundled = chromium.executablePath();
+  if (existsSync(bundled)) return bundled;
+  if (process.platform !== "darwin") return undefined;
+  const cache = resolve(homedir(), ".omp/puppeteer/chrome");
+  if (!existsSync(cache)) return undefined;
+  const builds = readdirSync(cache).sort((a, b) =>
+    b.localeCompare(a, undefined, { numeric: true }),
+  );
+  return builds.map((build) => resolve(
+    cache, build, `chrome-mac-${process.arch === "arm64" ? "arm64" : "x64"}`,
+    "Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+  )).find((path) => existsSync(path));
+}
+const browserPath = testBrowserPath();
+const launchBrowser = () => chromium.launch({
+  headless: true,
+  executablePath: browserPath,
+});
 test("removes frames, refresh redirects, external attributes and form destinations", () => {
   const result = sanitizeHtml(
     '<meta http-equiv="refresh" content="0;url=https://example.com"><iframe src="http://localhost:3210/control"></iframe><form action="https://example.com"><img src="https://example.com/x"><a href="https://example.com">Hi</a></form>',
@@ -22,12 +48,16 @@ test("real browser validates isolated HTML, serves it live with CSP, and blocks 
   await writeFile(resolve(root, "main/codex/prompt_1.html"), html);
   let renderingBrowser: Browser | undefined;
   let viewerBrowser: Browser | undefined;
+  const renderingPages = () => {
+    if (!renderingBrowser) throw new Error("Renderer was not started");
+    return renderingBrowser.contexts().flatMap((context) => context.pages());
+  };
   const previews = new Previews(
     root,
     "http://127.0.0.1:39211",
     resolve(root, "missing.html"),
     async () =>
-      (renderingBrowser ??= await chromium.launch({ headless: true })),
+      (renderingBrowser ??= await launchBrowser()),
     credentialGuard(["private-test-credential-value"]),
     "live",
   );
@@ -50,7 +80,10 @@ test("real browser validates isolated HTML, serves it live with CSP, and blocks 
   await new Promise<void>((r) => server.listen(39210, "127.0.0.1", r));
   try {
     await previews.ready();
-    const url = await previews.validate("codex", 1);
+    const url = await previews.validate("codex", 1, 2);
+    assert.deepEqual(renderingPages()[0].viewportSize(), { width: 960, height: 1044 });
+    await previews.validate("codex", 1, 1);
+    assert.deepEqual(renderingPages()[0].viewportSize(), { width: 1920, height: 1044 });
     const response = await fetch(url);
     const viewer = await response.text();
     assert.equal(
@@ -61,7 +94,7 @@ test("real browser validates isolated HTML, serves it live with CSP, and blocks 
     assert.ok(
       response.headers.get("content-security-policy")?.includes("connect-src 'none'"),
     );
-    viewerBrowser = await chromium.launch({ headless: true });
+    viewerBrowser = await launchBrowser();
     const page = await viewerBrowser.newPage();
     const outgoing: string[] = [];
     await page.route("**/*", (route) => {
@@ -87,19 +120,19 @@ test("real browser validates isolated HTML, serves it live with CSP, and blocks 
       resolve(root, "main/codex/prompt_2.html"),
       '<html><body><button>Broken</button><script>throw new Error("broken")</script></body></html>',
     );
-    await assert.rejects(() => previews.validate("codex", 2));
-    await assert.rejects(() => previews.validate("codex", 3));
+    await assert.rejects(() => previews.validate("codex", 2, 2));
+    await assert.rejects(() => previews.validate("codex", 3, 2));
     await writeFile(
       resolve(root, "main/codex/prompt_4.html"),
       '<html><body><h1>Navigate</h1><script>location.href="https://example.com"</script></body></html>',
     );
-    await assert.rejects(() => previews.validate("codex", 4));
+    await assert.rejects(() => previews.validate("codex", 4, 2));
     assert.equal(controlReads, 0);
     const unsafe =
       "<html><body><p>private-test-credential-value</p></body></html>";
     await writeFile(resolve(root, "main/codex/prompt_5.html"), unsafe);
     await assert.rejects(
-      () => previews.validate("codex", 5),
+      () => previews.validate("codex", 5, 2),
       /contains credentials/,
     );
     assert.equal(
@@ -129,14 +162,14 @@ test("jpeg preview serves only trusted pixels and accepts forwarded input", asyn
     "http://127.0.0.1:39221",
     resolve(root, "missing.html"),
     async () =>
-      (renderingBrowser ??= await chromium.launch({ headless: true })),
+      (renderingBrowser ??= await launchBrowser()),
     credentialGuard(["private-test-credential-value"]),
     "jpeg",
   );
   const previewServer = previews.app().listen(39221, "127.0.0.1");
   try {
     await previews.ready();
-    const url = await previews.validate("codex", 1);
+    const url = await previews.validate("codex", 1, 2);
     const viewer = await (await fetch(url)).text();
     assert.ok(!viewer.includes("Private generated code"));
     const token = viewer.match(/token="([a-f0-9]+)"/)?.[1];

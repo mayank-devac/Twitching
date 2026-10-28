@@ -44,8 +44,8 @@ test("fresh Codex homes copy only the arena login, not config, skills, hooks or 
       '{"hooks":{"SessionStart":[]}}',
     );
     const docker = new Docker(store, { root, image: "unused" });
-    const first = await docker.workspace("codex", 1);
-    const second = await docker.workspace("codex", 2);
+    const first = await docker.workspace({ cli: "codex", round: 1 });
+    const second = await docker.workspace({ cli: "codex", round: 2 });
     for (const dir of [first, second]) {
       const home = resolve(dir, ".home/.codex");
       assert.equal((await stat(resolve(home, "auth.json"))).size, 2);
@@ -307,8 +307,8 @@ test("same-round Codex homes are distinct and stale refreshes cannot overwrite n
     await mkdir(saved, { recursive: true });
     await writeFile(resolve(saved, "auth.json"), "fixture-original");
     const host = new Docker(store, { root, image: "unused" });
-    const first = await host.workspace("codex", 1, true, "session-1");
-    const second = await host.workspace("codex", 1, true, "session-2");
+    const first = await host.workspace({ cli: "codex", round: 1, session: "session-1" });
+    const second = await host.workspace({ cli: "codex", round: 1, session: "session-2" });
     assert.notEqual(first, second);
     assert.notEqual(host.name("session-1", 1), host.name("session-2", 1));
     await writeFile(

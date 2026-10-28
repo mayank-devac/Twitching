@@ -19,7 +19,7 @@ import {
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
-import { Docker } from "./docker.js";
+import { Docker, type WorkspaceRequest } from "./docker.js";
 import { enforceDiskBudget } from "./disk-budget.js";
 import { removeProbeWorkspace } from "./probe-workspace-cleanup.js";
 import { prepareCodexHome, retainCodexLogin } from "./codex-profile.js";
@@ -54,12 +54,7 @@ export class NativeHost extends Docker {
   override name(agent: SessionId, round: number | string) {
     return `native-${super.name(agent, round)}`;
   }
-  override async workspace(
-    agent: Agent,
-    round: number | string,
-    _auth = true,
-    session: SessionId = agent,
-  ) {
+  override async workspace({ cli: agent, round, session = agent }: WorkspaceRequest) {
     const dir = resolve(
       this.nativeRoot,
       "runtime/native-workspaces",
@@ -186,7 +181,7 @@ export class NativeHost extends Docker {
       args.splice(args.length - 1, 0, "--sandbox", "disabled");
     }
     const workspace =
-      dir ?? (await this.workspace(agent, round, true, session));
+      dir ?? (await this.workspace({ cli: agent, round, session }));
     // Keep task instructions identical across native agents; the fixed output is relative to cwd.
     if (coding)
       args[args.length - 1] = command[command.length - 1]

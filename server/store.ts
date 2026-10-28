@@ -1,4 +1,4 @@
-import { legacyModel } from "../shared/types.js";
+import { legacyCli, legacyModel } from "../shared/types.js";
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
@@ -9,6 +9,23 @@ import type {
   Round,
   ShowState,
 } from "../shared/types.js";
+function migrateRound(round: Round): Round {
+  // IDs remain unchanged because they are also the original output directories.
+  round.sessions ??= Object.entries(round.attempts).flatMap(([id, attempt]) => {
+    const cli = legacyCli(id);
+    return cli && attempt.status !== "idle" ? [{ id, cli, model: attempt.model }] : [];
+  });
+  for (const session of round.sessions) {
+    if (session.cli === "codex" && !session.effort)
+      Object.assign(session, legacyModel(session.model));
+    const attempt = round.attempts[session.id];
+    if (!attempt) continue;
+    attempt.cli ??= session.cli;
+    if (session.cli === "codex" && !attempt.effort)
+      Object.assign(attempt, legacyModel(attempt.model));
+  }
+  return round;
+}
 export class Store {
   db: DatabaseSync;
   constructor(path: string) {
@@ -65,7 +82,7 @@ export class Store {
       )
       .all(before) as { id: number; value: string }[];
     return {
-      rounds: rows.slice(0, 20).map((r) => JSON.parse(r.value)),
+      rounds: rows.slice(0, 20).map((r) => migrateRound(JSON.parse(r.value))),
       before: rows.length > 20 ? rows[19].id : undefined,
     };
   }
@@ -75,25 +92,7 @@ export class Store {
       .get() as any;
     if (!row) return undefined;
     const state: ShowState = JSON.parse(row.value);
-    if (state.round && !state.round.sessions) {
-      // Legacy keys are also their original file directories. Never rename them.
-      state.round.sessions = Object.entries(state.round.attempts)
-        .filter(
-          ([id, attempt]) =>
-            (id === "codex" || id === "cursor") && attempt.status !== "idle",
-        )
-        .map(([id, attempt]) => {
-          const cli = id as "codex" | "cursor";
-          attempt.cli = cli;
-          Object.assign(attempt, legacyModel(attempt.model));
-          return {
-            id,
-            cli,
-            model: attempt.model,
-            ...(attempt.effort ? { effort: attempt.effort } : {}),
-          };
-        });
-    }
+    if (state.round) migrateRound(state.round);
     return state;
   }
   save(state: ShowState) {

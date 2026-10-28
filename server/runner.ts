@@ -1,3 +1,4 @@
+import { parseCliEvent } from "./cli/events.js";
 import { randomUUID } from "node:crypto";
 import type {
   Activity,
@@ -12,7 +13,8 @@ import { Docker } from "./docker.js";
 import { failureKind } from "./redact.js";
 import { configuredSessions, sessionLabel } from "../shared/types.js";
 import { cliAdapters, validateSessions, validateModel } from "./cli/index.js";
-import { LoginRefreshConflict, type CliCatalog } from "./cli/types.js";
+import type { CliCatalog } from "./cli/types.js";
+import { LoginRefreshConflict } from "./login-guard.js";
 import { HtmlDiffs } from "./file-diff.js";
 export interface RunOutcome {
   status: "complete" | "error" | "timeout" | "cancelled";
@@ -65,8 +67,13 @@ export class CliRunner implements PairRunner {
       })();
       this.capabilityChecks.set(cli, check);
     }
-    try { await check; }
-    catch (error) { this.capabilityChecks.delete(cli); throw error; }
+    try {
+      await check;
+    } catch (error) {
+      if (this.capabilityChecks.get(cli) === check)
+        this.capabilityChecks.delete(cli);
+      throw error;
+    }
   }
   constructor(
     private docker: Docker,
@@ -80,7 +87,9 @@ export class CliRunner implements PairRunner {
     await this.ensureCapabilities(cli);
     return (await cliAdapters[cli].discover(this.docker)).models;
   }
-  preflight() { return this.checkSelections(); }
+  preflight() {
+    return this.checkSelections();
+  }
   private async checkSelections() {
     const sessions = configuredSessions(this.options);
     validateSessions(sessions);
@@ -204,7 +213,9 @@ export class CliRunner implements PairRunner {
       void stopping.catch(() => {});
     };
     const lines = new JsonLines(
-      (e) => {
+      (value) => {
+        const e = parseCliEvent(value);
+        if (!e) return;
         adapter.receive(e);
         if (cliAdapters[session.cli].edited(e)) void diffs.capture();
         if (adapter.failure) interrupt(adapter.failure);

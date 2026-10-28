@@ -1,52 +1,6 @@
-import {
-  chmod,
-  cp,
-  lstat,
-  mkdir,
-  realpath,
-  writeFile,
-  readFile,
-  rename,
-  unlink,
-} from "node:fs/promises";
-import { LoginRefreshConflict } from "./cli/types.js";
-import { createHash, randomUUID } from "node:crypto";
-import { dirname, relative, resolve } from "node:path";
-
-// One controller owns the project. Serialize its profile copies and use a
-// compare-before-write snapshot so an older session cannot replace a new login.
-const loginQueues = new Map<string, Promise<unknown>>();
-const loginSnapshots = new Map<string, string | undefined>();
-async function withLoginLock<T>(
-  root: string,
-  operation: () => Promise<T>,
-): Promise<T> {
-  const previous = loginQueues.get(root) ?? Promise.resolve();
-  const next = previous.catch(() => {}).then(operation);
-  loginQueues.set(root, next);
-  try {
-    return await next;
-  } finally {
-    if (loginQueues.get(root) === next) loginQueues.delete(root);
-  }
-}
-async function loginFingerprint(path: string, allowedRoot: string) {
-  const info = await lstat(path).catch((error: NodeJS.ErrnoException) => {
-    if (error.code === "ENOENT") return undefined;
-    throw error;
-  });
-  if (!info) return undefined;
-  if (
-    !info.isFile() ||
-    info.isSymbolicLink() ||
-    (await realpath(path)) !==
-      resolve(await realpath(allowedRoot), relative(allowedRoot, path))
-  )
-    throw new Error("Unsafe Codex login file");
-  return createHash("sha256")
-    .update(await readFile(path))
-    .digest("hex");
-}
+import { lstat, mkdir, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import { copyLoginFile, fingerprintFile, loginGuard } from "./login-guard.js";
 
 // These controls apply to arena invocations, never the user's normal CLI config.
 export const CODEX_EXEC_PROFILE_ARGS = [
@@ -73,50 +27,6 @@ plugins = false
 hooks = false
 `;
 
-async function copyLogin(
-  source: string,
-  destination: string,
-  allowedRoot: string,
-  destinationRoot: string,
-) {
-  const info = await lstat(source).catch((error: NodeJS.ErrnoException) => {
-    if (error.code === "ENOENT") return undefined;
-    throw error;
-  });
-  if (!info) return false;
-  const root = await realpath(allowedRoot);
-  if (
-    !info.isFile() ||
-    info.isSymbolicLink() ||
-    (await realpath(source)) !== resolve(root, relative(allowedRoot, source))
-  )
-    throw new Error(
-      "Arena Codex login path must be a regular file inside its profile",
-    );
-  const existing = await lstat(destination).catch(
-    (error: NodeJS.ErrnoException) => {
-      if (error.code === "ENOENT") return undefined;
-      throw error;
-    },
-  );
-  if (existing && (!existing.isFile() || existing.isSymbolicLink()))
-    throw new Error("Arena Codex login destination must be a regular file");
-  await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
-  if (
-    (await realpath(dirname(destination))) !==
-    resolve(
-      await realpath(destinationRoot),
-      relative(destinationRoot, dirname(destination)),
-    )
-  )
-    throw new Error(
-      "Arena Codex login destination must stay inside its profile",
-    );
-  await cp(source, destination);
-  await chmod(destination, 0o600);
-  return true;
-}
-
 export async function seedArenaCodexLogin(
   root: string,
   realHome = process.env.HOME,
@@ -131,7 +41,7 @@ export async function seedArenaCodexLogin(
   );
   if (existing) return false;
   try {
-    return await copyLogin(
+    return await copyLoginFile(
       resolve(realHome, ".codex", "auth.json"),
       destination,
       realHome,
@@ -155,19 +65,10 @@ export async function prepareCodexHome(
   const codexHome = resolve(home, ".codex");
   await mkdir(codexHome, { recursive: true, mode: 0o700 });
   if (auth) {
-    await withLoginLock(root, async () => {
+    await loginGuard(root, "codex").prepare(home, async () => {
       await seedArenaCodexLogin(root);
-      await copyLogin(
-        resolve(root, "runtime/auth/codex/.codex/auth.json"),
-        resolve(codexHome, "auth.json"),
-        root,
-        home,
-      );
-      loginSnapshots.set(
-        home,
-        await loginFingerprint(resolve(codexHome, "auth.json"), home),
-      );
-    });
+      await copyLoginFile(resolve(root, "runtime/auth/codex/.codex/auth.json"), resolve(codexHome, "auth.json"), root, home);
+    }, () => fingerprintFile(resolve(codexHome, "auth.json"), home));
   }
   await writeFile(resolve(codexHome, "config.toml"), config, {
     mode: 0o600,
@@ -177,29 +78,12 @@ export async function prepareCodexHome(
 }
 
 export async function retainCodexLogin(root: string, home: string) {
-  await withLoginLock(root, async () => {
-    // Homes not prepared by this process cannot establish a safe baseline.
-    if (!loginSnapshots.has(home)) return;
-    const source = resolve(home, ".codex/auth.json");
-    const destination = resolve(root, "runtime/auth/codex/.codex/auth.json");
-    const baseline = loginSnapshots.get(home);
-    const updated = await loginFingerprint(source, home);
-    if (!updated || updated === baseline) return;
-    const current = await loginFingerprint(destination, root);
-    if (current === updated) return;
-    if (current !== baseline)
-      throw new LoginRefreshConflict(
-        "Concurrent Codex login refresh conflicted; saved login was preserved. Check authentication before resuming.",
-      );
-    const temporary = `${destination}.${randomUUID()}.tmp`;
-    try {
-      await copyLogin(source, temporary, home, root);
-      await rename(temporary, destination);
-      loginSnapshots.set(home, updated);
-    } finally {
-      await unlink(temporary).catch(() => {});
-    }
-  });
+  const source = resolve(home, ".codex/auth.json");
+  const destination = resolve(root, "runtime/auth/codex/.codex/auth.json");
+  await loginGuard(root, "codex").retain(home,
+    () => fingerprintFile(source, home),
+    () => fingerprintFile(destination, root),
+    () => copyLoginFile(source, destination, home, root));
 }
 
 export function assertCodexProfile(value: any) {

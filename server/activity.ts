@@ -1,3 +1,4 @@
+import { parseCliEvent, jsonObject, type CliEvent } from "./cli/events.js";
 import { createHash } from "node:crypto";
 import { StringDecoder } from "node:string_decoder";
 import type {
@@ -11,7 +12,7 @@ export class JsonLines {
   private buffer = "";
   private decoder = new StringDecoder("utf8");
   constructor(
-    private receive: (event: any) => void,
+    private receive: (event: Record<string, unknown>) => void,
     private malformed: () => void = () => {},
   ) {}
   push(chunk: Buffer | string) {
@@ -35,8 +36,10 @@ export class JsonLines {
   private parse(line: string) {
     if (!line.trim()) return;
     try {
-      const e = JSON.parse(line);
-      if (e && typeof e === "object") this.receive(e);
+      const e: unknown = JSON.parse(line);
+      const object = jsonObject(e);
+      if (object) this.receive(object);
+      else this.malformed();
     } catch {
       this.malformed();
     }
@@ -97,11 +100,13 @@ export class ActivityAdapter {
       text: next,
     });
   }
-  receive(e: any) {
+  receive(value: unknown) {
+    const e = parseCliEvent(value);
+    if (!e) return;
     if (this.agent === "codex") this.codex(e);
     else this.cursor(e);
   }
-  private codex(e: any) {
+  private codex(e: CliEvent) {
     if (e.type === "turn.completed") {
       this.successful = true;
       this.publish(
@@ -154,7 +159,7 @@ export class ActivityAdapter {
       );
     } else if (i.type === "file_change") {
       const paths = (i.changes ?? [])
-        .map((c: any) =>
+        .map((c) =>
           String(c.path ?? "")
             .split("/")
             .pop(),
@@ -173,7 +178,7 @@ export class ActivityAdapter {
       this.track("tool", label, `${id}:tool:${e.type}`);
     }
   }
-  private cursor(e: any) {
+  private cursor(e: CliEvent) {
     if (e.type === "system" && e.subtype === "init") {
       this.publish(
         "output",
@@ -181,9 +186,9 @@ export class ActivityAdapter {
         "system:init",
       );
     } else if (e.type === "assistant") {
-      const text = (e.message?.content ?? [])
-        .filter((c: any) => c.type === "text")
-        .map((c: any) => c.text ?? "")
+      const text = (e.message && typeof e.message === "object" ? e.message.content ?? [] : [])
+        .filter((c) => c.type === "text")
+        .map((c) => c.text ?? "")
         .join("");
       // Assemble partial messages before redaction so a credential split across
       // chunks cannot be reconstructed by the public overlay.
@@ -369,25 +374,17 @@ export class ActivityAdapter {
     this.cursorBuffer = "";
   }
 }
-function toolArgs(detail: any): Record<string, unknown> {
-  let args = detail?.args ?? {};
-  if (typeof detail?.arguments === "string") {
-    try {
-      args = { ...args, ...JSON.parse(detail.arguments) };
-    } catch {
-      /* The label still shows the tool name when arguments are not JSON. */
-    }
-  }
-  if (typeof args.arguments === "string") {
-    try {
-      args = { ...args, ...JSON.parse(args.arguments) };
-    } catch {
-      /* Keep the structured args. */
-    }
-  }
-  if (!args || typeof args !== "object" || Array.isArray(args)) args = {};
-  if (typeof detail?.name === "string" && detail.name)
-    args = { ...args, name: detail.name };
+function toolArgs(value: unknown): Record<string, unknown> {
+  const detail = jsonObject(value) ?? {};
+  let args = jsonObject(detail.args) ?? {};
+  const parse = (text: unknown) => {
+    if (typeof text !== "string") return {};
+    try { return jsonObject(JSON.parse(text)) ?? {}; }
+    catch { return {}; }
+  };
+  args = { ...args, ...parse(detail.arguments) };
+  args = { ...args, ...parse(args.arguments) };
+  if (typeof detail.name === "string" && detail.name) args = { ...args, name: detail.name };
   return args;
 }
 function commandName(command: string) {

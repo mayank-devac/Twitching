@@ -1,10 +1,10 @@
 # Twitching
 
 > **Taglines:**
-> 1. Share **live coding sessions for Twitch**: share your harness cli without sharing computer screen , 
+> 1. Share **live coding sessions for Twitch**: show your coding CLI without sharing your computer screen.
 > 2.  Twitch viewers are **prompters**: every qualifying `!prompt` from **Twitch, YouTube or Kick chat**.
-> 3. **Twitch chat** writes the task; run **LLM coding agents** build something **live** inside **sandboxed containers**, . 
-> 4. an **agent-vs-agent game show** harness build it , compare it and let the viewers be judges
+> 3. **Twitch chat** writes the task; **LLM coding agents** build it **live** inside **sandboxed containers**.
+> 4. An **agent-vs-agent game show**: build it, compare it and let viewers be the judges.
 
 <p align="center">
   <img src="assets/break-visual.gif" alt="Pixel-art eye blinking — the break visual" />
@@ -13,16 +13,16 @@
    <a href="assets/break-visual.html">assets/break-visual.html</a> 
 </p>
 
-idea  ""share and stream what your harness like codex doing without sharing screen""
+Share what a coding CLI such as Codex is doing without sharing your screen.
 
-- twich and codex support  
+- twitch and Codex CLI support
 - select what to show (tools use , commands , edits , model name ...)
 - use it with OBS
 - viewers can prompt from comment box. when viewer comment with "!prompt"
-- run in a docker sandox for safety and login seperatly , if you want.
+- Run agents in a Docker sandbox with separate CLI logins.
 - show html outputs overlays. 
-- typesafe jev to filter out prompts according to prefernces.
-- automate whole live stream. like play music and visuals when qouta goes out.
+- TypeSafe Jev filters prompts according to your preferences.
+- Play music and visuals when the shared Codex account quota runs out.
 
 Developed with the help of Codex. Started for the [TwitchCon Codex hackathon](https://twitchcon-codex.devpost.com/).
 
@@ -30,7 +30,7 @@ Developed with the help of Codex. Started for the [TwitchCon Codex hackathon](ht
 
 Copy `.env.example` to `.env.local` and fill in your own credentials privately. 
 Add your own `assets/break.mp3` for break music. 
-The blocked-bad word filter starts empty; configure it before accepting public chat. 
+The blocked-word filter starts empty. For example, add `"blockedWords": ["example-word"]` to `settings.json` to reject that word. Replace it with your own list before accepting public chat.
 Jev safety checks remain enabled.
 
 ### Meet the CLIs
@@ -293,6 +293,16 @@ Or set a `sessions` array in `settings.json`:
 
 Both sessions receive the same prompt with separate workspaces, previews and exports, stored under the session ID. One session uses full width; two sessions split it. Two Codex sessions share one account allowance, polled once.
 
+Startup settings are parsed and normalized by `server/startup-config.ts` in both the guided script and the app. `/api/boot` identifies those startup inputs before saved web preferences are applied. Explicit guided session, mode and chat choices override previous web choices for that launch; other saved web preferences remain effective. Changing preferences during a show does not change its original boot identity.
+
+CLI host and help checks are cached for the current runner. Account and model discovery is refreshed before each round, once per selected CLI, so unavailable models are still rejected without substitution. Restart the app after changing CLI installations or images to repeat the fixed capability checks.
+
+`server/login-guard.ts` owns the shared per-project/per-CLI lock and stale-copy checks. Each login file is written through a temporary file and rename. Locks coordinate this app's host instances within one process; Cursor's multiple files are not a transaction across a process crash. A conflicting refresh pauses the show and preserves the winning saved login. Two CLI sessions can still encounter a provider-side refresh conflict.
+
+`server/cli/events.ts` validates external CLI event shapes before activity parsing. `viewportFor(1)` and `viewportFor(2)` define result sizes of 1920 × 1044 and 960 × 1044. Every result validation, restoration and startup probe supplies its session count explicitly. Old rounds retain their directory IDs while stored model IDs and reasoning efforts are separated for display and history.
+
+The adapter registry is `server/cli/index.ts`. An adapter provides fixed capability checks, fresh account/model discovery, command construction, an activity parser and edit-event detection. Session selection lives in `scripts/session-selection.ts`; the round controller is shared across CLIs.
+
 
 ### Exact model selection
 
@@ -506,6 +516,21 @@ The relay supports Docker versions that do not publish ports on internal network
 ## Verification
 
 ### Commands
+
+Focused regression checks for session startup, login retention, event parsing and sizing (run manually; no coding jobs):
+
+```sh
+npm run check &&
+npx tsx --test tests/startup-config.test.ts tests/login-guard.test.ts tests/cli-events.test.ts tests/preview-size.test.ts tests/sessions.test.ts tests/controller.test.ts tests/codex-profile.test.ts tests/cli-startup-repair.test.ts
+```
+
+`tests/preview.test.ts` additionally checks viewport sizes in a real local Chromium browser. It reuses Playwright's full Chrome or an existing macOS Chrome for Testing under `.omp/puppeteer/chrome`, with a fresh temporary browser profile. You can choose another installation by setting `ARENA_TEST_BROWSER_PATH` to its executable inside the app bundle. No browser download is needed when a supported installation is already present. Run the browser checks, then build the UI:
+
+```sh
+npx tsx --test tests/preview.test.ts && npm run build
+```
+
+Broader checks:
 
 ```sh
 npm run check

@@ -68,7 +68,9 @@ body:has(.quick-settings) {
   padding: 10px 12px;
   color: #e7eaf0;
   background: #121518;
-  font: 14px/1.4 inherit;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
 }
 .quick-settings select {
   min-height: 40px;
@@ -654,4 +656,9 @@ fieldset.qs-main {
   .qs-actions .qs-primary {
     margin-left: auto;
   }
+}
+
+/* Native audio controls follow the same dark palette as their preview card. */
+.qs-media-preview {
+  color-scheme: dark;
 }

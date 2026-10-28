@@ -76,8 +76,9 @@ test("settings survive reload and a stale tab cannot overwrite a newer save", ()
 
 test("media rejects active documents, traversal and symlinks while round-tripping an image", async () => {
   const root = await realpath(await mkdtemp(resolve(tmpdir(), "arena-media-")));
+  const mediaStore = new Store(":memory:");
   try {
-    const media = new BreakMedia(root);
+    const media = new BreakMedia(root, mediaStore);
     assert.throws(
       () =>
         detectMedia(
@@ -91,8 +92,13 @@ test("media rejects active documents, traversal and symlinks while round-trippin
       "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==",
       "base64",
     );
-    const uploaded = await media.upload(gif);
+    const uploaded = await media.upload(gif, "C:\\private\\evening loop.gif");
     assert.equal(uploaded.type, "image/gif");
+    assert.equal(uploaded.name, "evening loop.gif");
+    assert.equal(
+      (await new BreakMedia(root, mediaStore).list())[0].name,
+      "evening loop.gif",
+    );
     assert.equal((await media.list()).length, 1);
     assert.equal((await media.path(uploaded.id)).type, "image/gif");
     await assert.rejects(media.path("../settings.json"), /Invalid media ID/);
@@ -112,6 +118,7 @@ test("media rejects active documents, traversal and symlinks while round-trippin
     const unsafe = new BreakMedia(resolve(root, "unsafe"));
     await assert.rejects(unsafe.list(), /Unsafe media directory/);
   } finally {
+    mediaStore.close();
     await rm(root, { recursive: true, force: true });
   }
 });
@@ -234,7 +241,12 @@ test("settings routes require host protection, reject unavailable models and rej
     quick: {
       store,
       preferences,
-      media: new BreakMedia(root),
+      media: new BreakMedia(root, store),
+      defaults: {
+        audio: resolve(root, "calm track.mp3"),
+        visual: resolve(root, "break-eye.html"),
+        visualUrl: "http://127.0.0.1:39233/break",
+      },
       discover: async () => [{ id: "fixture", efforts: ["high"] }],
     },
   });
@@ -251,6 +263,12 @@ test("settings routes require host protection, reject unavailable models and rej
       Cookie: host.headers.get("set-cookie")!.split(";")[0],
       "Content-Type": "application/json",
     };
+    const library = await fetch(origin + "/api/break-media", { headers });
+    const assets = (await library.json()) as {
+      defaults: { audio: { name: string }; visual: { name: string } };
+    };
+    assert.equal(assets.defaults.audio.name, "calm track.mp3");
+    assert.equal(assets.defaults.visual.name, "break-eye.html");
     const save = (body: unknown) =>
       fetch(origin + "/api/settings", {
         method: "PUT",
