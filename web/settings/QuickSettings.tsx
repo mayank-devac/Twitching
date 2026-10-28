@@ -6,6 +6,7 @@ import type {
   SettingsDocument,
   SessionVisibility,
 } from "../../shared/settings.js";
+import { useUnsavedWarning } from "./use-unsaved-warning.js";
 import { hostRequest } from "./api.js";
 import { SessionCard } from "./SessionCard.js";
 import { PreparedPrompt } from "./PreparedPrompt.js";
@@ -38,6 +39,14 @@ export function QuickSettings({
     "sessions" | "stream" | "media" | "jev"
   >("sessions");
   const [harness, setHarness] = useState(false);
+  const [promptDirty, setPromptDirty] = useState(false);
+  // The leave warning covers both durable settings and the separate prepared-prompt editor.
+  const dirty = !!(
+    document &&
+    draft &&
+    JSON.stringify(document.value) !== JSON.stringify(draft)
+  );
+  const confirmLeave = useUnsavedWarning(dirty || promptDirty);
   async function reload() {
     setBusy(true);
     setError("");
@@ -169,7 +178,6 @@ export function QuickSettings({
     );
   const stale =
     (state.quickSettings?.revision ?? document.revision) > document.revision;
-  const dirty = JSON.stringify(document.value) !== JSON.stringify(draft);
   async function controlAction(action: string) {
     setBusy(true);
     setError("");
@@ -185,7 +193,22 @@ export function QuickSettings({
     <main className="quick-settings">
       <header className="qs-header">
         <div>
-          <a href="/control">← Control</a>
+          <a
+            href="/control"
+            onClick={(event) => {
+              if (
+                event.button === 0 &&
+                !event.metaKey &&
+                !event.ctrlKey &&
+                !event.shiftKey &&
+                !event.altKey &&
+                !confirmLeave()
+              )
+                event.preventDefault();
+            }}
+          >
+            ← Control
+          </a>
           <h1>Quick Settings</h1>
         </div>
         <div className="qs-status">
@@ -376,7 +399,11 @@ export function QuickSettings({
           </section>
         </fieldset>
         <aside className="qs-side">
-          <PreparedPrompt state={state} token={token} />
+          <PreparedPrompt
+            state={state}
+            token={token}
+            onDirtyChange={setPromptDirty}
+          />
           <HistoryPanel token={token} />
         </aside>
       </div>

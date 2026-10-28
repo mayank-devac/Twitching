@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { ShowState } from "../../shared/types.js";
 import { hostRequest } from "./api.js";
 
@@ -6,13 +6,20 @@ import { hostRequest } from "./api.js";
 export function PreparedPrompt({
   state,
   token,
+  onDirtyChange,
 }: {
   state: ShowState;
   token: string;
+  onDirtyChange?(dirty: boolean): void;
 }) {
   const [edit, setEdit] = useState<{ text: string; version: string }>();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // Parent navigation guards include text typed into this independent editor.
+  useEffect(() => {
+    onDirtyChange?.(!!edit && edit.text !== state.prepared?.text);
+    return () => onDirtyChange?.(false);
+  }, [edit?.text, state.prepared?.text, onDirtyChange]);
   const stale = edit && edit.version !== state.preparedVersion;
   async function save() {
     if (!edit) return;

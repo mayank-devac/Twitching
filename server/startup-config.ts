@@ -31,9 +31,7 @@ export const startupSchema = z.object({
   sessions: z
     .array(
       z.object({
-        id: z
-          .string()
-          .refine(validSessionId, `Use ${SESSION_IDS.join(", ")}`),
+        id: z.string().refine(validSessionId, `Use ${SESSION_IDS.join(", ")}`),
         cli: z.enum(["codex", "cursor"]),
         model: z.string().trim().min(1),
         effort: z.string().trim().min(1).optional(),
@@ -58,20 +56,30 @@ export const startupSchema = z.object({
   stopObsOnEnd: z.boolean(),
   kickWebhookUrl: z.string(),
   kickListenHost: z.enum(["127.0.0.1", "0.0.0.0"]),
-  skipYoutube: z.boolean().default(false),
-  skipTwitch: z.boolean().default(false),
-  skipKick: z.boolean().default(false),
+  skipYoutube: z.boolean().default(true),
+  skipTwitch: z.boolean().default(true),
+  skipKick: z.boolean().default(true),
   promptFile: z.string().min(1).default(DEFAULT_PROMPT_FILE),
   promptPlaylist: z.boolean().default(false),
 });
 export type StartupSettings = z.infer<typeof startupSchema>;
-export function normalizeStartup(settings: unknown, root: string): StartupSettings {
+export function normalizeStartup(
+  settings: unknown,
+  root: string,
+): StartupSettings {
   const value = startupSchema.parse(settings);
-  value.sessions = startupSchema.shape.sessions.parse(configuredSessions(value));
+  value.sessions = startupSchema.shape.sessions.parse(
+    configuredSessions(value),
+  );
   for (const key of ["musicPath", "visualPath"] as const)
     value[key] = resolve(root, value[key]);
   if (
-    new Set([value.port, value.previewPort, value.webhookPort, value.browserPort]).size !== 4
+    new Set([
+      value.port,
+      value.previewPort,
+      value.webhookPort,
+      value.browserPort,
+    ]).size !== 4
   )
     throw new Error("Use four different ports");
   return value;
@@ -90,10 +98,25 @@ export function resolveStartup(
       singleAgent: env.ARENA_SINGLE_AGENT || raw.singleAgent,
       sessions: env.ARENA_SESSIONS
         ? JSON.parse(env.ARENA_SESSIONS)
-        : env.ARENA_SINGLE_AGENT ? undefined : raw.sessions,
-      skipYoutube: env.ARENA_SKIP_YOUTUBE === "1" || promptPlaylist,
-      skipTwitch: env.ARENA_SKIP_TWITCH === "1" || promptPlaylist,
-      skipKick: env.ARENA_SKIP_KICK === "1" || promptPlaylist,
+        : env.ARENA_SINGLE_AGENT
+          ? undefined
+          : raw.sessions,
+      // Chat collection is opt-in; explicit startup flags and saved file choices still win.
+      skipYoutube:
+        promptPlaylist ||
+        (env.ARENA_SKIP_YOUTUBE === undefined
+          ? (raw.skipYoutube ?? true)
+          : env.ARENA_SKIP_YOUTUBE !== "0"),
+      skipTwitch:
+        promptPlaylist ||
+        (env.ARENA_SKIP_TWITCH === undefined
+          ? (raw.skipTwitch ?? true)
+          : env.ARENA_SKIP_TWITCH !== "0"),
+      skipKick:
+        promptPlaylist ||
+        (env.ARENA_SKIP_KICK === undefined
+          ? (raw.skipKick ?? true)
+          : env.ARENA_SKIP_KICK !== "0"),
       promptPlaylist,
     },
     root,

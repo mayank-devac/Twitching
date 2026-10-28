@@ -31,15 +31,15 @@ Purpose: Route agents to the most relevant source files quickly. Verify details 
 
 `server/manual-break.ts`, `server/settings-view.ts`, `server/break-media.ts`
 
-- Work: Keep manual timers distinct from quota recovery, filter public activity without deleting history, redact paginated history, and store/serve bounded approved media by opaque IDs.
+- Work: Keep optional manual timers and host-ended breaks distinct from quota recovery, filter public activity without deleting history, redact paginated history, and store/serve bounded approved media by opaque IDs.
 - Useful for: Break cancellation/deadlines, safe public read names, and media traversal/symlink/format checks.
 - Contains: `ManualBreakControls`, `publicActivity`, `historyView`, `BreakMedia`, `detectMedia`.
 - Used by: `server/controller.ts`, `server/settings-http.ts` and the focused settings/controller tests.
 
-`web/settings/QuickSettings.tsx`, `web/settings/SessionCard.tsx`, `web/settings/PreparedPrompt.tsx`, `web/settings/HistoryPanel.tsx`, `web/settings/BreakMedia.tsx`, `web/settings/ActionBar.tsx`, `web/settings/api.ts`, `web/settings/settings.css`, `web/break-screen.tsx`
+`web/settings/QuickSettings.tsx`, `web/settings/SessionCard.tsx`, `web/settings/PreparedPrompt.tsx`, `web/settings/HistoryPanel.tsx`, `web/settings/BreakMedia.tsx`, `web/settings/ActionBar.tsx`, `web/settings/api.ts`, `web/settings/use-unsaved-warning.ts`, `web/settings/StreamSettings.tsx`, `web/settings/HarnessForm.tsx`, `web/settings/settings.css`, `web/break-screen.tsx`
 
-- Work: Render the separate `/control/settings` host page, independent session cards, prompt/history panels, media selection, and explicit stream/break/harness actions. The shared break screen owns overlay-only music playback and media fallbacks.
-- Useful for: Settings layout, unsaved drafts, current/pending models, immediate visibility saves, stale-tab feedback, and browser autoplay failures.
+- Work: Render the separate `/control/settings` host page, independent session cards, prompt/history panels, media selection, and explicit stream/break/harness actions. The shared break screen owns full-frame GIF display, compact break status, overlay-only music playback and media fallbacks.
+- Useful for: Settings layout, unsaved drafts, current/pending models, immediate visibility saves, stale-tab feedback, browser autoplay failures, one-file drag-and-drop uploads, unsaved-change highlights and close/navigation guards.
 - Used by: `web/main.tsx`.
 
 ## `server/`

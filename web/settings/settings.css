@@ -662,3 +662,98 @@ fieldset.qs-main {
 .qs-media-preview {
   color-scheme: dark;
 }
+
+/* A session uses the available width: model controls left, visibility in one column right. */
+.qs-cli {
+  grid-template-columns: minmax(0, 1fr);
+}
+.qs-session-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.8fr);
+  gap: 24px;
+  margin-top: 18px;
+}
+.qs-session-models {
+  min-width: 0;
+}
+.qs-session-models .qs-fields {
+  grid-template-columns: 1fr;
+}
+.qs-session-models > .qs-hint {
+  margin-top: 12px;
+}
+.qs-session-layout .qs-visibility-details {
+  margin: 0;
+  padding: 0 0 0 24px;
+  border-top: 0;
+  border-left: 1px solid #303741;
+}
+.qs-visibility {
+  grid-template-columns: minmax(0, 1fr);
+}
+.qs-visibility-details summary {
+  flex-wrap: wrap;
+}
+.qs-visibility-details summary small {
+  margin-left: 0;
+}
+.qs-upload.qs-dragging {
+  border-color: #a8c7fb;
+  background: #253448;
+  box-shadow: 0 0 0 2px #a8c7fb33;
+}
+.quick-settings .qs-primary.qs-unsaved {
+  background: #f2cc82;
+  border-color: #f2cc82;
+  color: #241b0d;
+  box-shadow: 0 0 0 3px #f2cc8226;
+}
+.qs-unsaved-note {
+  color: #f2cc82;
+  font-size: 12px;
+}
+.qs-break-toggle {
+  display: flex !important;
+  align-items: center;
+  gap: 8px !important;
+}
+.qs-break-toggle input {
+  accent-color: #b8ccef;
+}
+.qs-media-preview {
+  position: relative;
+}
+.quick-settings .qs-preview-expand {
+  font-size: 11px;
+  padding: 5px 8px;
+  margin-bottom: 10px;
+}
+.qs-media-preview:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: #080d10;
+}
+.qs-media-preview:fullscreen img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.qs-media-preview:fullscreen .qs-preview-expand {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  z-index: 1;
+}
+@media (max-width: 1050px) {
+  .qs-session-layout {
+    grid-template-columns: 1fr;
+  }
+  .qs-session-layout .qs-visibility-details {
+    padding: 18px 0 0;
+    border-left: 0;
+    border-top: 1px solid #303741;
+  }
+}

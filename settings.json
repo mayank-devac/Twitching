@@ -27,7 +27,7 @@
   ],
   "jevProbe": "Build a small colourful webpage that reacts to mouse movement",
   "musicPath": "assets/break.mp3",
-  "visualPath": "assets/break-visual.html",
+  "visualPath": "assets/break-visual.gif",
   "obsUrl": "ws://127.0.0.1:4455",
   "stopObsOnEnd": true,
   "kickWebhookUrl": "",

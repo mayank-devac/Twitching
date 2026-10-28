@@ -1,5 +1,9 @@
 import { chooseSessions, parseSessionSpec } from "./session-selection.js";
-import { normalizeStartup, selectStartupSessions, startupConfigurationId } from "../server/startup-config.js";
+import {
+  normalizeStartup,
+  selectStartupSessions,
+  startupConfigurationId,
+} from "../server/startup-config.js";
 import {
   configuredSessions,
   sessionCount,
@@ -26,10 +30,11 @@ const args = process.argv.slice(2);
 const command = args.shift();
 const help = `Prompt Arena guided startup
 
-  ./check_stream_start.sh [--cli codex|cursor] [--mode live|rehearsal] [--runner docker|native] [--verify] [--non-interactive] [--skip yt] [--skip twitch] [--skip kick] [--prompts] [--no-prompts]
-  ./start_stream.sh       [--cli codex|cursor] [--mode live|rehearsal] [--runner docker|native] [--verify] [--skip yt] [--skip twitch] [--skip kick] [--prompts] [--no-prompts]
+  ./check_stream_start.sh [--cli codex|cursor] [--mode live|rehearsal] [--runner docker|native] [--verify] [--non-interactive] [--chat yt|twitch|kick] [--skip yt|twitch|kick] [--prompts] [--no-prompts]
+  ./start_stream.sh       [--cli codex|cursor] [--mode live|rehearsal] [--runner docker|native] [--verify] [--chat yt|twitch|kick] [--skip yt|twitch|kick] [--prompts] [--no-prompts]
 
 Check defaults to live readiness. Start offers rehearsal/live and Docker/native choices.
+Chat starts off. Repeat --chat for each platform you want, or enable it in Quick Settings.
 --session cli:model[:effort] selects a session; repeat once for two sessions (including Codex + Codex).
 Interactive start also offers session/model selection from installed CLIs.
 --codex / --cursor (or --cli codex|cursor) runs one CLI in a full-width panel. The other CLI is not checked or launched.
@@ -53,9 +58,10 @@ let mode: "live" | "rehearsal" | undefined;
 let runnerMode: "docker" | "native" | undefined;
 let verify = false;
 let interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY);
-let skipYoutube = false;
-let skipTwitch = false;
-let skipKick = false;
+// Chat collection starts unchecked; each platform is an explicit opt-in.
+let skipYoutube = true;
+let skipTwitch = true;
+let skipKick = true;
 let forcePrompts = false;
 let ignorePrompts = false;
 let singleAgent: "codex" | "cursor" | undefined;
@@ -64,9 +70,13 @@ for (let i = 0; i < args.length; i++) {
   if (args[i] === "--verify") verify = true;
   else if (args[i] === "--session") {
     try {
-      requestedSessions.push(parseSessionSpec(args[++i] ?? "", requestedSessions.length));
+      requestedSessions.push(
+        parseSessionSpec(args[++i] ?? "", requestedSessions.length),
+      );
     } catch (error) {
-      console.error(`ERROR: ${error instanceof Error ? error.message : "Invalid session"}`);
+      console.error(
+        `ERROR: ${error instanceof Error ? error.message : "Invalid session"}`,
+      );
       process.exit(2);
     }
   } else if (["--codex", "--cursor", "--cli"].includes(args[i])) {
@@ -88,7 +98,19 @@ for (let i = 0; i < args.length; i++) {
     runnerMode = args[++i] as typeof runnerMode;
   else if (args[i] === "--prompts") forcePrompts = true;
   else if (args[i] === "--no-prompts") ignorePrompts = true;
-  else if (args[i] === "--skip" && args[i + 1]) {
+  else if (args[i] === "--chat" && args[i + 1]) {
+    try {
+      const platform = parseSkipPlatform(args[++i]);
+      if (platform === "youtube") skipYoutube = false;
+      else if (platform === "twitch") skipTwitch = false;
+      else skipKick = false;
+    } catch (error) {
+      console.error(
+        `ERROR: ${error instanceof Error ? error.message : "Invalid --chat"}`,
+      );
+      process.exit(2);
+    }
+  } else if (args[i] === "--skip" && args[i + 1]) {
     try {
       const platform = parseSkipPlatform(args[++i]);
       if (platform === "youtube") skipYoutube = true;
@@ -648,15 +670,23 @@ try {
     !requestedSessions.length &&
     !existing
   ) {
-    const selected = await chooseSessions(question, (cli) => runner.discover(cli), (line) => console.log(clean(line)));
-    if (selected) Object.assign(settings, selectStartupSessions(settings, selected, root));
+    const selected = await chooseSessions(
+      question,
+      (cli) => runner.discover(cli),
+      (line) => console.log(clean(line)),
+    );
+    if (selected)
+      Object.assign(settings, selectStartupSessions(settings, selected, root));
   }
   // Send the same normalized startup contract that the child parses.
   Object.assign(settings, normalizeStartup(settings, root));
   process.env.ARENA_SESSIONS = JSON.stringify(settings.sessions);
   configurationId = startupConfigurationId(settings);
   if (existing && existingConfigurationId !== configurationId)
-    fix("The running app has different session or startup choices.", "Close its terminal and start again with the intended choices.");
+    fix(
+      "The running app has different session or startup choices.",
+      "Close its terminal and start again with the intended choices.",
+    );
   await repair(
     "CLI subscription logins, requested models and stream formats",
     async () => {
@@ -751,7 +781,11 @@ try {
           '<html><body><canvas style="width:100%;height:100%"></canvas></body></html>',
         );
         await previews.ready();
-        await previews.validate("codex", 1, sessionCount(configuredSessions(settings)));
+        await previews.validate(
+          "codex",
+          1,
+          sessionCount(configuredSessions(settings)),
+        );
       } finally {
         await previews.close().catch(() => {});
         await engine.close().catch(() => {});

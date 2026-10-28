@@ -55,91 +55,101 @@ export function SessionCard({
           </button>
         )}
       </div>
-      <p className="qs-current">
-        <span>Current</span>{" "}
-        {current
-          ? `${current.model}${current.effort ? ` · ${current.effort}` : ""}`
-          : "Not launched"}
-      </p>
-      <div className="qs-fields">
-        <label>
-          Next model
-          <select
-            value={session.model}
-            disabled={busy || !models?.length}
-            onChange={(e) =>
-              change({ ...session, model: e.target.value, effort: undefined })
-            }
-          >
-            {!models?.some((m) => m.id === session.model) && (
-              <option value={session.model}>
-                {session.model}
-                {models
-                  ? " (unavailable — choose another)"
-                  : " (refresh to change)"}
-              </option>
-            )}
-            {models?.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.id}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Next effort
-          <select
-            value={session.effort ?? ""}
-            disabled={busy || !supported?.efforts.length}
-            onChange={(e) =>
-              change({ ...session, effort: e.target.value || undefined })
-            }
-          >
-            <option value="">CLI default</option>
-            {session.effort && !supported?.efforts.includes(session.effort) && (
-              <option value={session.effort}>
-                {session.effort} (refresh to verify)
-              </option>
-            )}
-            {supported?.efforts.map((e) => (
-              <option key={e} value={e}>
-                {e}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <p className="qs-hint">
-        {!models
-          ? "Refresh models to change model or effort."
-          : !supported?.efforts.length
-            ? "No effort choices for this model."
-            : "Supported choices from the installed CLI."}
-      </p>
-      <details className="qs-details qs-visibility-details">
-        <summary>
-          Overlay visibility <small>Saves immediately</small>
-        </summary>
-        <fieldset className="qs-visibility" disabled={busy}>
-          <legend className="qs-sr-only">Overlay visibility</legend>
-          {choices.map(([key, label]) => (
-            <label key={key}>
-              <input
-                type="checkbox"
-                checked={display[key]}
+      {/* Model controls and a vertical visibility list occupy separate readable columns. */}
+      <div className="qs-session-layout">
+        <div className="qs-session-models">
+          <p className="qs-current">
+            <span>Current</span>{" "}
+            {current
+              ? `${current.model}${current.effort ? ` · ${current.effort}` : ""}`
+              : "Not launched"}
+          </p>
+          <div className="qs-fields">
+            <label>
+              Next model
+              <select
+                value={session.model}
+                disabled={busy || !models?.length}
                 onChange={(e) =>
-                  toggle({ ...display, [key]: e.target.checked })
+                  change({
+                    ...session,
+                    model: e.target.value,
+                    effort: undefined,
+                  })
                 }
-              />
-              {label}
+              >
+                {!models?.some((m) => m.id === session.model) && (
+                  <option value={session.model}>
+                    {session.model}
+                    {models
+                      ? " (unavailable — choose another)"
+                      : " (refresh to change)"}
+                  </option>
+                )}
+                {models?.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.id}
+                  </option>
+                ))}
+              </select>
             </label>
-          ))}
-        </fieldset>
-        <p className="qs-hint">
-          Only safe output filenames are shown. Private paths and contents stay
-          hidden; history is kept.
-        </p>
-      </details>
+            <label>
+              Next effort
+              <select
+                value={session.effort ?? ""}
+                disabled={busy || !supported?.efforts.length}
+                onChange={(e) =>
+                  change({ ...session, effort: e.target.value || undefined })
+                }
+              >
+                <option value="">CLI default</option>
+                {session.effort &&
+                  !supported?.efforts.includes(session.effort) && (
+                    <option value={session.effort}>
+                      {session.effort} (refresh to verify)
+                    </option>
+                  )}
+                {supported?.efforts.map((e) => (
+                  <option key={e} value={e}>
+                    {e}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <p className="qs-hint">
+            {!models
+              ? "Refresh models to change model or effort."
+              : !supported?.efforts.length
+                ? "No effort choices for this model."
+                : "Supported choices from the installed CLI."}
+          </p>
+        </div>
+        <details open className="qs-details qs-visibility-details">
+          <summary>
+            Overlay visibility <small>Saves immediately</small>
+          </summary>
+          <fieldset className="qs-visibility" disabled={busy}>
+            <legend className="qs-sr-only">Overlay visibility</legend>
+            {choices.map(([key, label]) => (
+              <label key={key}>
+                <input
+                  type="checkbox"
+                  checked={display[key]}
+                  onChange={(e) =>
+                    toggle({ ...display, [key]: e.target.checked })
+                  }
+                />
+                {label}
+              </label>
+            ))}
+          </fieldset>
+          <p className="qs-hint">
+            Only safe output filenames are shown. Private paths and contents
+            stay hidden; history is kept.
+          </p>
+        </details>
+      </div>
     </article>
   );
 }

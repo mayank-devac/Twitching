@@ -1,30 +1,38 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { ShowState } from "../shared/types.js";
 
-// Only an overlay owns autoplay; host tabs show the timer without duplicating music.
+// The overlay fills the output frame; host previews keep controls available and never autoplay.
 export function BreakScreen({
   state,
   now,
-  previewOrigin,
   host,
 }: {
   state: ShowState;
   now: number;
-  previewOrigin: string;
   host: boolean;
 }) {
+  const screen = useRef<HTMLElement>(null);
   const audio = useRef<HTMLAudioElement>(null);
   const [blocked, setBlocked] = useState(false);
+  const [fullscreenError, setFullscreenError] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
+  const [defaultMissing, setDefaultMissing] = useState(false);
   const [musicFailed, setMusicFailed] = useState(false);
   const media = state.quickSettings?.media;
-  useEffect(() => setImageFailed(false), [media?.visual]);
+  useEffect(() => {
+    setImageFailed(false);
+    setDefaultMissing(false);
+  }, [media?.visual]);
   useEffect(() => setMusicFailed(false), [media?.audio]);
   const music =
     media?.audio && !musicFailed
       ? `/media/break/${media.audio}`
       : "/media/break.mp3";
-  // Changing a selected track during a break replaces it without keeping the old audio alive.
+  const custom = !!media?.visual && !imageFailed;
+  const visual = custom
+    ? `/media/break/${media!.visual}`
+    : "/media/break-visual.gif";
+  // Track changes replace the previous audio element source without another playback owner.
   useEffect(() => {
     if (!host)
       void audio.current
@@ -32,60 +40,67 @@ export function BreakScreen({
         .then(() => setBlocked(false))
         .catch(() => setBlocked(true));
   }, [music, host]);
-  const seconds = Math.max(
-    0,
-    Math.ceil(((state.breakUntil ?? now) - now) / 1000),
-  );
+  const seconds = state.breakUntil
+    ? Math.max(0, Math.ceil((state.breakUntil - now) / 1000))
+    : undefined;
   return (
-    <section className="break-screen">
-      {media?.visual && !imageFailed ? (
+    <section
+      ref={screen}
+      className={`break-screen ${host ? "break-host" : "break-overlay"}`}
+      aria-label="Break screen"
+    >
+      {!defaultMissing && (
         <img
           className="break-upload"
           alt="Break visual"
-          src={`/media/break/${media.visual}`}
-          onError={() => setImageFailed(true)}
-        />
-      ) : (
-        <iframe
-          title="Break visual"
-          src={`${previewOrigin}/break`}
-          sandbox="allow-scripts"
-          referrerPolicy="no-referrer"
+          src={visual}
+          onError={() =>
+            custom ? setImageFailed(true) : setDefaultMissing(true)
+          }
         />
       )}
       <div className="break-label">
-        <h2>
-          {String(Math.floor(seconds / 60)).padStart(2, "0")}:
-          {String(seconds % 60).padStart(2, "0")}
-        </h2>
-        <p>
-          {state.breakKind === "manual"
-            ? "Timed break · Resume after the timer ends"
-            : "Waiting for quota to recover"}
-        </p>
-        {blocked && !host && (
-          <>
-            <p className="error">
-              Music was blocked. Enable autoplay in OBS or press Play music
-              here.
-            </p>
-            <button
-              onClick={() =>
-                void audio.current
-                  ?.play()
-                  .then(() => setBlocked(false))
-                  .catch(() => setBlocked(true))
+        {seconds !== undefined ? (
+          <time role="timer">
+            {String(Math.floor(seconds / 60)).padStart(2, "0")}:
+            {String(seconds % 60).padStart(2, "0")}
+          </time>
+        ) : (
+          <span>Taking a break</span>
+        )}
+        {state.breakKind === "quota" && <span>Waiting for quota</span>}
+        {host && (
+          <button
+            onClick={() => {
+              if (!screen.current?.requestFullscreen) {
+                setFullscreenError(true);
+                return;
               }
-            >
-              Play music
-            </button>
-          </>
+              void screen.current
+                .requestFullscreen()
+                .catch(() => setFullscreenError(true));
+            }}
+          >
+            Full screen
+          </button>
         )}
-        {musicFailed && (
-          <p className="error">
-            Selected music unavailable; using the original track.
-          </p>
+        {blocked && !host && (
+          <button
+            onClick={() =>
+              void audio.current
+                ?.play()
+                .then(() => setBlocked(false))
+                .catch(() => setBlocked(true))
+            }
+          >
+            Play music
+          </button>
         )}
+        {fullscreenError && (
+          <span className="error">Full screen unavailable</span>
+        )}
+        {defaultMissing && <span className="error">Break GIF unavailable</span>}
+        {musicFailed && <span className="error">Using default music</span>}
       </div>
       {!host && (
         <audio

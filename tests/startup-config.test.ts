@@ -50,3 +50,13 @@ test("interactive selection discovers once for two sessions of the same CLI", as
   assert.equal(discoveries, 1);
   assert.deepEqual(selected, [parseSessionSpec("codex:a:high", 0), parseSessionSpec("codex:b", 1)]);
 });
+
+// Fresh startup must not connect chat until the host explicitly opts into a platform.
+test("chat defaults to none and explicit flags or file choices opt in",()=>{
+  const initial=resolveStartup(raw,{},root,false);
+  assert.deepEqual([initial.skipYoutube,initial.skipTwitch,initial.skipKick],[true,true,true]);
+  const explicit=resolveStartup(raw,{ARENA_SKIP_YOUTUBE:"0"},root,false);
+  assert.deepEqual([explicit.skipYoutube,explicit.skipTwitch,explicit.skipKick],[false,true,true]);
+  assert.equal(resolveStartup({...raw,skipTwitch:false},{},root,false).skipTwitch,false);
+  assert.equal(resolveStartup(raw,{ARENA_SKIP_YOUTUBE:"0"},root,true).skipYoutube,true);
+});

@@ -1,11 +1,17 @@
 export type Platform = "youtube" | "twitch" | "kick" | "fallback";
 export type Agent = "codex" | "cursor";
 // CLI identity selects a protocol; session identity owns files and results.
-export const SESSION_IDS = ["codex", "cursor", "session-1", "session-2"] as const;
+export const SESSION_IDS = [
+  "codex",
+  "cursor",
+  "session-1",
+  "session-2",
+] as const;
 export type SessionId = string;
 export type SessionCount = 1 | 2;
 export function sessionCount(sessions: readonly unknown[]): SessionCount {
-  if (sessions.length !== 1 && sessions.length !== 2) throw new Error("Choose one or two sessions");
+  if (sessions.length !== 1 && sessions.length !== 2)
+    throw new Error("Choose one or two sessions");
   return sessions.length;
 }
 export interface SessionConfig {
@@ -42,15 +48,24 @@ export function validSessionId(id: string) {
 export function legacyCli(id: string): Agent | undefined {
   return id === "codex" || id === "cursor" ? id : undefined;
 }
-export function sessionCli(state: Pick<ShowState, "round" | "sessions">, id: SessionId): Agent | undefined {
-  return state.round?.attempts[id]?.cli
-    ?? state.round?.sessions?.find((s) => s.id === id)?.cli
-    ?? state.sessions?.find((s) => s.id === id)?.cli
-    ?? legacyCli(id);
+export function sessionCli(
+  state: Pick<ShowState, "round" | "sessions">,
+  id: SessionId,
+): Agent | undefined {
+  return (
+    state.round?.attempts[id]?.cli ??
+    state.round?.sessions?.find((s) => s.id === id)?.cli ??
+    state.sessions?.find((s) => s.id === id)?.cli ??
+    legacyCli(id)
+  );
 }
 // Old rounds stored the model and reasoning effort as one display label.
-export function legacyModel(label: string): Pick<SessionConfig, "model" | "effort"> {
-  const match = label.match(/^(.*?) · (minimal|low|medium|high|xhigh|max|ultra)$/);
+export function legacyModel(
+  label: string,
+): Pick<SessionConfig, "model" | "effort"> {
+  const match = label.match(
+    /^(.*?) · (minimal|low|medium|high|xhigh|max|ultra)$/,
+  );
   return match ? { model: match[1], effort: match[2] } : { model: label };
 }
 export interface ChatMessage {
@@ -154,7 +169,7 @@ export interface ShowState {
   // Manual breaks never use the quota recovery transition.
   breakUntil?: number;
   breakKind?: "manual" | "quota";
-  manualBreak?: { durationMs: number; deadline?: number };
+  manualBreak?: { durationMs: number | null; deadline?: number };
   quickSettings?: {
     revision: number;
     visibility: import("./settings.js").QuickPreferences["visibility"];

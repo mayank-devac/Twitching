@@ -22,6 +22,9 @@ export function ActionBar({
 }) {
   const [breakOpen, setBreakOpen] = useState(false);
   const [minutes, setMinutes] = useState(5);
+  const [useTimer, setUseTimer] = useState(true);
+  const invalidTimer =
+    useTimer && (!Number.isFinite(minutes) || minutes < 1 || minutes > 60);
   const [working, setWorking] = useState(false);
   const locked = busy || working || !token;
   async function action(path: string, value: unknown) {
@@ -43,22 +46,33 @@ export function ActionBar({
     <footer className="qs-actions">
       {breakOpen && (
         <div className="qs-break-form">
-          <label>
-            Break length (minutes)
+          {/* A null duration is explicit host-ended mode, never a quota override. */}
+          <label className="qs-break-toggle">
             <input
-              type="number"
-              min={1}
-              max={60}
-              value={minutes}
-              onChange={(e) => setMinutes(Number(e.target.value))}
+              type="checkbox"
+              checked={useTimer}
+              onChange={(event) => setUseTimer(event.target.checked)}
             />
+            Set a timer
           </label>
+          {useTimer && (
+            <label>
+              Break length (minutes)
+              <input
+                type="number"
+                min={1}
+                max={60}
+                value={minutes}
+                onChange={(e) => setMinutes(Number(e.target.value))}
+              />
+            </label>
+          )}
           <button
-            disabled={locked || minutes < 1 || minutes > 60}
+            disabled={locked || invalidTimer}
             onClick={() =>
               void action("/api/quick-action", {
                 action: "break",
-                durationMs: Math.round(minutes * 60000),
+                durationMs: useTimer ? Math.round(minutes * 60000) : null,
                 immediate: false,
               })
             }
@@ -66,7 +80,7 @@ export function ActionBar({
             After this round
           </button>
           <button
-            disabled={locked || minutes < 1 || minutes > 60}
+            disabled={locked || invalidTimer}
             onClick={() => {
               if (
                 window.confirm(
@@ -75,7 +89,7 @@ export function ActionBar({
               )
                 void action("/api/quick-action", {
                   action: "break",
-                  durationMs: Math.round(minutes * 60000),
+                  durationMs: useTimer ? Math.round(minutes * 60000) : null,
                   immediate: true,
                 });
             }}
@@ -84,8 +98,10 @@ export function ActionBar({
           </button>
           <button onClick={() => setBreakOpen(false)}>Cancel</button>
           <p className="qs-hint">
-            The timer lives on the server. When it ends, the show pauses; Resume
-            rechecks quota. Quota breaks cannot be shortened.
+            {useTimer
+              ? "Timer expiry pauses the show. You can also Resume when ready."
+              : "No timer. The break stays on until you press Start or Resume."}{" "}
+            Resume checks quota; quota breaks cannot be shortened.
           </p>
         </div>
       )}
@@ -122,23 +138,43 @@ export function ActionBar({
           aria-expanded={breakOpen}
           onClick={() => setBreakOpen((o) => !o)}
         >
-          Play break with timer
+          Play break
         </button>
         <button disabled={locked} onClick={onHarness}>
           Run a new harness
         </button>
         <span className="qs-spacer" />
         {state.status === "break" ? (
-          <span role="timer">
-            {state.breakKind === "manual" ? "Timed" : "Quota"} break ·{" "}
-            {Math.floor(remaining / 60)}:
-            {String(remaining % 60).padStart(2, "0")}
-          </span>
+          <>
+            <span role="timer">
+              {state.breakKind === "quota"
+                ? "Quota break"
+                : state.breakUntil
+                  ? "Timed break"
+                  : "Break until Resume"}
+              {state.breakUntil
+                ? ` · ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`
+                : ""}
+            </span>
+            {state.breakKind === "manual" && (
+              <button
+                disabled={locked}
+                onClick={() => void action("/api/action", { action: "resume" })}
+              >
+                End break &amp; resume
+              </button>
+            )}
+          </>
         ) : state.manualBreak ? (
           <span>Break scheduled after results</span>
         ) : null}
+        {dirty && (
+          <span className="qs-unsaved-note" role="status">
+            Unsaved changes
+          </span>
+        )}
         <button
-          className="qs-primary"
+          className={`qs-primary${dirty ? " qs-unsaved" : ""}`}
           disabled={locked || !dirty}
           onClick={onSave}
         >

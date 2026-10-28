@@ -32,8 +32,11 @@ export function StreamSettings({
             disabled={
               disabled ||
               (name === "start" &&
-                !["paused", "stopped"].includes(state.status)) ||
-              (name === "resume" && state.status !== "paused") ||
+                !["paused", "stopped"].includes(state.status) &&
+                !(state.status === "break" && state.breakKind === "manual")) ||
+              (name === "resume" &&
+                state.status !== "paused" &&
+                !(state.status === "break" && state.breakKind === "manual")) ||
               (name === "pause" &&
                 ["paused", "stopped"].includes(state.status)) ||
               (name === "skip" &&

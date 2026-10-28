@@ -287,7 +287,8 @@ test("restart pauses interrupted jobs rather than relaunching", async () => {
   assert.equal(f.runner.launches.length, 1);
   await f.cleanup();
 });
-test("public snapshot hides lane commands and the host snapshot keeps them", async () => {
+// Visible tool notices remain public; command visibility defaults off and host history stays complete.
+test("public snapshot keeps tool notices and hides commands by default", async () => {
   const f = await fixture();
   f.controller.state.events = [
     {
@@ -295,6 +296,14 @@ test("public snapshot hides lane commands and the host snapshot keeps them", asy
       round: 1,
       agent: "codex",
       at: 1,
+      kind: "tool",
+      text: "Tool running: rg",
+    },
+    {
+      id: "command",
+      round: 1,
+      agent: "codex",
+      at: 2,
       kind: "command",
       text: "Running command: rg",
     },
@@ -314,7 +323,7 @@ test("public snapshot hides lane commands and the host snapshot keeps them", asy
   );
   assert.deepEqual(
     f.controller.hostSnapshot().events.map((event) => event.id),
-    ["public", "lane"],
+    ["public", "command", "lane"],
   );
   await f.cleanup();
 });
@@ -627,7 +636,7 @@ test("two Codex sessions keep independent results and cancellation identity", as
 });
 
 // A scheduled manual break waits for both sessions and result display, then ends paused.
-test("manual break keeps a server deadline and Resume cannot skip it", async () => {
+test("manual break keeps a server deadline and expiry pauses the show", async () => {
   const f = await fixture();
   try {
     await f.controller.manualBreak(10000,false);
@@ -638,10 +647,10 @@ test("manual break keeps a server deadline and Resume cannot skip it", async () 
     f.setTime(1031);await f.controller.tick();
     assert.equal(f.controller.state.breakKind,"manual");
     assert.equal(f.store.state()!.manualBreak!.deadline,11031);
-    await assert.rejects(f.controller.resume(),/break is active/);
-    await assert.rejects(f.controller.start(),/break transition/);
     f.setTime(11031);await f.controller.tick();
     assert.equal(f.controller.state.status,"paused");
+    assert.equal(f.store.state()!.status,"paused");
+    assert.equal(f.controller.state.breakKind,undefined);
     assert.equal(f.controller.state.breakUntil,undefined);
     assert.equal(f.broadcastStops(),0);
   } finally {await f.cleanup();}
@@ -673,5 +682,37 @@ test("prepared prompt edits check the exact version and preserve the active roun
     assert.equal(f.controller.state.prepared!.author,"Host edited");
     assert.equal(f.controller.state.round!.task.text,active);
     assert.throws(()=>f.controller.editPrepared(version,"Draw another colourful garden"),/changed or launched/);
+  } finally {await f.cleanup();}
+});
+
+// A host-ended break has no deadline and leaves through the full startup/quota path.
+test("untimed manual break stays active until Resume and still enforces quota",async()=>{
+  const f=await fixture();
+  try {
+    await f.controller.manualBreak(null,true);
+    assert.equal(f.controller.state.breakKind,"manual");
+    assert.equal(f.controller.state.manualBreak!.durationMs,null);
+    assert.equal(f.store.state()!.manualBreak!.deadline,undefined);
+    f.setTime(9_000_000);await f.controller.tick();
+    assert.equal(f.controller.state.status,"break");
+    f.runner.quotaValue.remainingPercent=0;
+    await f.controller.resume();
+    assert.equal(f.controller.state.breakKind,"quota");
+    assert.equal(f.controller.state.manualBreak,undefined);
+    await assert.rejects(f.controller.start(),/break transition/);
+  } finally {await f.cleanup();}
+});
+
+// Start is also an explicit way to leave a manual break; a pending timer is cleared.
+test("Start ends a timed manual break early without skipping startup checks",async()=>{
+  const f=await fixture();
+  try {
+    await f.controller.manualBreak(60000,true);
+    const recoveries=f.runner.recovered;
+    await f.controller.start();
+    assert.ok(f.runner.recovered>recoveries);
+    assert.equal(f.controller.state.manualBreak,undefined);
+    assert.equal(f.controller.state.breakUntil,undefined);
+    assert.notEqual(f.controller.state.status,"break");
   } finally {await f.cleanup();}
 });

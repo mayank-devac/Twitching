@@ -279,7 +279,7 @@ function App() {
         </footer>
       )}
       {state.status === "break" ? (
-        <BreakScreen state={state} now={now} previewOrigin={previewOrigin} host={control}/>
+        <BreakScreen state={state} now={now} host={control}/>
       ) : (
         <>
           {!control && round?.task.text && (
@@ -323,7 +323,7 @@ function App() {
                 !csrf ||
                 ["running", "collecting", "results", "break"].includes(
                   state.status,
-                )
+                ) && !(state.status === "break" && state.breakKind === "manual")
               }
               onClick={() => action("start")}
             >
@@ -336,7 +336,7 @@ function App() {
               Pause
             </button>
             <button
-              disabled={working || state.status !== "paused"}
+              disabled={working || (state.status !== "paused" && !(state.status === "break" && state.breakKind === "manual"))}
               onClick={() => action("resume")}
             >
               Resume

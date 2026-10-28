@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { QuickPreferences } from "../../shared/settings.js";
 import { hostRequest } from "./api.js";
 type Asset = { id: string; name: string; type: string; bytes: number };
@@ -39,10 +39,12 @@ export function BreakMedia({
   const [files, setFiles] = useState<Asset[]>([]);
   const [defaults, setDefaults] = useState<Defaults>({
     audio: { name: "break.mp3", url: "/media/break.mp3" },
-    visual: { name: "Break visual" },
+    visual: { name: "break-visual.gif", url: "/media/break-visual.gif" },
   });
   const [preview, setPreview] = useState<"audio" | "visual">();
   const [busy, setBusy] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
   const [error, setError] = useState("");
   useEffect(() => {
     if (token)
@@ -173,6 +175,30 @@ export function BreakMedia({
               </div>
               {open && (
                 <div className="qs-media-preview">
+                  {kind === "visual" && (
+                    <button
+                      type="button"
+                      className="qs-preview-expand"
+                      onClick={(event) => {
+                        const element = event.currentTarget.parentElement;
+                        if (!element?.requestFullscreen) {
+                          setError(
+                            "Full screen is unavailable in this browser",
+                          );
+                          return;
+                        }
+                        void element
+                          .requestFullscreen()
+                          .catch(() =>
+                            setError(
+                              "Full screen is unavailable in this browser",
+                            ),
+                          );
+                      }}
+                    >
+                      Full screen
+                    </button>
+                  )}
                   {kind === "audio" ? (
                     <audio
                       controls
@@ -193,11 +219,10 @@ export function BreakMedia({
                       }
                     />
                   ) : url ? (
-                    <iframe
-                      title="Default break visual preview"
+                    <img
+                      alt="Default break GIF preview"
                       src={url}
-                      sandbox="allow-scripts"
-                      referrerPolicy="no-referrer"
+                      onError={() => setError("Default GIF is unavailable")}
                     />
                   ) : (
                     <p>Default preview unavailable.</p>
@@ -208,9 +233,39 @@ export function BreakMedia({
           );
         })}
       </div>
-      <label className="qs-upload">
+      {/* Drop and picker share exactly the same bounded upload and validation path. */}
+      <label
+        className={`qs-upload${dragging ? " qs-dragging" : ""}`}
+        onDragEnter={(event) => {
+          event.preventDefault();
+          if (!disabled && !busy) {
+            dragDepth.current++;
+            setDragging(true);
+          }
+        }}
+        onDragLeave={(event) => {
+          event.preventDefault();
+          dragDepth.current = Math.max(0, dragDepth.current - 1);
+          if (!dragDepth.current) setDragging(false);
+        }}
+        onDragOver={(event) => {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = disabled || busy ? "none" : "copy";
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          dragDepth.current = 0;
+          setDragging(false);
+          if (disabled || busy) return;
+          if (event.dataTransfer.files.length !== 1) {
+            setError("Drop one media file at a time");
+            return;
+          }
+          void upload(event.dataTransfer.files[0]);
+        }}
+      >
         <span>
-          <b>Upload a file</b>
+          <b>Drop a file here or choose a file</b>
           <small>Audio, GIF, PNG, JPEG or WebP</small>
         </span>
         <input

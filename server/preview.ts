@@ -86,7 +86,8 @@ const inputSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("wheel"), dy: z.number().min(-1000).max(1000) }),
 ]);
 export function viewportFor(count: SessionCount) {
-  if (count !== 1 && count !== 2) throw new Error("Preview requires one or two sessions");
+  if (count !== 1 && count !== 2)
+    throw new Error("Preview requires one or two sessions");
   return { width: count === 1 ? 1920 : 960, height: 1044 };
 }
 export class Previews {
@@ -134,6 +135,20 @@ export class Previews {
     });
     app.get("/break", async (_req, res) => {
       try {
+        // A configured GIF is served as an image, never fed into the HTML renderer.
+        if (this.visual.toLowerCase().endsWith(".gif")) {
+          const info = await lstat(this.visual);
+          if (
+            !info.isFile() ||
+            info.isSymbolicLink() ||
+            (await realpath(this.visual)) !== this.visual
+          )
+            throw new Error("Unsafe break visual");
+          res.type("gif").sendFile(this.visual, (error) => {
+            if (error && !res.headersSent) res.status(404).end();
+          });
+          return;
+        }
         if (!this.views.has("break")) {
           let html;
           try {
@@ -142,7 +157,10 @@ export class Previews {
             html =
               '<body style="background:#101419;color:#b9ef85;display:grid;place-items:center;height:100vh;font:70px monospace">● ‿ ●</body>';
           }
-          this.views.set("break", await this.render(sanitizeHtml(html), viewportFor(1)));
+          this.views.set(
+            "break",
+            await this.render(sanitizeHtml(html), viewportFor(1)),
+          );
         }
         res.type("html").send(this.viewer(this.views.get("break")!));
       } catch {
@@ -232,7 +250,10 @@ export class Previews {
     if (!this.browser?.isConnected())
       this.browser = await this.browserFactory();
   }
-  private async render(html: string, viewport: { width: number; height: number }): Promise<View> {
+  private async render(
+    html: string,
+    viewport: { width: number; height: number },
+  ): Promise<View> {
     if (!this.browser) throw new Error("Preview browser is not ready");
     const token = randomBytes(24).toString("hex");
     const url = `${this.origin}/isolated/${token}`;
@@ -346,10 +367,7 @@ export class Previews {
     this.assertSafeHtml(html);
     if (!/<(?:html|body|canvas|div|main|svg|button)\b/i.test(html))
       throw new Error("Output is not HTML");
-    const view = await this.render(
-      html,
-      viewportFor(count),
-    );
+    const view = await this.render(html, viewportFor(count));
     for (const [key, old] of this.views)
       if (key.startsWith(`${agent}:`)) {
         await old.context.close();

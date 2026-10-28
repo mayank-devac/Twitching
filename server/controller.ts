@@ -12,7 +12,12 @@ import type {
   ShowState,
   Task,
 } from "../shared/types.js";
-import { configuredSessions, sessionLabel, sessionCount, type SessionCount } from "../shared/types.js";
+import {
+  configuredSessions,
+  sessionLabel,
+  sessionCount,
+  type SessionCount,
+} from "../shared/types.js";
 import { Collection } from "./collection.js";
 import { Filter } from "./filter.js";
 import type { Judge } from "./jev.js";
@@ -167,7 +172,7 @@ export class Controller extends EventEmitter {
     this.syncCollection();
   }
   // Manual expiry pauses; Resume runs the normal quota/rehearsal checks.
-  manualBreak(durationMs: number, immediate: boolean) {
+  manualBreak(durationMs: number | null, immediate: boolean) {
     return this.breaks.request(durationMs, immediate);
   }
   async stopStream() {
@@ -209,8 +214,8 @@ export class Controller extends EventEmitter {
       reason: saved
         ? "Controller restarted. Show is paused."
         : "Ready for a private rehearsal.",
-      // A controller restart keeps the original manual-break deadline and resumes paused afterwards.
-      ...(saved?.breakKind === "manual" && saved.manualBreak?.deadline
+      // A restart preserves timed or host-ended manual breaks without starting coding work.
+      ...(saved?.breakKind === "manual" && saved.manualBreak
         ? {
             status: "break" as const,
             breakKind: "manual" as const,
@@ -385,8 +390,11 @@ export class Controller extends EventEmitter {
     this.persist();
   }
   async start() {
-    // Start cannot skip a server-owned break deadline or quota recovery.
-    if (this.breaks.transitioning || this.state.status === "break")
+    // Only manual breaks can be ended by the host; quota recovery remains mandatory.
+    if (
+      this.breaks.transitioning ||
+      (this.state.status === "break" && this.state.breakKind !== "manual")
+    )
       throw new Error("Wait for the break transition or timer to finish");
     if (this.busy || this.launching || this.handles)
       throw new Error("Current round is still running");
@@ -400,6 +408,13 @@ export class Controller extends EventEmitter {
       throw new Error(
         "Complete and confirm a private OBS rehearsal with this runner mode before live mode",
       );
+    // Leaving a manual break goes through the full normal startup checks.
+    if (this.state.status === "break" && this.state.breakKind === "manual") {
+      this.state.manualBreak = undefined;
+      this.state.breakKind = undefined;
+      this.state.breakUntil = undefined;
+      this.state.status = "paused";
+    }
     const generation = this.generation;
     this.busy = true;
     this.state.checks = [];
@@ -449,7 +464,7 @@ export class Controller extends EventEmitter {
     this.generation++;
     if (this.state.status === "break") {
       this.resumeAfterBreak = false;
-      this.state.reason = `${reason}. ${this.state.breakKind === "manual" ? "Timed" : "Quota"} break continues.`;
+      this.state.reason = `${reason}. ${this.state.breakKind === "manual" ? "Manual" : "Quota"} break continues.`;
       this.persist();
       return;
     }
@@ -460,10 +475,10 @@ export class Controller extends EventEmitter {
   async resume() {
     if (this.breaks.transitioning)
       throw new Error("Work is stopping for a break");
-    if (this.state.status === "break")
-      throw new Error(
-        "A break is active; wait for its timer or quota recovery",
-      );
+    if (this.state.status === "break") {
+      if (this.state.breakKind === "manual") return this.start();
+      throw new Error("A quota break is active; wait for quota recovery");
+    }
     if (this.handles || this.launching) {
       this.state.status = "running";
       this.state.reason = "Current round running; next rounds enabled";
@@ -548,6 +563,8 @@ export class Controller extends EventEmitter {
           this.state.manualBreak = undefined;
           this.state.breakKind = undefined;
           this.state.breakUntil = undefined;
+          // Expiry leaves the break before pause(), which deliberately preserves active breaks.
+          this.state.status = "paused";
           this.pause(
             "Timed break finished. Resume to recheck quota and continue.",
           );
@@ -725,7 +742,12 @@ export class Controller extends EventEmitter {
         attempt.preview = await this.preview.validate(
           agent,
           id,
-          sessionCount(this.state.round.sessions ?? Object.values(this.state.round.attempts).filter((a) => a.status !== "idle")),
+          sessionCount(
+            this.state.round.sessions ??
+              Object.values(this.state.round.attempts).filter(
+                (a) => a.status !== "idle",
+              ),
+          ),
         );
         attempt.status = "complete";
       } catch {

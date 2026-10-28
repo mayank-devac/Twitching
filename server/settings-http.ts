@@ -150,8 +150,8 @@ export function settingsRoutes(
             url: "/media/break.mp3",
           },
           visual: {
-            name: basename(services.defaults?.visual ?? "break.html"),
-            url: services.defaults?.visualUrl,
+            name: "break-visual.gif",
+            url: "/media/break-visual.gif",
           },
         },
       });
@@ -227,7 +227,7 @@ export function settingsRoutes(
   const action = z.discriminatedUnion("action", [
     z.object({
       action: z.literal("break"),
-      durationMs: z.number().int().min(10000).max(3600000),
+      durationMs: z.number().int().min(10000).max(3600000).nullable(),
       immediate: z.boolean(),
     }),
     z.object({

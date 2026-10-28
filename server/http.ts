@@ -1,3 +1,4 @@
+import { lstat, realpath } from "node:fs/promises";
 import { settingsRoutes, type SettingsServices } from "./settings-http.js";
 import { createServer } from "node:http";
 import { randomBytes, timingSafeEqual } from "node:crypto";
@@ -109,7 +110,8 @@ export function makeHttp(
     res.json(controller.hostSnapshot());
   });
   // Settings routes share the existing host cookie and CSRF token checks.
-  if (options.quick) settingsRoutes(app, controller, options.quick, hostAuthorized);
+  if (options.quick)
+    settingsRoutes(app, controller, options.quick, hostAuthorized);
   app.post("/api/action", express.json({ limit: "2kb" }), async (req, res) => {
     if (!hostAuthorized(req)) {
       res
@@ -157,6 +159,24 @@ export function makeHttp(
       res.status(409).json({
         error: error instanceof Error ? error.message : "Action failed",
       });
+    }
+  });
+  // One fixed GIF route keeps the repository and other assets outside static serving.
+  app.get("/media/break-visual.gif", async (_req, res) => {
+    const path = resolve(options.root, "assets/break-visual.gif");
+    try {
+      const info = await lstat(path);
+      if (
+        !info.isFile() ||
+        info.isSymbolicLink() ||
+        (await realpath(path)) !== path
+      )
+        throw new Error("Unsafe default visual");
+      res.type("gif").sendFile(path, (error) => {
+        if (error && !res.headersSent) res.status(404).end();
+      });
+    } catch {
+      res.status(404).end();
     }
   });
   app.get("/media/break.mp3", (_req, res) => {

@@ -337,7 +337,7 @@ const http = makeHttp(controller, {
     defaults: {
       audio: settings.musicPath,
       visual: settings.visualPath,
-      visualUrl: `${preview.origin}/break`,
+      visualUrl: "/media/break-visual.gif",
     },
   },
   host: settings.host,
@@ -373,7 +373,12 @@ if (controller.state.round)
         attempt.preview = await preview.restore(
           agent,
           controller.state.round.id,
-          sessionCount(controller.state.round.sessions ?? Object.values(controller.state.round.attempts).filter((a) => a.status !== "idle")),
+          sessionCount(
+            controller.state.round.sessions ??
+              Object.values(controller.state.round.attempts).filter(
+                (a) => a.status !== "idle",
+              ),
+          ),
         );
       } catch {
         attempt.preview = undefined;

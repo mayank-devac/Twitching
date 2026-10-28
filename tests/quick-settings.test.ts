@@ -1,6 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, symlink, rm, realpath } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  symlink,
+  rm,
+  realpath,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { Store } from "../server/store.js";
@@ -225,8 +232,12 @@ test("settings routes require host protection, reject unavailable models and rej
   );
   const store = new Store(":memory:");
   const preferences = new QuickSettings(store, defaults());
+  const breaks: Array<{ durationMs: number | null; immediate: boolean }> = [];
   const controller = Object.assign(new EventEmitter(), {
     snapshot: () => ({ events: [] }),
+    manualBreak: async (durationMs: number | null, immediate: boolean) => {
+      breaks.push({ durationMs, immediate });
+    },
     assertSettingsChange: () => {},
     settingsChanged: () => {},
     safeHistory: (page: unknown) => page,
@@ -244,8 +255,8 @@ test("settings routes require host protection, reject unavailable models and rej
       media: new BreakMedia(root, store),
       defaults: {
         audio: resolve(root, "calm track.mp3"),
-        visual: resolve(root, "break-eye.html"),
-        visualUrl: "http://127.0.0.1:39233/break",
+        visual: resolve(root, "break-visual.gif"),
+        visualUrl: "/media/break-visual.gif",
       },
       discover: async () => [{ id: "fixture", efforts: ["high"] }],
     },
@@ -268,7 +279,43 @@ test("settings routes require host protection, reject unavailable models and rej
       defaults: { audio: { name: string }; visual: { name: string } };
     };
     assert.equal(assets.defaults.audio.name, "calm track.mp3");
-    assert.equal(assets.defaults.visual.name, "break-eye.html");
+    assert.equal(assets.defaults.visual.name, "break-visual.gif");
+    await mkdir(resolve(root, "assets"));
+    const gif = Buffer.from(
+      "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==",
+      "base64",
+    );
+    await writeFile(resolve(root, "assets/break-visual.gif"), gif);
+    const visual = await fetch(origin + "/media/break-visual.gif");
+    assert.equal(visual.status, 200);
+    assert.match(visual.headers.get("content-type")!, /^image\/gif/);
+    assert.deepEqual(Buffer.from(await visual.arrayBuffer()), gif);
+    const manual = await fetch(origin + "/api/quick-action", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        action: "break",
+        durationMs: null,
+        immediate: false,
+      }),
+    });
+    assert.equal(manual.status, 200);
+    assert.deepEqual(breaks, [{ durationMs: null, immediate: false }]);
+    assert.equal(
+      (
+        await fetch(origin + "/api/quick-action", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            action: "break",
+            durationMs: 0,
+            immediate: false,
+          }),
+        })
+      ).status,
+      400,
+    );
+
     const save = (body: unknown) =>
       fetch(origin + "/api/settings", {
         method: "PUT",

@@ -13,7 +13,7 @@ export class ManualBreakControls {
       persist(): void;
     },
   ) {}
-  async request(durationMs: number, immediate: boolean) {
+  async request(durationMs: number | null, immediate: boolean) {
     const state = this.show.state();
     if (
       this.transitioning ||
@@ -25,9 +25,10 @@ export class ManualBreakControls {
         "Wait until the show is ready; quota breaks cannot be replaced",
       );
     if (
-      !Number.isInteger(durationMs) ||
-      durationMs < 10_000 ||
-      durationMs > 3_600_000
+      durationMs !== null &&
+      (!Number.isInteger(durationMs) ||
+        durationMs < 10_000 ||
+        durationMs > 3_600_000)
     )
       throw new Error("Choose a break between 10 seconds and 60 minutes");
     if (state.manualBreak)
@@ -50,15 +51,21 @@ export class ManualBreakControls {
       this.transitioning = false;
     }
   }
-  // The absolute server deadline survives browser reloads; expiry always pauses the show.
+  // Timed deadlines survive reloads; host-ended breaks intentionally have no deadline.
   begin() {
     const state = this.show.state();
     const manual = state.manualBreak!;
-    manual.deadline = this.show.now() + manual.durationMs;
+    // Null means the host will end the break explicitly; there is no expiry to reset.
+    manual.deadline =
+      manual.durationMs === null
+        ? undefined
+        : this.show.now() + manual.durationMs;
     state.status = "break";
     state.breakKind = "manual";
     state.breakUntil = manual.deadline;
     state.reason =
-      "Timed break. The show will pause when the timer ends; Resume checks quota.";
+      manual.durationMs === null
+        ? "Manual break. Press Start or Resume when ready; quota is checked before continuing."
+        : "Timed break. Resume when ready, or wait for the timer to pause the show.";
   }
 }
