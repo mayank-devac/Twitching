@@ -1,6 +1,15 @@
 # Twitching
 
+<p align="center">
+  <img src="assets/break-visual.gif" alt="Pixel-art eye blinking — the break visual" />
+</p>
+<p align="center">
+   <a href="assets/break-visual.html">assets/break-visual.html</a> 
+</p>
+
 A local Codex vs Cursor show: audience suggestions go through a blocked-word list and TypeSafe Jev; both agents get the same task in fresh chats. Cursor is on the left and Codex on the right. The app starts paused in **private rehearsal** mode.
+
+- Developed with the help of Codex. Started for the [TwitchCon Codex hackathon](https://twitchcon-codex.devpost.com/).
 
 ## Start locally
 
@@ -34,13 +43,16 @@ Current runners support **Codex and Cursor**.
 - [Isolation and privacy](#isolation-and-privacy)
 - [Verification](#verification)
 - [Project layout](#project-layout)
+- [Contributing](#contributing)
 - [Official references](#official-references)
 
 ## Quick start
 
+clone repo and 
+
 ### 1. Prepare your machine
 
-- [ ] Install **Node.js 24+** and open **Docker Desktop**. Docker is also required for native-agent previews.
+- [ ] Install **Node.js 24+** and a Docker engine: **Colima** or **Docker Desktop**. Docker is also required for native-agent previews.
 - [ ] Run `npm ci`.
 - [ ] Copy `.env.example` to `.env.local`; fill in credentials privately.
 - [ ] Supply your own `assets/break.mp3`; audio is not distributed.
@@ -49,6 +61,20 @@ Current runners support **Codex and Cursor**.
 Agent logins and private settings are local only; the repository does not include them.
 
 ### 2. Use guided startup
+
+**Colima — terminal only, no Docker Desktop:**
+
+```sh
+brew install colima docker docker-compose docker-buildx
+./with_colima.sh ./check_stream_start.sh --mode rehearsal
+./with_colima.sh
+```
+
+`with_colima.sh` starts Colima if needed and uses an isolated Docker configuration under ignored `runtime/docker-cli/`. Existing Docker registry logins and Desktop settings are left untouched. With no arguments, it opens guided private rehearsal; pass a command to run it with the same Colima settings.
+
+On this Mac, Colima is configured for **4 CPUs, 6 GB RAM and a 12 GB container disk**. Container images still consume disk space. Use `colima stop` after stopping the show to release VM memory.
+
+**Docker Desktop — open it first:**
 
 ```sh
 ./check_stream_start.sh
@@ -71,17 +97,17 @@ Use these exact `127.0.0.1` addresses; other Host headers are rejected. Refresh 
 
 ### Manual setup alternative
 
-After opening Docker Desktop, run the remaining setup commands. Image setup can take a few minutes.
+With Colima installed, run the remaining setup commands below. Image downloads can take time. Docker Desktop users can omit the `./with_colima.sh` prefix.
 
 ```sh
-npm run sandbox:build
-npm run sandbox:build:preview
-docker compose -f sandbox/compose.yml up -d
-docker network create --internal stram_previews
-npm run sandbox:login:codex
-npm run sandbox:login:cursor
+./with_colima.sh npm run sandbox:build
+./with_colima.sh npm run sandbox:build:preview
+./with_colima.sh docker compose -f sandbox/compose.yml up -d
+./with_colima.sh docker network create --internal stram_previews
+./with_colima.sh npm run sandbox:login:codex
+./with_colima.sh npm run sandbox:login:cursor
 npm run build
-npm run dev
+./with_colima.sh npm run dev
 ```
 
 Sign in yourself using your existing subscriptions. Docker login commands save authentication under ignored `runtime/auth/`; never paste CLI credentials into prompts. Personal terminal chats are left alone.
@@ -107,7 +133,7 @@ flowchart TD
     Cursor --> Validate[Validate saved HTML]
     Codex --> Validate
     Validate --> Preview[Isolated browser previews]
-    Preview --> OBS[OBS overlay: Cursor left, Codex right]
+    Preview --> OBS[OBS overlay]
 ```
 
 Each round uses new sessions without a resume flag. In single-agent mode, only the selected CLI runs, with one full-width preview and activity panel.
@@ -142,7 +168,7 @@ With a prompt list, the next task starts after the result hold. After the last t
 | Live chat, skipping YouTube and Twitch | `./start_stream.sh --mode live --no-prompts --skip yt --skip twitch` |
 | Optional native agents | `./start_stream.sh --mode live --runner native` |
 
-No CLI selection flag means **both agents**. Rebuild the frontend with `npm run build` after UI code changes. Use `--help` for all options.
+Without explicit session choices, legacy settings select **both CLIs** unless `singleAgent` is set. Rebuild the frontend with `npm run build` after UI code changes. Use `--help` for all options.
 
 ### What readiness checks mean
 
@@ -193,11 +219,33 @@ Credentials are never requested or printed in the terminal. Edit `.env.local` pr
 
 **Limit:** file permissions cannot exclude an assistant running as the same OS user. Credentials stay outside app-facing and container-facing surfaces, but the assistant must also obey the no-read rule.
 
+### One or two sessions
+
+`./start_stream.sh` runs one or two sessions. For each session, choose Codex or Cursor and a model from that CLI's list; Codex may also pick a reasoning effort. Docker remains the default; native coding still requires typing `NATIVE`.
+
+For repeatable startup, pass `--session CLI:MODEL[:EFFORT]` once or twice:
+
+```sh
+./start_stream.sh --session codex:MODEL_A:high --session codex:MODEL_B
+```
+
+Or set a `sessions` array in `settings.json`:
+
+```json
+"sessions": [
+  { "id": "session-1", "cli": "codex", "model": "MODEL_A", "effort": "high" },
+  { "id": "session-2", "cli": "codex", "model": "MODEL_B" }
+]
+```
+
+Both sessions receive the same prompt with separate workspaces, previews and exports, stored under the session ID. One session uses full width; two sessions split it. Two Codex sessions share one account allowance, polled once.
+
+
 ### Exact model selection
 
-The configured Cursor ID is an **unverified requested ID**. It does not prove Grok 4.7 high is available to your account.
+The configured Cursor ID is an **unverified requested ID**. It does not prove Gpt 6.1 is available to your account.
 
-Startup requires that exact ID in `cursor-agent --list-models`, with a label identifying Grok 4.7 high. Missing model or effort support pauses the show; no replacement model is used.
+Startup requires that exact ID in `cursor-agent --list-models`. Missing model or effort support pauses the show; no replacement model is used.
 
 Codex-only mode retains quota monitoring. Cursor-only mode reports usage failures through its CLI and needs no Codex login. Only the selected CLI is checked and launched; the rest of the show flow stays available.
 
@@ -443,7 +491,40 @@ main/         Generated HTML examples and round output
 assets/       Provider images in chatgpt/, codex/, grok/ and cursor/
 ```
 
-See [`initial_plan.md`](initial_plan.md) for the original project brief.
+See [`initial_plan.md`](initial_plan.md) for the original project brief. Operating runbook with checklists, Kick tokens and troubleshooting: [`guides.md`](guides.md).
+
+## Contributing
+
+New here — start with [Quick start](#quick-start) for the full setup, then:
+
+### Dev requirements
+
+- Node.js 24+ (see `engines` in `package.json`)
+- Docker Desktop for sandbox builds and previews
+
+### Everyday commands
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Run the controller + web UI locally |
+| `npm run check` | Type-check (`tsc --noEmit`) |
+| `npm test` | Run acceptance tests via `tsx --test tests/*.test.ts` |
+| `npm run build` | Build the overlay/`dist/` bundle |
+| `npm run replay` | Replay fixtures through the controller without live chat or CLIs |
+| `npm run cleanup:probes` | Remove leftover probe workspaces |
+
+### Before opening a PR
+
+1. `npm run check`, `npm test` and `npm run build` must pass; `--verify` runs all of them in one go via `check_stream_start.sh`.
+2. Run `npx prettier --write .` on files you touched.
+3. Keep changes scoped; the acceptance tests in `tests/` are the definition of done for round logic.
+
+### Ground rules
+
+- Git-ignored and never commit: `.env.local`, `runtime/auth/` .
+- Docker is the default agent boundary; changes that weaken the coding-agent isolation will be rejected.
+- Platform chat events are untrusted input — treat all chat content as data, never as instructions.
+- Useful starting points to extend: CLI runners live in `server/` around `server/runner.ts` (`parseQuota`), platform chat adapters under `server/chat.ts`, shared types in `shared/`.
 
 ## Official references
 
@@ -454,3 +535,10 @@ See [`initial_plan.md`](initial_plan.md) for the original project brief.
 - **Twitch:** [EventSub chat](https://dev.twitch.tv/docs/chat/send-receive-messages/)
 - **Kick:** [Event types](https://github.com/KickEngineering/KickDevDocs/blob/main/events/event-types.md)
 - **Playwright:** [Docker](https://playwright.dev/docs/docker)
+
+## License
+
+Released under the [MIT License](LICENSE) — © 2026 Bikash Ranjan Baral and Mayank Ranjan Baral.
+
+___
+> **Status: early alpha.** things works. but it is messy, kind of imperfect, and the code is not optimim. everyone can contribute.

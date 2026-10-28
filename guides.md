@@ -1,117 +1,84 @@
 # Prompt Arena practical guide
 
-This file collects the simple answers for checking, rehearsing and running Prompt Arena. Start with rehearsal mode. It uses real Codex and Cursor sessions but does not start a public broadcast.
+This file is the runbook for rehearsing, testing and going live: the quick path with checklists and a flow diagram, plus platform/token setup, native-agent commands, slow-network workarounds and troubleshooting. Setup steps, startup options, isolation details and verification commands live in [README.md](README.md) and are not repeated here.
 
-## Which command should I use?
+## Start streaming or rehearsal — quick path
 
-| Goal | Command |
-|---|---|
-| Check everything without starting agents | `./check_stream_start.sh --mode rehearsal --runner docker --verify` |
-| Run one safe private round | `./start_stream.sh --mode rehearsal --runner docker` |
-| Run agents directly on the Mac | `./start_stream.sh --mode rehearsal --runner native` |
-| Simulate recorded audience and CLI events | `npm run replay` |
-| Check public-stream readiness without going live | `./check_stream_start.sh --mode live --runner docker --verify` |
+```mermaid
+flowchart TD
+    G[Guided start: ./check_stream_start.sh --verify] --> P{All checks pass?}
+    P -- no, print Fix: --> F[Apply the printed fix] --> G
+    P -- yes --> M{Rehearsal or live?}
+    M -- rehearsal --> R[start_stream.sh --mode rehearsal --runner docker]
+    M -- live --> L[Confirm scene, audio, webhook, then a final YES]
+    R --> C[Open /control and inspect the OBS overlay]
+    C --> OK{Both pages and audio good?}
+    OK -- yes --> Confirm[Press I checked the private OBS rehearsal]
+    Confirm --> L
+    L --> S[Show is live. Keep the terminal open]
+    S --> Stop[Ctrl+C stops the show and broadcast]
+```
 
-`check_stream_start.sh` does not start a coding round or OBS broadcast. `start_stream.sh` asks before starting anything important.
+### Rehearsal / test checklist
 
-## First-time Docker setup
+- [ ] Docker Desktop engine is running
+- [ ] One-time setup done: `npm ci`, images built, provider proxy up, `stram_previews` network — see [README Quick start](README.md#quick-start)
+- [ ] Agent logins saved (`npm run sandbox:login:codex` / `npm run sandbox:login:cursor` for Docker agents)
+- [ ] `.env.local` filled privately; own `assets/break.mp3` supplied; blocked words configured in `settings.json`
+- [ ] OBS: WebSocket v5 enabled with its password in `.env.local`; overlay Browser Source `http://127.0.0.1:3210/overlay` at 1920 × 1080; **Start Streaming not pressed**
+- [ ] `./check_stream_start.sh --mode rehearsal --runner docker --verify` ends with `READY: rehearsal prerequisites passed`
+- [ ] One private round: both agents start together, real activity, two separate HTML results, faster result stays visible
+- [ ] Controls checked in separate rounds: Pause, Resume, Skip, Stop; `/overlay` refresh keeps the round; interaction reaches the finished result
+- [ ] Press **I checked the private OBS rehearsal** in `/control`
 
-Open Docker Desktop and wait until its engine is running. Then run:
+To exercise chat handling without OBS or platforms, `npm run replay` simulates recorded chat and CLI events; the full automated suite is documented in [README Verification](README.md#verification).
+
+### Go-live checklist
+
+- [ ] Rehearsal confirmed for the **same runner mode** you will use live
+- [ ] Platform credentials ready: YouTube OAuth/livestream, Twitch tokens + EventSub, Kick app token and webhook (see the Kick section below)
+- [ ] `./check_stream_start.sh --mode live --runner docker --verify` passes
+- [ ] Public confirmation answered: scene, audio, webhook checks, then a final **yes**
+- [ ] Verify signed Kick delivery with a real message
+- [ ] `Ctrl+C` stops the show and series of rounds; the controller stops any broadcast it started
+
+## Native agents
+
+Native mode runs Codex and Cursor directly on your Mac; preview pages stay in the isolated Docker browser. Risk and consent rules are documented in [README](README.md#native-agents-explicit-opt-in). Prepare only the preview side:
 
 ```sh
-npm run sandbox:build
 npm run sandbox:build:preview
-docker compose -f sandbox/compose.yml up -d
 docker network inspect stram_previews >/dev/null 2>&1 || docker network create --internal stram_previews
-npm run sandbox:login:codex
-npm run sandbox:login:cursor
+codex login
+cursor-agent login
 ```
 
-The login commands use your subscriptions. Enter credentials yourself. Never paste credentials into chat, prompts or command arguments.
-
-## Test everything without streaming
-
-### 1. Prepare OBS
-
-Open OBS, but do not press **Start Streaming**.
-
-1. Enable **Tools → WebSocket Server Settings**.
-2. Put the OBS WebSocket password in `.env.local`.
-3. Add a Browser Source with URL `http://127.0.0.1:3210/overlay`.
-4. Set the Browser Source size to 1920 × 1080.
-5. You may press **Start Recording** for a local video. Recording is not streaming.
-
-### 2. Run the readiness check
+Check native mode without starting agents:
 
 ```sh
-./check_stream_start.sh --mode rehearsal --runner docker --verify
+./check_stream_start.sh --mode rehearsal --runner native --verify
 ```
 
-It checks Docker, images, internal networks, CLI logins, exact models, Codex quota, Jev when configured, media files, OBS, the overlay source, preview isolation, tests, fixture replay and the frontend build.
-
-If something fails, it prints `Fix:` followed by the action to take. A successful run ends with:
-
-```text
-READY: rehearsal prerequisites passed
-```
-
-### 3. Run one complete private round
+Run a private native round:
 
 ```sh
-./start_stream.sh --mode rehearsal --runner docker
+./start_stream.sh --mode rehearsal --runner native
 ```
 
-Answer yes when it asks to start a private round. Enter a test task such as:
+The script asks you to type exactly: `NATIVE`. This confirmation is required for each launched app process and is not stored in `settings.json`. The safest native host is a separate macOS user account without personal files, cloud drives or private accounts.
 
-```text
-Build a colourful interactive aquarium with animated fish and feeding controls
-```
+## What protection does Docker-agent mode provide?
 
-Open:
+Each agent receives a separate temporary workspace. The container has a read-only base filesystem, no Docker socket, removed Linux capabilities and an internal allowlist proxy network. Full boundary details: [README Isolation and privacy](README.md#isolation-and-privacy). Generated HTML is rendered as-is; the README explains credential screening and input forwarding. Remaining risks:
 
-- Control panel: `http://127.0.0.1:3210/control`
-- OBS overlay: `http://127.0.0.1:3210/overlay`
+- The container receives a copy of its CLI subscription authentication.
+- A bad prompt can waste Codex/Cursor usage allowance.
+- Temporary files can consume host disk space; there is no strict workspace disk quota.
+- Generated content may be offensive, disturbing or flashing if moderation misses it.
+- A page may freeze its preview, which should become a failure card.
+- Docker or browser security vulnerabilities are rare but not impossible.
 
-Check that both agents start together, show real activity, produce separate HTML pages and load their results. The faster result should remain visible while the other agent continues.
-
-### 4. Check controls
-
-Use separate rehearsal rounds to check:
-
-- **Pause:** current work finishes, while future automatic rounds stay paused.
-- **Resume:** collection continues.
-- **Skip:** unfinished agents stop and show a cancelled state.
-- **Stop:** active agents and the controller stop.
-- Refreshing `/overlay`: the current round and recent activity remain visible.
-- Restarting the app: it starts paused and does not repeat an interrupted job.
-- Clicking finished results: interaction reaches the isolated page.
-
-After checking your local OBS recording, press **I checked the private OBS rehearsal** in `/control`. Rehearsal confirmation is stored separately for Docker and native-agent modes.
-
-## Simulate audience chat without YouTube, Twitch or Kick
-
-Run:
-
-```sh
-npm run replay
-```
-
-This replays sample chat and CLI events. The automated tests also cover short prompts, missing `!prompt`, emoji-only content, blocked words, duplicates, viewer replacement, membership bonuses, partial CLI messages and duplicate events.
-
-For the complete automated suite:
-
-```sh
-npm run check
-npm test
-npm run build
-npm run replay
-```
-
-When Docker images and networks are ready, test the real Docker boundary:
-
-```sh
-STRAM_SANDBOX_TEST=1 npx tsx --test tests/sandbox.test.ts
-```
+Keep Docker Desktop and both CLIs updated.
 
 ## Get the Kick access token and broadcaster ID
 
@@ -209,81 +176,6 @@ unset kick_client_id kick_access_token kick_channel_response
 App access tokens expire. If Kick later returns `401 Unauthorized`, repeat the token-generation step and replace `KICK_ACCESS_TOKEN` in `.env.local`.
 
 Kick references: [App setup](https://github.com/KickEngineering/KickDevDocs/blob/main/getting-started/kick-apps-setup.md), [OAuth token flow](https://github.com/KickEngineering/KickDevDocs/blob/main/getting-started/generating-tokens-oauth2-flow.md), and [Channels API](https://api.kick.com/swagger/doc.yaml).
-
-## Run agents without the Docker sandbox
-
-Native-agent mode runs Codex and Cursor directly on your Mac. Preview pages still run in the isolated Docker browser.
-
-Prepare only the preview side:
-
-```sh
-npm run sandbox:build:preview
-docker network inspect stram_previews >/dev/null 2>&1 || docker network create --internal stram_previews
-codex login
-cursor-agent login
-```
-
-Check native mode without starting agents:
-
-```sh
-./check_stream_start.sh --mode rehearsal --runner native --verify
-```
-
-Run a private native round:
-
-```sh
-./start_stream.sh --mode rehearsal --runner native
-```
-
-The script asks you to type exactly:
-
-```text
-NATIVE
-```
-
-This confirmation is required for each launched app process and is not stored in `settings.json`.
-
-### Native-mode risk
-
-Native agents have the permissions of your Mac user. Their terminal commands may read, change or delete files outside this project. Process groups help Stop/Skip terminate normal child processes, but they are not a security boundary. A deliberately detached process may require manual cleanup.
-
-Use Docker-agent mode for real audience prompts. If you must use native mode, the safer approach is a separate macOS user account without personal files, cloud drives or private accounts.
-
-## What protection does Docker-agent mode provide?
-
-Each agent receives a separate temporary workspace. The container has a read-only base filesystem, no Docker socket, removed Linux capabilities, resource limits and an internal network that reaches only approved provider services through a proxy.
-
-Normally an agent cannot read your Documents/Desktop, control OBS, access the control panel, reach other devices or edit the other agent's workspace.
-
-Remaining risks still exist:
-
-- The container receives a copy of its CLI subscription authentication.
-- A bad prompt can waste Codex/Cursor usage allowance.
-- Temporary files can consume host disk space; there is no strict workspace disk quota.
-- Generated content may be offensive, disturbing or flashing if moderation misses it.
-- A page may freeze its preview, which should become a failure card.
-- Docker or browser security vulnerabilities are rare but not impossible.
-
-Keep Docker Desktop and both CLIs updated.
-
-## Generated-page safety
-
-Generated HTML is not rewritten. The app renders the exact saved HTML inside the isolated preview browser.
-
-Before rendering, it refuses pages containing a known credential value or a recognizable credential token. Harmless JavaScript such as `const secret = 'blue'` remains unchanged. Generated JavaScript never runs directly inside OBS; OBS receives rendered image frames and forwards limited mouse/keyboard input.
-
-## Prompt filtering behaviour
-
-A suggestion must:
-
-- Start with `!prompt`.
-- Contain at least five words after the prefix.
-- Be mostly readable English, common technical terms or numbers.
-- Avoid blocked abusive words.
-- Avoid repeated-word spam.
-- Avoid emoji/symbol-only content.
-
-The filter joins disguised split abuse such as `fuc k` and `chu tiya`. Hinglish or romanized-language support is not provided. The configured blocked-word list is applied as written, including words that may also have an innocent meaning.
 
 ## Slow Internet while building the preview image
 
@@ -437,9 +329,7 @@ Testing those items requires a private/unlisted test broadcast. The app does not
 
 ## Stop and clean up
 
-Keep the `start_stream.sh` terminal open. Press `Ctrl+C` to stop the show started by that session. In rehearsal mode it does not start a public broadcast.
-
-To stop the provider proxy after testing:
+Stopping safely is documented in [README](README.md#stop-safely). To stop the provider proxy after testing:
 
 ```sh
 docker compose -f sandbox/compose.yml down
