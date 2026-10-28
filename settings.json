@@ -1,0 +1,37 @@
+{
+  "host": "127.0.0.1",
+  "port": 3210,
+  "previewPort": 3211,
+  "webhookPort": 3212,
+  "collectionMs": 60000,
+  "extensionMs": 180000,
+  "resultMs": 30000,
+  "reconnectLimitMs": 900000,
+  "quotaGraceMs": 600000,
+  "quotaPollMs": 60000,
+  "codexModel": "gpt-6.1-sol",
+  "cursorModel": "grok-4.7-high-fast",
+  "agentImage": "prompt-arena-agent:local",
+  "previewImage": "prompt-arena-preview:local",
+  "previewView": "live",
+  "browserPort": 3213,
+  "mode": "rehearsal",
+  "runnerMode": "docker",
+  "safetyThreshold": 0.95,
+  "relevanceThreshold": 0.85,
+  "minScore": 50,
+  "blockedWords": [
+    // Add words here that you want to block from being used in prompts. For example:
+    "nsfw",
+    "violence",
+    "illegal"
+  ],
+  "jevProbe": "Build a small colourful webpage that reacts to mouse movement",
+  "musicPath": "assets/break.mp3",
+  "visualPath": "assets/break-visual.html",
+  "obsUrl": "ws://127.0.0.1:4455",
+  "stopObsOnEnd": true,
+  "kickWebhookUrl": "",
+  "kickListenHost": "127.0.0.1",
+  "promptFile": "prompts.txt"
+}

@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Peacock Dance</title>
+<style>
+  :root {
+    --bg: #0c121c;
+    --ink: #f6f0e4;
+    --muted: #c9c0b0;
+    --gold: #e6c98a;
+    --gold-dim: rgba(230, 201, 138, 0.38);
+    --fill: rgba(230, 201, 138, 0.14);
+  }
+  body[data-theme="monsoon"] {
+    --bg: #07110e;
+    --gold: #d5d39a;
+    --gold-dim: rgba(213, 211, 154, 0.4);
+    --fill: rgba(213, 211, 154, 0.14);
+  }
+  body[data-theme="dawn"] {
+    --bg: #160e14;
+    --gold: #f0b27a;
+    --gold-dim: rgba(240, 178, 122, 0.42);
+    --fill: rgba(240, 178, 122, 0.14);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--ink);
+    color-scheme: dark;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .app {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: 46px minmax(0, 1fr) 102px;
+    background: var(--bg);
+  }
+  header, .controls, main { min-width: 0; min-height: 0; overflow: hidden; }
+  header {
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--gold-dim);
+    background: var(--bg);
+  }
+  h1, .phase, .hint {
+    font-family: Palatino, "Palatino Linotype", "Iowan Old Style", Georgia, "Times New Roman", serif;
+  }
+  h1 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .phase {
+    margin: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-style: italic;
+    font-size: 15px;
+    color: var(--gold);
+  }
+  main { position: relative; background: #070b14; }
+  canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+    cursor: pointer;
+  }
+  .controls {
+    height: 102px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 12px 10px;
+    border-top: 1px solid var(--gold-dim);
+    background: var(--bg);
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 36px;
+    min-width: 0;
+  }
+  button {
+    flex: 0 0 auto;
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--gold-dim);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--gold); background: var(--fill); }
+  button[aria-pressed="true"] {
+    background: var(--gold);
+    color: #1a1408;
+    border-color: var(--gold);
+  }
+  button[aria-pressed="true"]:hover { background: var(--gold); }
+  .themes { display: flex; gap: 6px; flex: 0 0 auto; }
+  .slider {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .slider output {
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 600;
+    color: var(--ink);
+    min-width: 3.1em;
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+  }
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1 1 auto;
+    min-width: 36px;
+    width: 100%;
+    height: 16px;
+    margin: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-runnable-track {
+    height: 2px;
+    background: var(--gold-dim);
+    border-radius: 2px;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    margin-top: -6px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--gold);
+  }
+  input[type="range"]::-moz-range-track {
+    height: 2px;
+    background: var(--gold-dim);
+    border: 0;
+    border-radius: 2px;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--gold);
+  }
+  .hint {
+    margin: 0 0 0 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-style: italic;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  header, .controls, canvas { user-select: none; -webkit-user-select: none; }
+  :focus { outline: none; }
+  :focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+  }
+  canvas:focus-visible { outline-offset: -6px; }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+  @media (prefers-contrast: more) {
+    button { border-width: 2px; }
+  }
+</style>
+</head>
+<body data-theme="moonlight">
+<div class="app">
+  <header>
+    <h1>Peacock Dance</h1>
+    <p class="phase" id="phase" aria-live="polite">Unfurling</p>
+  </header>
+  <main>
+    <canvas id="stage" tabindex="0" aria-label="Animated peacock courting with his train fanned. Move the pointer to turn his head. Tap the stage to rattle the feathers."></canvas>
+  </main>
+  <section class="controls" aria-label="Dance controls">
+    <p class="sr-only" id="help">A courtship display. Space plays or pauses when the stage is focused. R rattles the train. Keys 1, 2, and 3 set Moonlight, Monsoon, and Dawn. Sliders change tempo and how wide the train opens.</p>
+    <div class="row">
+      <button type="button" id="play" aria-pressed="true" aria-keyshortcuts="Space">Pause</button>
+      <label class="slider">Tempo
+        <output id="tempoOut" for="tempo">1.0×</output>
+        <input id="tempo" type="range" min="0.4" max="1.8" step="0.1" value="1" aria-label="Tempo" aria-valuetext="1.0 times">
+      </label>
+      <label class="slider">Train
+        <output id="fanOut" for="fan">100%</output>
+        <input id="fan" type="range" min="0.72" max="1" step="0.01" value="1" aria-label="Train spread" aria-valuetext="100 percent open">
+      </label>
+      <button type="button" id="rattle" aria-keyshortcuts="R">Rattle</button>
+    </div>
+    <div class="row">
+      <div class="themes" role="group" aria-label="Scene">
+        <button type="button" data-theme="moonlight" aria-pressed="true" aria-keyshortcuts="1">Moonlight</button>
+        <button type="button" data-theme="monsoon" aria-pressed="false" aria-keyshortcuts="2">Monsoon</button>
+        <button type="button" data-theme="dawn" aria-pressed="false" aria-keyshortcuts="3">Dawn</button>
+      </div>
+      <button type="button" id="sound" aria-pressed="false">Sound</button>
+      <p class="hint">Tap the stage to rattle</p>
+    </div>
+  </section>
+</div>
+<script>
+(function () {
+  const THEMES = {
+    moonlight: {
+      skyTop: "#070b18", skyMid: "#15243c", skyHorizon: "#1c4c56",
+      water: "#0c3140", waterDeep: "#06141c",
+      shore: "#1a2834", shoreEdge: "#314556",
+      moon: "#f6f1e2", moonGlow: "rgba(214, 226, 255, 0.34)",
+      hill: "#101820", tree: "#0a1218",
+      reed: "#1d4a40", lotus: "#f3c3d2", lotusDeep: "#e089a8", lotusPad: "#1a4a3c",
+      mist: "rgba(190, 220, 226, 0.09)",
+      shaft: "#6e5b3a", vane0: "#10281c", vane1: "#1d5a40", vane2: "#8a7044",
+      neck: "#1660b4", neckDeep: "#071833", neckShine: "#3ec8c0",
+      chest: "#1870c4", body: "#0c3e44", belly: "#082428",
+      wing: "#ead7b0", wingBar: "#2c2418",
+      beak: "#d9c7a4", leg: "#c6b48c", face: "#f4f7f4",
+      peahen: "#7a5640", peahenDark: "#3e2a1c", peahenWing: "#5c4030",
+      mote: "rgba(244, 228, 180, 0.85)",
+      glow: "rgba(70, 180, 170, 0.13)",
+      goldLine: "rgba(230, 201, 138, 0.45)",
+      hue: 208, gold: 42, rain: false, stars: true
+    },
+    monsoon: {
+      skyTop: "#04110e", skyMid: "#0c2822", skyHorizon: "#146050",
+      water: "#082820", waterDeep: "#041410",
+      shore: "#12241c", shoreEdge: "#1e3c30",
+      moon: "#e7f6ea", moonGlow: "rgba(180, 230, 200, 0.22)",
+      hill: "#07140f", tree: "#06110c",
+      reed: "#247055", lotus: "#f7d6e4", lotusDeep: "#e8a0b8", lotusPad: "#14543a",
+      mist: "rgba(170, 210, 190, 0.08)",
+      shaft: "#5c5430", vane0: "#0c2418", vane1: "#1a6848", vane2: "#a08840",
+      neck: "#0e78a8", neckDeep: "#042028", neckShine: "#2ee0b0",
+      chest: "#1288b0", body: "#0a4038", belly: "#062420",
+      wing: "#e2d2a4", wingBar: "#241c12",
+      beak: "#dccba8", leg: "#cbb892", face: "#f3f7f2",
+      peahen: "#6e5038", peahenDark: "#322418", peahenWing: "#4e3828",
+      mote: "rgba(210, 235, 220, 0.7)",
+      glow: "rgba(40, 160, 120, 0.16)",
+      goldLine: "rgba(213, 211, 154, 0.4)",
+      hue: 162, gold: 72, rain: true, stars: false
+    },
+    dawn: {
+      skyTop: "#2a1848", skyMid: "#b85a68", skyHorizon: "#f2b27a",
+      water: "#5a3a58", waterDeep: "#2a1830",
+      shore: "#4a3040", shoreEdge: "#7a5848",
+      moon: "#ffe6b8", moonGlow: "rgba(255, 196, 140, 0.42)",
+      hill: "#3a2038", tree: "#2a1830",
+      reed: "#3e6848", lotus: "#ffd0a8", lotusDeep: "#f0a0b0", lotusPad: "#2a6848",
+      mist: "rgba(255, 214, 180, 0.12)",
+      shaft: "#7a5830", vane0: "#1a3020", vane1: "#2a6840", vane2: "#c08848",
+      neck: "#2040a8", neckDeep: "#180828", neckShine: "#48d0c8",
+      chest: "#2858c0", body: "#143848", belly: "#102028",
+      wing: "#f0d8b0", wingBar: "#3a2818",
+      beak: "#f0d2a4", leg: "#d8c098", face: "#fff6ee",
+      peahen: "#8a6248", peahenDark: "#4a3020", peahenWing: "#6a4834",
+      mote: "rgba(255, 220, 170, 0.9)",
+      glow: "rgba(240, 160, 90, 0.14)",
+      goldLine: "rgba(240, 178, 122, 0.5)",
+      hue: 222, gold: 28, rain: false, stars: true
+    }
+  };
+
+  const ROWS = [
+    { n: 32, len: 1, eyeAt: 0.8, eyeScale: 1, shift: 0, covert: false, key: 3 },
+    { n: 28, len: 0.8, eyeAt: 0.82, eyeScale: 0.88, shift: 0.5, covert: false, key: 11 },
+    { n: 24, len: 0.62, eyeAt: 0.84, eyeScale: 0.74, shift: 0.25, covert: false, key: 19 },
+    { n: 20, len: 0.36, eyeAt: 0, eyeScale: 0, shift: 0.5, covert: true, key: 29 }
+  ];
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0;
+      a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const rand = mulberry32(20261002);
+  function hash(n) {
+    const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+    return x - Math.floor(x);
+  }
+
+  const stars = Array.from({ length: 42 }, () => ({
+    x: rand(), y: rand() * 0.4, r: 0.45 + rand() * 1.15, p: rand() * Math.PI * 2
+  }));
+  const drops = Array.from({ length: 72 }, () => ({
+    x: rand(), y: rand(), v: 0.35 + rand() * 0.55, len: 10 + rand() * 16
+  }));
+  const motes = Array.from({ length: 24 }, () => ({
+    x: rand(), y: rand(), v: 0.015 + rand() * 0.03, r: 0.7 + rand() * 1.5, p: rand() * 6.28
+  }));
+  const pads = [
+    { x: 0.09, y: 0.74, s: 1, flower: true, rot: 0.15 },
+    { x: 0.18, y: 0.88, s: 0.72, flower: false, rot: -0.3 },
+    { x: 0.045, y: 0.83, s: 0.52, flower: false, rot: 0.5 },
+    { x: 0.94, y: 0.8, s: 0.62, flower: true, rot: -0.2 }
+  ];
+  const reeds = [];
+  [[0.03, 7], [0.965, 6]].forEach(function (pair, cluster) {
+    for (let i = 0; i < pair[1]; i++) {
+      reeds.push({
+        x: pair[0] + (rand() - 0.5) * 0.05,
+        h: 0.055 + rand() * 0.09,
+        bend: (rand() - 0.5) * 18,
+        p: rand() * 6,
+        cluster: cluster
+      });
+    }
+  });
+
+  const state = {
+    playing: true,
+    tempo: 1,
+    fan: 1,
+    theme: "moonlight",
+    sound: false,
+    reduced: false,
+    time: 0,
+    ambient: 0,
+    open: 0,
+    gaze: 0.42,
+    gazeTarget: 0.42,
+    pointer: false,
+    shiver: 0,
+    lastBar: 0,
+    beatAcc: 0,
+    beatIndex: 0,
+    phase: "Unfurling",
+    dpr: 1,
+    downX: 0,
+    downY: 0
+  };
+
+  const canvas = document.getElementById("stage");
+  const ctx = canvas.getContext("2d", { alpha: false });
+  const stage = canvas.parentElement;
+  const playBtn = document.getElementById("play");
+  const rattleBtn = document.getElementById("rattle");
+  const soundBtn = document.getElementById("sound");
+  const tempoInput = document.getElementById("tempo");
+  const fanInput = document.getElementById("fan");
+  const tempoOut = document.getElementById("tempoOut");
+  const fanOut = document.getElementById("fanOut");
+  const phaseEl = document.getElementById("phase");
+  const themeBtns = Array.from(document.querySelectorAll("[data-theme]"));
+
+  let audioCtx = null;
+  let master = null;
+  let noiseBuf = null;
+
+  function ensureAudio() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    if (!audioCtx) {
+      audioCtx = new AC();
+      master = audioCtx.createGain();
+      master.gain.value = 0;
+      master.connect(audioCtx.destination);
+      const drone = audioCtx.createOscillator();
+      const droneGain = audioCtx.createGain();
+      drone.type = "sine";
+      drone.frequency.value = 98;
+      droneGain.gain.value = 0.04;
+      drone.connect(droneGain);
+      droneGain.connect(master);
+      drone.start();
+      const fifth = audioCtx.createOscillator();
+      const fifthGain = audioCtx.createGain();
+      fifth.type = "sine";
+      fifth.frequency.value = 147;
+      fifthGain.gain.value = 0.02;
+      fifth.connect(fifthGain);
+      fifthGain.connect(master);
+      fifth.start();
+      const len = Math.floor(audioCtx.sampleRate * 0.25);
+      noiseBuf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+      const data = noiseBuf.getChannelData(0);
+      for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+    }
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    return true;
+  }
+
+  function thump(when) {
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = "sine";
+    o.frequency.setValueAtTime(148, when);
+    o.frequency.exponentialRampToValueAtTime(50, when + 0.14);
+    g.gain.setValueAtTime(0.18, when);
+    g.gain.exponentialRampToValueAtTime(0.001, when + 0.18);
+    o.connect(g);
+    g.connect(master);
+    o.start(when);
+    o.stop(when + 0.2);
+  }
+
+  function tick(when, bright) {
+    if (!noiseBuf) return;
+    const src = audioCtx.createBufferSource();
+    src.buffer = noiseBuf;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = bright ? 1700 : 210;
+    filter.Q.value = bright ? 0.55 : 3.2;
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(bright ? 0.08 : 0.14, when);
+    g.gain.exponentialRampToValueAtTime(0.001, when + (bright ? 0.05 : 0.16));
+    src.connect(filter);
+    filter.connect(g);
+    g.connect(master);
+    src.start(when);
+    src.stop(when + 0.22);
+  }
+
+  function rattleSound() {
+    if (!audioCtx) return;
+    const t = audioCtx.currentTime;
+    for (let i = 0; i < 9; i++) tick(t + i * 0.042, true);
+  }
+
+  function setSound(on) {
+    if (on && !ensureAudio()) return;
+    state.sound = on;
+    soundBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    if (!audioCtx || !master) return;
+    const t = audioCtx.currentTime;
+    master.gain.cancelScheduledValues(t);
+    master.gain.setValueAtTime(Math.max(0.0001, master.gain.value), t);
+    master.gain.linearRampToValueAtTime(on ? 0.85 : 0, t + 0.06);
+  }
+
+  function triggerRattle() {
+    state.shiver = 1;
+    if (state.sound) rattleSound();
+  }
+
+  function easeOut(t) {
+    const x = Math.min(1, Math.max(0, t));
+    return 1 - Math.pow(1 - x, 3);
+  }
+
+  function cubic(p0, p1, p2, p3, t) {
+    const u = 1 - t;
+    return {
+      x: u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x,
+      y: u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y
+    };
+  }
+  function cubicDeriv(p0, p1, p2, p3, t) {
+    const u = 1 - t;
+    return {
+      x: 3 * u * u * (p1.x - p0.x) + 6 * u * t * (p2.x - p1.x) + 3 * t * t * (p3.x - p2.x),
+      y: 3 * u * u * (p1.y - p0.y) + 6 * u * t * (p2.y - p1.y) + 3 * t * t * (p3.y - p2.y)
+    };
+  }
+
+  function syncPlay() {
+    playBtn.textContent = state.playing ? "Pause" : "Play";
+    playBtn.setAttribute("aria-pressed", state.playing ? "true" : "false");
+  }
+  function syncTheme() {
+    document.body.dataset.theme = state.theme;
+    themeBtns.forEach(function (btn) {
+      btn.setAttribute("aria-pressed", btn.dataset.theme === state.theme ? "true" : "false");
+    });
+  }
+  function syncTempo() {
+    const v = Number(tempoInput.value);
+    state.tempo = v;
+    tempoInput.setAttribute("aria-valuetext", v.toFixed(1) + " times");
+    tempoOut.textContent = v.toFixed(1) + "×";
+  }
+  function syncFan() {
+    const v = Number(fanInput.value);
+    state.fan = v;
+    const pct = Math.round(v * 100);
+    fanInput.setAttribute("aria-valuetext", pct + " percent open");
+    fanOut.textContent = pct + "%";
+  }
+  function setPhase(text) {
+    if (state.phase === text) return;
+    state.phase = text;
+    phaseEl.textContent = text;
+  }
+  function currentPhase() {
+    if (state.open < 0.98) return "Unfurling";
+    if (state.shiver > 0.4) return "Rattling the train";
+    if (!state.playing) return "Holding the display";
+    if (Math.pow(Math.max(0, Math.sin(state.time * 0.65)), 1.6) > 0.55) return "Bowing";
+    if (Math.abs(Math.sin(state.time * Math.PI * 0.95)) > 0.7) return "Stepping";
+    return "Displaying";
+  }
+
+  function update(dt) {
+    const motion = state.reduced ? 0 : 1;
+    state.ambient += dt * motion;
+    if (state.open < 1) state.open = state.reduced ? 1 : Math.min(1, state.open + dt / 2.7);
+    const rate = state.tempo * (state.reduced ? 0.22 : 1);
+    if (state.playing) state.time += dt * rate;
+    state.shiver = Math.max(0, state.shiver - dt * (state.reduced ? 1.5 : 0.58));
+    const desired = state.pointer ? state.gazeTarget : 0.42;
+    state.gaze += (desired - state.gaze) * (1 - Math.exp(-dt * 5));
+
+    const bar = Math.floor(state.time / 7.5);
+    if (!state.playing || state.reduced || state.open < 1) {
+      state.lastBar = bar;
+    } else if (bar > state.lastBar) {
+      state.lastBar = bar;
+      state.shiver = Math.max(state.shiver, 0.92);
+      if (state.sound) rattleSound();
+    }
+
+    if (state.playing && state.sound && audioCtx && state.open > 0.85) {
+      state.beatAcc += dt * rate;
+      if (state.beatAcc >= 0.5) {
+        state.beatAcc -= 0.5;
+        state.beatIndex += 1;
+        if (state.beatIndex % 2 === 0) thump(audioCtx.currentTime);
+        else tick(audioCtx.currentTime, false);
+      }
+    }
+
+    if (!state.reduced) {
+      const pal = THEMES[state.theme];
+      if (pal.rain) {
+        for (let i = 0; i < drops.length; i++) {
+          const d = drops[i];
+          d.y += dt * d.v;
+          d.x -= dt * 0.04;
+          if (d.y > 1.08) { d.y = -0.08; d.x = (d.x + 0.37) % 1; }
+          if (d.x < 0) d.x += 1;
+        }
+      } else {
+        for (let i = 0; i < motes.length; i++) {
+          const m = motes[i];
+          m.y -= dt * m.v;
+          m.x += Math.sin(state.ambient + m.p) * dt * 0.01;
+          if (m.y < -0.03) { m.y = 1.02; m.x = hash(i + state.ambient) ; }
+        }
+      }
+    }
+    setPhase(currentPhase());
+  }
+
+  function metrics(w, h) {
+    const pal = THEMES[state.theme];
+    const rumpY = h * 0.535;
+    const S = Math.min(w * 0.42, (rumpY - 34) / 1.08);
+    const step = Math.sin(state.time * Math.PI * 0.95);
+    const spread = Math.min(1, easeOut(state.open) * state.fan);
+    const bow = Math.pow(Math.max(0, Math.sin(state.time * 0.65)), 1.6);
+    const rumpX = w * 0.5 + step * S * 0.04;
+    const feetY = rumpY + S * 0.155;
+    const waterY = h * 0.6;
+    return {
+      w: w, h: h, pal: pal, S: S, rumpX: rumpX, rumpY: rumpY, feetY: feetY, waterY: waterY,
+      step: step, spread: spread, bow: bow,
+      liftL: Math.max(0, -step) * S * 0.05,
+      liftR: Math.max(0, step) * S * 0.05,
+      gaze: state.gaze, shiver: state.shiver,
+      time: state.time, ambient: state.ambient, reduced: state.reduced
+    };
+  }
+
+  function drawSky(c, F) {
+    const g = c.createLinearGradient(0, 0, 0, F.waterY);
+    g.addColorStop(0, F.pal.skyTop);
+    g.addColorStop(0.55, F.pal.skyMid);
+    g.addColorStop(1, F.pal.skyHorizon);
+    c.fillStyle = g;
+    c.fillRect(0, 0, F.w, F.h);
+  }
+
+  function drawStars(c, F) {
+    if (!F.pal.stars) return;
+    for (let i = 0; i < stars.length; i++) {
+      const s = stars[i];
+      const tw = F.reduced ? 0.75 : 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(F.ambient * 1.4 + s.p));
+      c.fillStyle = "rgba(255, 250, 235, " + tw + ")";
+      c.beginPath();
+      c.arc(s.x * F.w, s.y * F.h, s.r, 0, Math.PI * 2);
+      c.fill();
+    }
+  }
+
+  function drawMoon(c, F) {
+    const dawn = state.theme === "dawn";
+    const x = dawn ? F.w * 0.8 : F.w * 0.16;
+    const y = dawn ? F.h * 0.2 : F.h * 0.12;
+    const r = Math.min(F.w, F.h) * (dawn ? 0.055 : 0.042);
+    const glow = c.createRadialGradient(x, y, r * 0.2, x, y, r * 5.2);
+    glow.addColorStop(0, F.pal.moonGlow);
+    glow.addColorStop(1, "rgba(0,0,0,0)");
+    c.fillStyle = glow;
+    c.beginPath();
+    c.arc(x, y, r * 5.2, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = F.pal.moon;
+    c.beginPath();
+    c.arc(x, y, r, 0, Math.PI * 2);
+    c.fill();
+    F.moonX = x;
+    F.moonY = y;
+  }
+
+  function drawClouds(c, F) {
+    if (state.theme !== "dawn") return;
+    c.fillStyle = "rgba(255, 214, 186, 0.2)";
+    const blobs = [[0.18, 0.14, 0.16, 0.045], [0.52, 0.08, 0.2, 0.04], [0.84, 0.16, 0.14, 0.04]];
+    for (let i = 0; i < blobs.length; i++) {
+      const b = blobs[i];
+      c.beginPath();
+      c.ellipse(b[0] * F.w + Math.sin(F.ambient * 0.08 + i) * 6, b[1] * F.h, b[2] * F.w, b[3] * F.h, 0, 0, Math.PI * 2);
+      c.fill();
+    }
+  }
+
+  function drawFarShore(c, F) {
+    c.fillStyle = F.pal.hill;
+    c.beginPath();
+    c.moveTo(0, F.waterY);
+    c.lineTo(0, F.waterY - F.h * 0.035);
+    c.quadraticCurveTo(F.w * 0.22, F.waterY - F.h * 0.09, F.w * 0.48, F.waterY - F.h * 0.03);
+    c.quadraticCurveTo(F.w * 0.74, F.waterY - F.h * 0.07, F.w, F.waterY - F.h * 0.02);
+    c.lineTo(F.w, F.waterY);
+    c.fill();
+  }
+
+  function drawTrees(c, F) {
+    const spots = [0.05, 0.12, 0.2, 0.8, 0.89, 0.96];
+    c.fillStyle = F.pal.tree;
+    for (let i = 0; i < spots.length; i++) {
+      const x = spots[i] * F.w;
+      const th = 36 + (i % 3) * 16;
+      c.beginPath();
+      c.moveTo(x - 10, F.waterY);
+      c.lineTo(x, F.waterY - th - 18);
+      c.lineTo(x + 10, F.waterY);
+      c.fill();
+      c.beginPath();
+      c.arc(x, F.waterY - th, 22 + (i % 2) * 6, 0, Math.PI * 2);
+      c.arc(x - 14, F.waterY - th + 12, 16, 0, Math.PI * 2);
+      c.arc(x + 13, F.waterY - th + 10, 15, 0, Math.PI * 2);
+      c.fill();
+    }
+  }
+
+  function drawWater(c, F) {
+    const g = c.createLinearGradient(0, F.waterY, 0, F.h);
+    g.addColorStop(0, F.pal.water);
+    g.addColorStop(1, F.pal.waterDeep);
+    c.fillStyle = g;
+    c.fillRect(0, F.waterY, F.w, F.h - F.waterY);
+  }
+
+  function featherList(row, F, now) {
+    const droop = 0.42;
+    const start = Math.PI - droop;
+    const sweep = Math.PI + droop * 2;
+    const up = Math.PI * 1.5;
+    const list = [];
+    for (let i = 0; i < row.n; i++) {
+      const t = row.n === 1 ? 0.5 : i / (row.n - 1);
+      let angle = up + (start + t * sweep + (row.shift * sweep) / row.n - up) * F.spread;
+      angle += (hash(i + row.key) - 0.5) * 0.025 * F.spread;
+      angle += Math.sin(F.time * 2.15 + i * 0.48 + row.key) * 0.012 * F.spread;
+      if (!F.reduced) angle += Math.sin(now * 20 + i * 1.6 + row.key) * F.shiver * 0.04;
+      const edge = Math.sin(Math.PI * Math.min(1, Math.max(0, t)));
+      const len = F.S * row.len * (0.8 + 0.2 * Math.pow(edge, 0.65)) * (0.72 + 0.28 * F.spread);
+      list.push({ i: i, t: t, angle: angle, sin: Math.sin(angle), len: len, edge: edge });
+    }
+    list.sort(function (a, b) { return a.sin - b.sin; });
+    return list;
+  }
+
+  function drawOcellus(c, x, y, r, angle, hue, gold, phase, alpha) {
+    if (r < 1.4 || alpha <= 0) return;
+    c.save();
+    c.translate(x, y);
+    c.rotate(angle);
+    c.globalAlpha *= alpha;
+    const vane = c.createLinearGradient(-r, 0, r * 2.1, 0);
+    vane.addColorStop(0, "hsl(" + (hue - 16) + ", 32%, 12%)");
+    vane.addColorStop(0.5, "hsl(" + hue + ", 38%, 20%)");
+    vane.addColorStop(1, "hsl(" + gold + ", 42%, 30%)");
+    c.fillStyle = vane;
+    c.beginPath();
+    c.moveTo(-r * 0.5, 0);
+    c.bezierCurveTo(r * 0.2, r * 1.38, r * 1.25, r * 1.02, r * 2.15, 0);
+    c.bezierCurveTo(r * 1.25, -r * 1.02, r * 0.2, -r * 1.38, -r * 0.5, 0);
+    c.fill();
+    c.strokeStyle = "hsla(" + gold + ", 35%, 16%, 0.85)";
+    c.lineWidth = Math.max(0.6, r * 0.055);
+    c.stroke();
+
+    c.save();
+    c.scale(1, 0.78);
+    const hx = -r * 0.18;
+    const hy = -r * 0.16;
+    const g = c.createRadialGradient(hx, hy, r * 0.05, 0, 0, r);
+    const shim = Math.sin(phase) * 10;
+    g.addColorStop(0, "hsl(" + (gold + 18) + ", 90%, 96%)");
+    g.addColorStop(0.15, "hsl(" + (hue + 8 + shim) + ", 78%, 48%)");
+    g.addColorStop(0.32, "hsl(" + (hue + 24 + shim) + ", 72%, 30%)");
+    g.addColorStop(0.48, "hsl(" + (168 + shim * 0.4) + ", 68%, 34%)");
+    g.addColorStop(0.66, "hsl(" + (gold + shim) + ", 84%, 50%)");
+    g.addColorStop(0.82, "hsl(" + (gold - 8) + ", 64%, 34%)");
+    g.addColorStop(1, "hsl(" + (hue - 28) + ", 28%, 10%)");
+    c.fillStyle = g;
+    c.beginPath();
+    c.arc(0, 0, r, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = "rgba(12, 8, 4, 0.55)";
+    c.lineWidth = Math.max(0.7, r * 0.07);
+    c.stroke();
+    const light = state.theme === "dawn" ? 0.12 : -0.1;
+    c.fillStyle = "#120a06";
+    c.beginPath();
+    c.ellipse(-r * 0.08 + light * r, r * 0.02, r * 0.2, r * 0.27, 0, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = "rgba(255,255,255,0.88)";
+    c.beginPath();
+    c.ellipse(-r * 0.2, -r * 0.22, r * 0.09, r * 0.055, -0.6, 0, Math.PI * 2);
+    c.fill();
+    c.beginPath();
+    c.strokeStyle = "rgba(255,255,255,0.4)";
+    c.lineWidth = Math.max(0.5, r * 0.065);
+    c.arc(0, 0, r * 0.7, Math.PI * 1.15, Math.PI * 1.9);
+    c.stroke();
+    c.restore();
+    c.restore();
+  }
+
+  function drawTrain(c, F, now) {
+    const originX = F.rumpX;
+    const originY = F.rumpY;
+    for (let r = 0; r < ROWS.length; r++) {
+      const row = ROWS[r];
+      const list = featherList(row, F, now);
+      for (let k = 0; k < list.length; k++) {
+        const f = list[k];
+        const eyeDist = f.len * (row.covert ? 1 : row.eyeAt);
+        const px = -Math.sin(f.angle);
+        const py = Math.cos(f.angle);
+        const bend = (hash(f.i + row.key * 4) - 0.5) * F.S * 0.018 * F.spread;
+        const ex = originX + Math.cos(f.angle) * eyeDist + px * bend;
+        const ey = originY + Math.sin(f.angle) * eyeDist + py * bend;
+        if (row.covert) {
+          c.save();
+          c.translate(originX, originY);
+          c.rotate(f.angle);
+          const vg = c.createLinearGradient(0, 0, f.len, 0);
+          vg.addColorStop(0, F.pal.vane0);
+          vg.addColorStop(1, F.pal.vane1);
+          c.fillStyle = vg;
+          const width = F.S * 0.018 * (0.65 + f.edge);
+          c.beginPath();
+          c.moveTo(0, 0);
+          c.quadraticCurveTo(f.len * 0.55, width, f.len, 0);
+          c.quadraticCurveTo(f.len * 0.55, -width, 0, 0);
+          c.fill();
+          c.restore();
+          continue;
+        }
+        const mx = originX + Math.cos(f.angle) * eyeDist * 0.5 + px * bend;
+        const my = originY + Math.sin(f.angle) * eyeDist * 0.5 + py * bend;
+        c.strokeStyle = F.pal.shaft;
+        c.lineWidth = Math.max(1, F.S * 0.0032);
+        c.beginPath();
+        c.moveTo(originX, originY);
+        c.quadraticCurveTo(mx, my, ex, ey);
+        c.stroke();
+        c.strokeStyle = "rgba(255, 228, 170, 0.22)";
+        c.lineWidth = 0.6;
+        c.beginPath();
+        c.moveTo(originX, originY);
+        c.quadraticCurveTo(mx - py * 0.6, my + px * 0.6, ex, ey);
+        c.stroke();
+        const eyeR = F.S * 0.033 * row.eyeScale * (0.74 + 0.26 * f.edge);
+        const alpha = Math.max(0, Math.min(1, (F.spread - 0.2) / 0.3));
+        drawOcellus(c, ex, ey, eyeR, f.angle, F.pal.hue + r * 6, F.pal.gold, F.time * 1.3 + f.i * 0.4, alpha);
+      }
+    }
+  }
+
+  function drawHalo(c, F) {
+    const g = c.createRadialGradient(F.rumpX, F.rumpY - F.S * 0.28, F.S * 0.08, F.rumpX, F.rumpY - F.S * 0.15, F.S * 1.02);
+    g.addColorStop(0, F.pal.glow);
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    c.fillStyle = g;
+    c.beginPath();
+    c.arc(F.rumpX, F.rumpY - F.S * 0.2, F.S * 1.02, 0, Math.PI * 2);
+    c.fill();
+  }
+
+  function drawLeg(c, hipX, hipY, footY, lift, side, S, pal) {
+    const footX = hipX + side * S * 0.04;
+    const fy = footY - lift;
+    const kneeX = (hipX + footX) * 0.5 + side * S * 0.012;
+    const kneeY = (hipY + fy) * 0.5 - S * 0.012;
+    c.strokeStyle = pal.leg;
+    c.lineWidth = Math.max(1.6, S * 0.008);
+    c.beginPath();
+    c.moveTo(hipX, hipY);
+    c.lineTo(kneeX, kneeY);
+    c.lineTo(footX, fy);
+    c.stroke();
+    c.lineWidth = Math.max(1.2, S * 0.005);
+    c.beginPath();
+    c.moveTo(footX, fy);
+    c.lineTo(footX - S * 0.03, fy + S * 0.012);
+    c.moveTo(footX, fy);
+    c.lineTo(footX + S * 0.008, fy + S * 0.016);
+    c.moveTo(footX, fy);
+    c.lineTo(footX + S * 0.034, fy + S * 0.01);
+    c.stroke();
+  }
+
+  function drawWing(c, x, y, dir, S, flap, pal) {
+    for (let i = 0; i < 5; i++) {
+      const a = dir * (0.42 + i * 0.14 + flap);
+      c.save();
+      c.translate(x, y);
+      c.rotate(a);
+      c.fillStyle = pal.wing;
+      c.beginPath();
+      c.ellipse(S * 0.09, 0, S * 0.095, S * 0.02, 0, 0, Math.PI * 2);
+      c.fill();
+      c.strokeStyle = pal.wingBar;
+      c.lineWidth = Math.max(1, S * 0.004);
+      c.beginPath();
+      c.moveTo(S * 0.04, -S * 0.004);
+      c.lineTo(S * 0.15, -S * 0.004);
+      c.moveTo(S * 0.035, S * 0.006);
+      c.lineTo(S * 0.145, S * 0.006);
+      c.stroke();
+      c.restore();
+    }
+  }
+
+  function drawNeck(c, p0, p1, p2, p3, width, pal) {
+    const steps = 16;
+    c.beginPath();
+    const left = [];
+    const right = [];
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const p = cubic(p0, p1, p2, p3, t);
+      const d = cubicDeriv(p0, p1, p2, p3, t);
+      const len = Math.hypot(d.x, d.y) || 1;
+      const nx = -d.y / len;
+      const ny = d.x / len;
+      const w = width * (1 - t * 0.42);
+      left.push([p.x + nx * w, p.y + ny * w]);
+      right.push([p.x - nx * w, p.y - ny * w]);
+    }
+    c.moveTo(left[0][0], left[0][1]);
+    for (let i = 1; i < left.length; i++) c.lineTo(left[i][0], left[i][1]);
+    for (let i = right.length - 1; i >= 0; i--) c.lineTo(right[i][0], right[i][1]);
+    c.closePath();
+    const g = c.createLinearGradient(p0.x, p0.y, p3.x, p3.y);
+    g.addColorStop(0, pal.neckDeep);
+    g.addColorStop(0.45, pal.neck);
+    g.addColorStop(1, pal.neckShine);
+    c.fillStyle = g;
+    c.fill();
+    c.strokeStyle = "rgba(255,255,255,0.28)";
+    c.lineWidth = 1;
+    for (let i = 2; i < 10; i++) {
+      const t = i / 11;
+      const p = cubic(p0, p1, p2, p3, t);
+      const d = cubicDeriv(p0, p1, p2, p3, t);
+      const len = Math.hypot(d.x, d.y) || 1;
+      const nx = -d.y / len;
+      const ny = d.x / len;
+      const tx = d.x / len;
+      const ty = d.y / len;
+      const w = width * (1 - t * 0.42);
+      c.beginPath();
+      c.moveTo(p.x - nx * w * 0.85, p.y - ny * w * 0.85);
+      c.quadraticCurveTo(p.x + tx * w * 0.7, p.y + ty * w * 0.7, p.x + nx * w * 0.85, p.y + ny * w * 0.85);
+      c.stroke();
+    }
+  }
+
+  function drawCrest(c, x, y, gaze, S, pal) {
+    for (let i = 0; i < 6; i++) {
+      const a = -Math.PI / 2 + (i - 2.5) * 0.16 - gaze * 0.4;
+      const len = S * (0.05 + (i % 2) * 0.012);
+      const x2 = x + Math.cos(a) * len;
+      const y2 = y + Math.sin(a) * len;
+      c.strokeStyle = pal.neck;
+      c.lineWidth = 1.1;
+      c.beginPath();
+      c.moveTo(x, y);
+      c.lineTo(x2, y2);
+      c.stroke();
+      c.fillStyle = pal.neckShine;
+      c.beginPath();
+      c.ellipse(x2, y2, S * 0.011, S * 0.006, a, 0, Math.PI * 2);
+      c.fill();
+    }
+  }
+
+  function drawBird(c, F, now) {
+    const S = F.S;
+    const flap = Math.sin(F.time * 2.2) * 0.04 + (F.reduced ? 0 : Math.sin(now * 16) * F.shiver * 0.16);
+    c.fillStyle = F.pal.vane0;
+    c.beginPath();
+    c.ellipse(F.rumpX, F.rumpY + S * 0.01, S * 0.13, S * 0.08, 0, 0, Math.PI * 2);
+    c.fill();
+    drawWing(c, F.rumpX - S * 0.02, F.rumpY + S * 0.01, -1, S, flap, F.pal);
+    drawWing(c, F.rumpX + S * 0.02, F.rumpY + S * 0.01, 1, S, flap, F.pal);
+    const hipY = F.rumpY + S * 0.04;
+    drawLeg(c, F.rumpX - S * 0.025, hipY, F.feetY, F.liftL, -1, S, F.pal);
+    drawLeg(c, F.rumpX + S * 0.025, hipY, F.feetY, F.liftR, 1, S, F.pal);
+
+    c.fillStyle = F.pal.belly;
+    c.beginPath();
+    c.ellipse(F.rumpX, F.rumpY + S * 0.045, S * 0.078, S * 0.09, 0, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = F.pal.chest;
+    c.beginPath();
+    c.ellipse(F.rumpX, F.rumpY - S * 0.005, S * 0.058, S * 0.072, 0, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = "rgba(0,0,0,0.28)";
+    c.lineWidth = 1.5;
+    c.stroke();
+    c.fillStyle = "rgba(255,255,255,0.14)";
+    c.beginPath();
+    c.ellipse(F.rumpX - S * 0.012, F.rumpY - S * 0.02, S * 0.016, S * 0.032, -0.5, 0, Math.PI * 2);
+    c.fill();
+
+    const headR = S * 0.046;
+    const shiverX = F.reduced ? 0 : Math.sin(now * 28) * F.shiver * S * 0.01;
+    const headX = F.rumpX + F.gaze * S * 0.065 + shiverX;
+    const headY = F.rumpY - S * 0.3 + F.bow * S * 0.11;
+    const p0 = { x: F.rumpX, y: F.rumpY - S * 0.01 };
+    const p3 = { x: headX, y: headY + headR * 0.55 };
+    const p1 = { x: p0.x + S * 0.045, y: p0.y - S * 0.12 };
+    const p2 = { x: p3.x - F.gaze * S * 0.03, y: p3.y + S * 0.1 };
+    drawNeck(c, p0, p1, p2, p3, S * 0.036, F.pal);
+    drawCrest(c, headX - F.gaze * headR * 0.2, headY - headR * 0.7, F.gaze, S, F.pal);
+
+    const hg = c.createRadialGradient(headX - headR * 0.3, headY - headR * 0.3, 2, headX, headY, headR * 1.3);
+    hg.addColorStop(0, F.pal.neckShine);
+    hg.addColorStop(0.45, F.pal.neck);
+    hg.addColorStop(1, F.pal.neckDeep);
+    c.fillStyle = hg;
+    c.beginPath();
+    c.arc(headX, headY, headR, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = F.pal.face;
+    c.beginPath();
+    c.ellipse(headX + F.gaze * headR * 0.25, headY + headR * 0.08, headR * 0.48, headR * 0.36, F.gaze * 0.3, 0, Math.PI * 2);
+    c.fill();
+    const eyeX = headX + F.gaze * headR * 0.42;
+    const eyeY = headY - headR * 0.05;
+    c.fillStyle = "#f7f8f4";
+    c.beginPath();
+    c.ellipse(eyeX, eyeY, headR * 0.2, headR * 0.15, 0, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = "#140c08";
+    c.beginPath();
+    c.arc(eyeX + F.gaze * headR * 0.05, eyeY, headR * 0.08, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = F.pal.beak;
+    c.beginPath();
+    c.moveTo(headX + F.gaze * headR * 0.15, headY + headR * 0.22);
+    c.lineTo(headX + F.gaze * headR * 1.15, headY + headR * 0.38);
+    c.lineTo(headX + F.gaze * headR * 0.1, headY + headR * 0.5);
+    c.closePath();
+    c.fill();
+  }
+
+  function drawPeahen(c, F) {
+    const s = F.S * 0.24;
+    const x = F.rumpX + F.S * 0.34;
+    const feet = F.feetY;
+    const bob = Math.sin(F.time * 1.3) * s * 0.03;
+    c.fillStyle = "rgba(0,0,0,0.2)";
+    c.beginPath();
+    c.ellipse(x, feet + 3, s * 0.28, s * 0.06, 0, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = F.pal.leg;
+    c.lineWidth = Math.max(1.3, s * 0.035);
+    c.beginPath();
+    c.moveTo(x - s * 0.06, feet - s * 0.22);
+    c.lineTo(x - s * 0.1, feet);
+    c.moveTo(x + s * 0.06, feet - s * 0.22);
+    c.lineTo(x + s * 0.02, feet);
+    c.stroke();
+    c.fillStyle = F.pal.peahen;
+    c.beginPath();
+    c.ellipse(x + s * 0.05, feet - s * 0.4, s * 0.26, s * 0.18, -0.2, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = F.pal.peahenWing;
+    c.beginPath();
+    c.ellipse(x + s * 0.08, feet - s * 0.42, s * 0.16, s * 0.08, -0.5, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = F.pal.peahenDark;
+    c.beginPath();
+    c.moveTo(x + s * 0.22, feet - s * 0.42);
+    c.quadraticCurveTo(x + s * 0.48, feet - s * 0.55, x + s * 0.42, feet - s * 0.28);
+    c.quadraticCurveTo(x + s * 0.32, feet - s * 0.34, x + s * 0.2, feet - s * 0.32);
+    c.fill();
+    const hx = x - s * 0.28;
+    const hy = feet - s * 0.95 + bob;
+    c.strokeStyle = F.pal.peahenDark;
+    c.lineWidth = Math.max(2, s * 0.07);
+    c.beginPath();
+    c.moveTo(x - s * 0.08, feet - s * 0.5);
+    c.quadraticCurveTo(x - s * 0.22, feet - s * 0.7, hx, hy + s * 0.08);
+    c.stroke();
+    c.fillStyle = F.pal.peahen;
+    c.beginPath();
+    c.arc(hx, hy, s * 0.11, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = F.pal.peahenDark;
+    c.lineWidth = 1;
+    for (let i = 0; i < 3; i++) {
+      const a = -Math.PI * 0.85 + i * 0.18;
+      c.beginPath();
+      c.moveTo(hx, hy - s * 0.08);
+      c.lineTo(hx + Math.cos(a) * s * 0.16, hy + Math.sin(a) * s * 0.16);
+      c.stroke();
+    }
+    c.fillStyle = "#f4efe6";
+    c.beginPath();
+    c.ellipse(hx - s * 0.04, hy - s * 0.01, s * 0.035, s * 0.025, 0, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = "#1a100c";
+    c.beginPath();
+    c.arc(hx - s * 0.05, hy - s * 0.01, s * 0.015, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = F.pal.beak;
+    c.beginPath();
+    c.moveTo(hx - s * 0.08, hy + s * 0.02);
+    c.lineTo(hx - s * 0.2, hy + s * 0.04);
+    c.lineTo(hx - s * 0.08, hy + s * 0.07);
+    c.fill();
+  }
+
+  function drawTerrace(c, F) {
+    const x = F.rumpX + F.S * 0.08;
+    const y = F.feetY + F.S * 0.02;
+    const rx = F.S * 0.58;
+    const ry = Math.max(16, F.S * 0.06);
+    c.fillStyle = "rgba(0,0,0,0.25)";
+    c.beginPath();
+    c.ellipse(x, y + 8, rx * 0.92, ry * 0.9, 0, 0, Math.PI * 2);
+    c.fill();
+    const g = c.createLinearGradient(x, y - ry, x, y + ry);
+    g.addColorStop(0, F.pal.shoreEdge);
+    g.addColorStop(1, F.pal.shore);
+    c.fillStyle = g;
+    c.beginPath();
+    c.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = F.pal.goldLine;
+    c.lineWidth = 1;
+    c.stroke();
+    c.save();
+    c.translate(x, y);
+    c.scale(1, ry / rx);
+    c.strokeStyle = F.pal.goldLine;
+    c.lineWidth = 1;
+    c.globalAlpha = 0.7;
+    for (let i = 1; i <= 3; i++) {
+      c.beginPath();
+      c.arc(0, 0, rx * (i / 3.4), 0, Math.PI * 2);
+      c.stroke();
+    }
+    c.beginPath();
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      c.moveTo(Math.cos(a) * rx * 0.18, Math.sin(a) * rx * 0.18);
+      c.lineTo(Math.cos(a) * rx * 0.92, Math.sin(a) * rx * 0.92);
+    }
+    c.stroke();
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + 0.2;
+      c.beginPath();
+      c.ellipse(Math.cos(a) * rx * 0.55, Math.sin(a) * rx * 0.55, rx * 0.12, rx * 0.055, a, 0, Math.PI * 2);
+      c.stroke();
+    }
+    c.restore();
+  }
+
+  function drawLotus(c, x, y, s, rot, flower, pal) {
+    c.save();
+    c.translate(x, y);
+    c.rotate(rot);
+    c.fillStyle = pal.lotusPad;
+    c.beginPath();
+    c.ellipse(0, 0, 26 * s, 10 * s, 0, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = "rgba(0,0,0,0.25)";
+    c.lineWidth = 1;
+    c.beginPath();
+    c.moveTo(-16 * s, 1);
+    c.quadraticCurveTo(0, -5 * s, 18 * s, 2);
+    c.stroke();
+    if (flower) {
+      for (let i = 0; i < 5; i++) {
+        c.save();
+        c.rotate(-Math.PI / 2 + (i - 2) * 0.38);
+        c.fillStyle = i % 2 ? pal.lotus : pal.lotusDeep;
+        c.beginPath();
+        c.ellipse(0, -11 * s, 3.6 * s, 9 * s, 0, 0, Math.PI * 2);
+        c.fill();
+        c.restore();
+      }
+      c.fillStyle = pal.moon;
+      c.beginPath();
+      c.arc(0, -2 * s, 2.6 * s, 0, Math.PI * 2);
+      c.fill();
+    }
+    c.restore();
+  }
+
+  function drawReeds(c, F) {
+    c.strokeStyle = F.pal.reed;
+    c.lineWidth = 1.4;
+    for (let i = 0; i < reeds.length; i++) {
+      const r = reeds[i];
+      const x = r.x * F.w;
+      const y = F.waterY + 6;
+      const h = r.h * F.h;
+      const sway = F.reduced ? 0 : Math.sin(F.ambient * 0.9 + r.p) * 8;
+      c.beginPath();
+      c.moveTo(x, y);
+      c.quadraticCurveTo(x + r.bend + sway, y - h * 0.65, x + sway * 0.4, y - h);
+      c.stroke();
+    }
+  }
+
+  function drawWeather(c, F) {
+    if (F.pal.rain) {
+      c.strokeStyle = "rgba(210, 230, 230, 0.35)";
+      c.lineWidth = 1;
+      for (let i = 0; i < drops.length; i++) {
+        const d = drops[i];
+        const x = d.x * F.w;
+        const y = d.y * F.h;
+        c.beginPath();
+        c.moveTo(x, y);
+        c.lineTo(x - 3, y + d.len);
+        c.stroke();
+      }
+      return;
+    }
+    for (let i = 0; i < motes.length; i++) {
+      const m = motes[i];
+      const tw = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(F.ambient * 2 + m.p));
+      c.fillStyle = F.pal.mote;
+      c.globalAlpha = tw;
+      c.beginPath();
+      c.arc(m.x * F.w, m.y * F.h, m.r, 0, Math.PI * 2);
+      c.fill();
+    }
+    c.globalAlpha = 1;
+  }
+
+  function drawVignette(c, w, h) {
+    const g = c.createRadialGradient(w * 0.5, h * 0.46, Math.min(w, h) * 0.28, w * 0.5, h * 0.5, Math.max(w, h) * 0.68);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(1, "rgba(0,0,0,0.4)");
+    c.fillStyle = g;
+    c.fillRect(0, 0, w, h);
+  }
+
+  function render(now) {
+    const rect = stage.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const bw = Math.max(1, Math.round(rect.width * dpr));
+    const bh = Math.max(1, Math.round(rect.height * dpr));
+    if (canvas.width !== bw || canvas.height !== bh) {
+      canvas.width = bw;
+      canvas.height = bh;
+    }
+    state.dpr = dpr;
+    const w = canvas.width / dpr;
+    const h = canvas.height / dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    if (w < 20 || h < 20) return;
+    const F = metrics(w, h);
+    drawSky(ctx, F);
+    drawStars(ctx, F);
+    drawMoon(ctx, F);
+    drawClouds(ctx, F);
+    drawFarShore(ctx, F);
+    drawTrees(ctx, F);
+    drawWater(ctx, F);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, F.waterY, w, h - F.waterY);
+    ctx.clip();
+    ctx.translate(Math.sin(F.ambient * 1.2) * 4, F.waterY);
+    ctx.scale(1, -1);
+    ctx.translate(0, -F.waterY);
+    ctx.globalAlpha = 0.26;
+    drawTrain(ctx, F, now);
+    ctx.restore();
+
+    const veil = ctx.createLinearGradient(0, F.waterY, 0, h);
+    veil.addColorStop(0, "rgba(0,0,0,0)");
+    veil.addColorStop(0.45, F.pal.waterDeep);
+    veil.addColorStop(1, F.pal.waterDeep);
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = veil;
+    ctx.fillRect(0, F.waterY, w, h - F.waterY);
+    ctx.globalAlpha = 1;
+
+    ctx.strokeStyle = "rgba(255,255,255,0.08)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 4; i++) {
+      const y = F.waterY + 24 + i * ((h - F.waterY) / 5);
+      ctx.beginPath();
+      for (let x = 0; x <= w; x += 10) {
+        const yy = y + Math.sin(x * 0.02 + F.ambient * 0.9 + i) * 2.4;
+        if (x === 0) ctx.moveTo(x, yy);
+        else ctx.lineTo(x, yy);
+      }
+      ctx.stroke();
+    }
+    if (F.moonX) {
+      ctx.fillStyle = "rgba(255,255,255,0.05)";
+      ctx.beginPath();
+      ctx.ellipse(F.moonX, F.waterY + (h - F.waterY) * 0.42, 8, (h - F.waterY) * 0.28, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    const mist = ctx.createLinearGradient(0, F.waterY - 24, 0, F.waterY + 36);
+    mist.addColorStop(0, "rgba(255,255,255,0)");
+    mist.addColorStop(0.5, F.pal.mist);
+    mist.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = mist;
+    ctx.fillRect(0, F.waterY - 24, w, 70);
+
+    for (let i = 0; i < pads.length; i++) {
+      const p = pads[i];
+      drawLotus(ctx, p.x * w, p.y * h, p.s, p.rot, p.flower, F.pal);
+    }
+    for (let i = 0; i < 6; i++) {
+      const px = ((hash(i + 4) + F.ambient * 0.012 * (0.4 + hash(i))) % 1) * w;
+      const py = F.waterY + 16 + hash(i + 8) * (h - F.waterY - 24);
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(hash(i) * 3);
+      ctx.fillStyle = F.pal.lotus;
+      ctx.globalAlpha = 0.4;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 4.5, 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    drawTerrace(ctx, F);
+    drawHalo(ctx, F);
+    drawTrain(ctx, F, now);
+    drawBird(ctx, F, now);
+    drawPeahen(ctx, F);
+    drawReeds(ctx, F);
+    drawWeather(ctx, F);
+    drawVignette(ctx, w, h);
+  }
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    update(dt);
+    render(now / 1000);
+    requestAnimationFrame(frame);
+  }
+
+  playBtn.addEventListener("click", function () {
+    state.playing = !state.playing;
+    syncPlay();
+  });
+  rattleBtn.addEventListener("click", triggerRattle);
+  soundBtn.addEventListener("click", function () { setSound(!state.sound); });
+  tempoInput.addEventListener("input", syncTempo);
+  fanInput.addEventListener("input", syncFan);
+  themeBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      state.theme = btn.dataset.theme;
+      syncTheme();
+    });
+  });
+  canvas.addEventListener("pointermove", function (e) {
+    const rect = canvas.getBoundingClientRect();
+    const nx = (e.clientX - rect.left) / Math.max(1, rect.width);
+    state.pointer = true;
+    state.gazeTarget = Math.max(-1, Math.min(1, (nx - 0.5) * 2));
+  });
+  canvas.addEventListener("pointerleave", function () { state.pointer = false; });
+  canvas.addEventListener("pointerdown", function (e) {
+    state.downX = e.clientX;
+    state.downY = e.clientY;
+  });
+  canvas.addEventListener("pointerup", function (e) {
+    const dist = Math.hypot(e.clientX - state.downX, e.clientY - state.downY);
+    if (dist < 10) triggerRattle();
+  });
+  window.addEventListener("keydown", function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+    if (e.target && e.target.tagName === "INPUT") return;
+    if (e.code === "Space" && (e.target === document.body || e.target === canvas)) {
+      e.preventDefault();
+      state.playing = !state.playing;
+      syncPlay();
+    } else if (e.code === "KeyR") {
+      triggerRattle();
+    } else if (e.key === "1") {
+      state.theme = "moonlight";
+      syncTheme();
+    } else if (e.key === "2") {
+      state.theme = "monsoon";
+      syncTheme();
+    } else if (e.key === "3") {
+      state.theme = "dawn";
+      syncTheme();
+    }
+  });
+
+  const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+  function syncReduce() {
+    state.reduced = motionQuery.matches;
+    if (state.reduced) state.open = 1;
+  }
+  syncReduce();
+  motionQuery.addEventListener("change", syncReduce);
+  syncTempo();
+  syncFan();
+  syncPlay();
+  syncTheme();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

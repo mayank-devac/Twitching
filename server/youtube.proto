@@ -1,0 +1,41 @@
+// Wire-compatible subset of Google's stream_list.proto, Apache-2.0.
+// https://developers.google.com/youtube/v3/live/streaming-live-chat
+syntax = "proto2";
+package youtube.api.v3;
+service V3DataLiveChatMessageService {
+  rpc StreamList(LiveChatMessageListRequest) returns (stream LiveChatMessageListResponse) {}
+}
+message LiveChatMessageListRequest {
+  optional string live_chat_id = 1;
+  optional string page_token = 99;
+  repeated string part = 100;
+}
+message LiveChatMessageListResponse {
+  optional string offline_at = 2;
+  optional string next_page_token = 100602;
+  repeated LiveChatMessage items = 1007;
+}
+message LiveChatMessage {
+  optional string id = 101;
+  optional Snippet snippet = 2;
+  optional Author author_details = 3;
+}
+message Author {
+  optional string channel_id = 10101;
+  optional string display_name = 103;
+  optional bool is_chat_sponsor = 6;
+}
+message Snippet {
+  optional int32 type = 1;
+  optional string author_channel_id = 301;
+  optional string published_at = 4;
+  optional string display_message = 16;
+  optional Text text_message_details = 19;
+  optional Paid super_chat_details = 27;
+  optional Milestone member_milestone_chat_details = 30;
+  optional Gifting membership_gifting_details = 31;
+}
+message Text { optional string message_text = 1; }
+message Paid { optional string user_comment = 4; }
+message Milestone { optional string user_comment = 3; }
+message Gifting { optional int32 gift_memberships_count = 1; }

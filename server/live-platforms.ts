@@ -1,0 +1,129 @@
+import { secrets } from "./config.js";
+import { chatSkips } from "./chat-skips.js";
+
+const youtubeBroadcasts = "https://www.googleapis.com/youtube/v3/liveBroadcasts";
+
+export function twitchStatus(
+  twitch: {
+    access: string;
+    client: string;
+    broadcaster: string;
+    user: string;
+  } = secrets.twitch,
+) {
+  const fields = [
+    ["TWITCH_CLIENT_ID", twitch.client],
+    ["TWITCH_ACCESS_TOKEN", twitch.access],
+    ["TWITCH_BROADCASTER_ID", twitch.broadcaster],
+    ["TWITCH_BOT_USER_ID", twitch.user],
+  ] as const;
+  const missing = fields
+    .filter(([, value]) => !value.trim())
+    .map(([name]) => name);
+  if (missing.length === fields.length) return { kind: "off" as const };
+  if (missing.length) return { kind: "partial" as const, missing };
+  return { kind: "on" as const };
+}
+
+export function missingLiveSecrets(
+  values: {
+    jev: string;
+    youtube: { access: string; chat: string };
+    twitch: {
+      access: string;
+      client: string;
+      broadcaster: string;
+      user: string;
+    };
+    kick: { access: string; broadcaster: string };
+  } = secrets,
+  skips: {
+    youtube?: boolean;
+    twitch?: boolean;
+    kick?: boolean;
+  } = chatSkips(),
+) {
+  const required: Array<[string, string]> = [["TYPESAFE_API_KEY", values.jev]];
+  if (!skips.kick) {
+    required.push(
+      ["KICK_ACCESS_TOKEN", values.kick.access],
+      ["KICK_BROADCASTER_ID", values.kick.broadcaster],
+    );
+  }
+  if (!skips.youtube) required.push(["YOUTUBE_ACCESS_TOKEN", values.youtube.access]);
+  const twitch = skips.twitch
+    ? { kind: "off" as const }
+    : twitchStatus(values.twitch);
+  if (twitch.kind === "on")
+    required.push(
+      ["TWITCH_CLIENT_ID", values.twitch.client],
+      ["TWITCH_ACCESS_TOKEN", values.twitch.access],
+      ["TWITCH_BROADCASTER_ID", values.twitch.broadcaster],
+      ["TWITCH_BOT_USER_ID", values.twitch.user],
+    );
+  const missing = required
+    .filter(([, value]) => !value.trim())
+    .map(([name]) => name);
+  if (twitch.kind === "partial") missing.push(...twitch.missing);
+  return missing;
+}
+
+export async function resolveYoutubeLiveChatId(
+  access: string,
+  fetchImpl: typeof fetch = fetch,
+) {
+  const token = access.trim();
+  if (!token)
+    throw new Error(
+      "YOUTUBE_ACCESS_TOKEN is missing; fill it in .env.local before looking up a live chat ID",
+    );
+  for (const broadcastStatus of ["active", "upcoming"] as const) {
+    const id = await chatIdForBroadcasts(token, broadcastStatus, fetchImpl);
+    if (id) return id;
+  }
+  throw new Error(
+    "No YouTube live chat ID found. Create or schedule a livestream in YouTube Studio, then rerun.",
+  );
+}
+
+async function chatIdForBroadcasts(
+  access: string,
+  broadcastStatus: "active" | "upcoming",
+  fetchImpl: typeof fetch,
+) {
+  const url = new URL(youtubeBroadcasts);
+  url.searchParams.set("part", "snippet");
+  url.searchParams.set("mine", "true");
+  url.searchParams.set("broadcastStatus", broadcastStatus);
+  url.searchParams.set("maxResults", "5");
+  const response = await fetchImpl(url, {
+    headers: { Authorization: `Bearer ${access}` },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (response.status === 401 || response.status === 403)
+    throw new Error(
+      "YouTube access token could not list live broadcasts; update YOUTUBE_ACCESS_TOKEN",
+    );
+  if (!response.ok)
+    throw new Error(
+      `YouTube live broadcast lookup failed (HTTP ${response.status})`,
+    );
+  const data = (await response.json()) as {
+    items?: Array<{ snippet?: { liveChatId?: unknown } }>;
+  };
+  for (const item of data.items ?? []) {
+    const id = item.snippet?.liveChatId;
+    if (typeof id === "string" && id.trim()) return id.trim();
+  }
+}
+
+export async function ensureYoutubeLiveChatId(
+  youtube: { access: string; chat: string } = secrets.youtube,
+  fetchImpl: typeof fetch = fetch,
+) {
+  if (youtube.chat.trim()) return youtube.chat.trim();
+  const id = await resolveYoutubeLiveChatId(youtube.access, fetchImpl);
+  youtube.chat = id;
+  process.env.YOUTUBE_LIVE_CHAT_ID = id;
+  return id;
+}

@@ -1,0 +1,10 @@
+{"agent":"codex","event":{"type":"thread.started","thread_id":"documentation-sample"}}
+{"agent":"codex","event":{"type":"item.started","item":{"id":"command_1","type":"command_execution","command":"bash -lc ls","status":"in_progress"}}}
+{"agent":"codex","event":{"type":"item.completed","item":{"id":"message_1","type":"agent_message","text":"I will build the page with inline styles."}}}
+{"agent":"codex","event":{"type":"item.completed","item":{"id":"edit_1","type":"file_change","status":"completed","changes":[{"path":"/workspace/prompt_1.html","kind":"add"}]}}}
+{"agent":"cursor","event":{"type":"assistant","timestamp_ms":1,"message":{"content":[{"type":"text","text":"Creating "}]}}}
+{"agent":"cursor","event":{"type":"assistant","timestamp_ms":2,"message":{"content":[{"type":"text","text":"the page."}]}}}
+{"agent":"cursor","event":{"type":"assistant","timestamp_ms":2,"model_call_id":"flush","message":{"content":[{"type":"text","text":"Creating the page."}]}}}
+{"agent":"cursor","event":{"type":"tool_call","subtype":"completed","call_id":"write_1","tool_call":{"writeToolCall":{"args":{"path":"/workspace/prompt_1.html","fileText":"PRIVATE FILE CONTENT"},"result":{"success":{"linesCreated":19}}}}}}
+{"agent":"cursor","event":{"type":"result","subtype":"success","is_error":false,"result":"Creating the page."}}
+{"agent":"codex","event":{"type":"turn.completed","usage":{"input_tokens":100,"output_tokens":100}}}

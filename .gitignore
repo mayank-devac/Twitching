@@ -1,0 +1,24 @@
+node_modules/
+dist/
+.env*
+!.env.example
+runtime/
+playwright-report/
+*.log
+.DS_Store
+assets/*.mp3
+
+# Keep local authentication and private keys out of Git.
+**/.env*
+!**/.env.example
+**/.home/
+**/.ssh/
+**/.codex/
+**/.cursor/
+**/.aws/
+**/auth/
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore

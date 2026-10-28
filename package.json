@@ -1,0 +1,52 @@
+{
+  "name": "twitching",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "tsx server/index.ts",
+    "build": "vite build",
+    "start": "NODE_ENV=production tsx server/index.ts",
+    "check": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "replay": "tsx scripts/replay.ts",
+    "sandbox:build": "docker build -t prompt-arena-agent:local sandbox",
+    "sandbox:build:preview": "docker build -f sandbox/preview.Dockerfile -t prompt-arena-preview:local sandbox",
+    "sandbox:login:codex": "tsx scripts/login.ts codex",
+    "sandbox:login:cursor": "tsx scripts/login.ts cursor",
+    "sandbox:export": "tsx scripts/export-sandbox-result.ts",
+    "cleanup:probes": "tsx scripts/cleanup-probe-workspaces.ts"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.14.0",
+    "@grpc/proto-loader": "^0.8.0",
+    "dictionary-en": "^4.0.0",
+    "dotenv": "^17.2.0",
+    "express": "^5.1.0",
+    "nspell": "^2.1.5",
+    "obs-websocket-js": "^5.0.6",
+    "parse5": "^7.3.0",
+    "playwright": "1.63.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-markdown": "^10.1.0",
+    "ws": "^8.18.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^24.0.0",
+    "@types/nspell": "^2.1.6",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@types/ws": "^8.18.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "prettier": "^3.9.9",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.3.7"
+  }
+}

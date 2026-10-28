@@ -1,0 +1,6 @@
+# Only the preview entry point is needed in the Docker build context.
+**
+!Dockerfile
+!preview.Dockerfile
+!preview.mjs
+!.dockerignore

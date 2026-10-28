@@ -1,0 +1,18 @@
+[
+  {
+    "platform": "youtube",
+    "text": "!prompt Create a colourful solar system with orbit controls",
+    "member": true
+  },
+  { "platform": "twitch", "text": "!prompt tiny game" },
+  { "platform": "kick", "text": "!prompt 😀 👾 🎉 ✨ 🎁" },
+  {
+    "platform": "kick",
+    "text": "!prompt Create a colourful solar system with orbit controls"
+  },
+  {
+    "platform": "youtube",
+    "text": "!prompt Build a simple memory card game with pastel colours"
+  },
+  { "platform": "twitch", "text": "Create a colourful bouncing ball animation" }
+]

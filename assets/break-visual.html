@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pixel Eye 64x64</title>
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        background: #14121a;
+        font-family: system-ui, sans-serif;
+      }
+      canvas {
+        image-rendering: crisp-edges;
+        image-rendering: pixelated;
+        border-radius: 6px;
+        box-shadow:
+          0 0 0 4px #2a2635,
+          0 24px 60px rgba(0, 0, 0, 0.6);
+      }
+      button {
+        background: #2a2635;
+        color: #cfc9e0;
+        border: 0;
+        border-radius: 6px;
+        padding: 8px 14px;
+        font:
+          13px system-ui,
+          sans-serif;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #363046;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="c" width="64" height="64"></canvas>
+    <button id="slow">Slow motion</button>
+
+    <script>
+      const W = 64,
+        H = 64;
+      const cv = document.getElementById("c");
+      const ctx = cv.getContext("2d");
+      const img = ctx.createImageData(W, H);
+      const D = img.data;
+
+      /* integer scaling so every art pixel is the same size */
+      function fit() {
+        const s = Math.max(
+          4,
+          Math.floor(Math.min(innerWidth - 32, innerHeight - 110) / W),
+        );
+        cv.style.width = cv.style.height = W * s + "px";
+      }
+      addEventListener("resize", fit);
+      fit();
+
+      /* ---------- helpers ---------- */
+      const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+      const smooth = (a, b, v) => {
+        const t = clamp((v - a) / (b - a), 0, 1);
+        return t * t * (3 - 2 * t);
+      };
+      const hex = (h) => [
+        parseInt(h.slice(1, 3), 16),
+        parseInt(h.slice(3, 5), 16),
+        parseInt(h.slice(5, 7), 16),
+      ];
+      const dark = (c, k) => [(c[0] * k) | 0, (c[1] * k) | 0, (c[2] * k) | 0];
+      const BAY = [
+        [0, 8, 2, 10],
+        [12, 4, 14, 6],
+        [3, 11, 1, 9],
+        [15, 7, 13, 5],
+      ].map((r) => r.map((v) => (v + 0.5) / 16));
+      function hash(n) {
+        n = Math.imul(n ^ (n >>> 16), 0x45d9f3b);
+        n = Math.imul(n ^ (n >>> 16), 0x45d9f3b);
+        n ^= n >>> 16;
+        return (n >>> 0) / 4294967296;
+      }
+      function table(t, tb) {
+        if (t <= tb[0][0]) return tb[0][1];
+        for (let i = 1; i < tb.length; i++) {
+          if (t <= tb[i][0]) {
+            const a = tb[i - 1],
+              b = tb[i];
+            return a[1] + ((b[1] - a[1]) * (t - a[0])) / (b[0] - a[0]);
+          }
+        }
+        return tb[tb.length - 1][1];
+      }
+      /* ordered dithering between neighbouring palette colours (flat bands, narrow dithered seams) */
+      function pick(ramp, L, x, y) {
+        L = clamp(L, 0, ramp.length - 1);
+        const i = Math.floor(L);
+        if (i >= ramp.length - 1) return ramp[ramp.length - 1];
+        const f = clamp((L - i - 0.3) / 0.4, 0, 1);
+        return f > BAY[y & 3][x & 3] ? ramp[i + 1] : ramp[i];
+      }
+      function put(x, y, c) {
+        if (x < 0 || y < 0 || x >= W || y >= H) return;
+        const i = (y * W + x) * 4;
+        D[i] = c[0];
+        D[i + 1] = c[1];
+        D[i + 2] = c[2];
+        D[i + 3] = 255;
+      }
+
+      /* ---------- limited palette ---------- */
+      const SKIN = [
+        "#6f3f30",
+        "#96604a",
+        "#b97d5f",
+        "#d49b77",
+        "#e8b992",
+        "#f4d3b3",
+      ].map(hex);
+      const SCLERA = ["#8f90a3", "#b4b3c3", "#d9d5da", "#f4f0ec"].map(hex);
+      const IRIS = ["#a8e0f2", "#68b8da", "#3d8dba", "#27628f"].map(hex);
+      const LIMBAL = hex("#15304d"),
+        PUPIL = hex("#05060a"),
+        PUPIL_RING = hex("#0e2036");
+      const AMBER = hex("#c9a45c"),
+        AMBER2 = hex("#a8873f");
+      const LASH = hex("#1d1114"),
+        LASH_TIP = hex("#3b2420"),
+        LASH_LOW = hex("#4a2c26");
+      const RIM = hex("#a5675a"),
+        WATER = hex("#e2a7a0"),
+        WATER_HI = hex("#f1cfc8");
+      const CAR1 = hex("#c46b6b"),
+        CAR2 = hex("#e38e8c");
+      const WHITE = hex("#ffffff"),
+        SOFT = hex("#cfeaf6"),
+        SOFT2 = hex("#d6eef8"),
+        SOFT3 = hex("#9fd2e8");
+      const HL = [
+        [-5, -6, WHITE],
+        [-4, -6, WHITE],
+        [-5, -5, WHITE],
+        [-4, -5, WHITE],
+        [-6, -5, SOFT],
+        [-5, -4, SOFT],
+        [-3, -6, SOFT],
+        [4, 4, SOFT2],
+        [3, 4, SOFT3],
+      ];
+
+      /* ---------- eye geometry ---------- */
+      const CX = 32,
+        CY = 33,
+        A = 27,
+        HU = 11,
+        HL_ = 10;
+      const baseY = (x) =>
+        CY - (3.5 * (x - CX)) / A; /* outer corner sits higher */
+      const uUp = (x) =>
+        clamp(
+          x < CX - 3 ? (x - (CX - 3)) / (A - 3) : (x - (CX - 3)) / (A + 3),
+          -1,
+          1,
+        );
+      const uLow = (x) =>
+        clamp(
+          x < CX + 3 ? (x - (CX + 3)) / (A + 3) : (x - (CX + 3)) / (A - 3),
+          -1,
+          1,
+        );
+      const upperOpen = (x) => {
+        const u = uUp(x);
+        return baseY(x) - HU * Math.pow(1 - u * u, 0.8);
+      };
+      const lowerOpen = (x) => {
+        const u = uLow(x);
+        return baseY(x) + HL_ * Math.pow(1 - u * u, 0.85);
+      };
+      const closedY = (x) => {
+        const u = clamp((x - CX) / A, -1, 1);
+        return baseY(x) + 7 * Math.pow(1 - u * u, 0.9);
+      };
+
+      function columns(b) {
+        const cols = [];
+        for (let x = 0; x < W; x++) {
+          const px = x + 0.5;
+          const uo = upperOpen(px),
+            lo = lowerOpen(px),
+            cl = closedY(px);
+          let yu = uo + (cl - uo) * b,
+            yl =
+              lo +
+              (cl - lo) *
+                b; /* upper lid travels far, lower lid rises a little */
+          if (b >= 1) {
+            yu = yl = cl;
+          }
+          const ux = (px - CX) / A;
+          const u = uUp(px);
+          cols.push({
+            yu,
+            yl,
+            ux,
+            inR: Math.abs(ux) < 1,
+            tU:
+              1.2 +
+              1.0 *
+                smooth(
+                  -0.6,
+                  0.6,
+                  ux,
+                ) /* lash line thicker toward outer corner */,
+            crease:
+              uo -
+              (2 + 6 * Math.sqrt(Math.max(0, 1 - u * u))) +
+              0.35 * (yu - uo) /* fold follows the lid partly */,
+          });
+        }
+        return cols;
+      }
+
+      /* ---------- skin ---------- */
+      const ABOVE = [
+        [0, 2.9],
+        [1.5, 3.4],
+        [4, 4.0],
+        [8, 4.4],
+        [16, 5.0],
+      ];
+      const LID = [
+        [0, 2.9],
+        [0.15, 3.2],
+        [0.38, 4.2],
+        [0.55, 4.6],
+        [0.78, 3.7],
+        [0.92, 3.0],
+        [1, 2.4],
+      ];
+      const LOWER = [
+        [1.1, 3.2],
+        [3, 3.7],
+        [5.5, 3.0],
+        [8, 3.4],
+        [12, 4.1],
+        [20, 4.8],
+      ];
+
+      function skin(x, y, px, py, k) {
+        const top = k.inR ? k.yu - k.tU : k.yu;
+        let L;
+        if (py < top) {
+          const cr = k.crease;
+          const foldOK = k.inR && Math.abs(k.ux) < 0.8;
+          if (foldOK && Math.abs(py - cr) < 0.5)
+            return SKIN[1]; /* crease line */
+          if (py < cr || !foldOK) {
+            L = table(Math.max(0, cr - py), ABOVE);
+          } else {
+            const f = clamp((py - cr) / Math.max(1, top - cr), 0, 1);
+            L = table(f, LID); /* lid bulge with highlight */
+          }
+        } else {
+          L = table(py - k.yl, LOWER); /* under-eye shadow */
+        }
+        const side = Math.abs(px - CX);
+        L -= (px < CX ? 1.3 : 0.8) * clamp((side - 26) / 12, 0, 1);
+        return pick(SKIN, L, x, y);
+      }
+
+      /* ---------- eyeball ---------- */
+      function eye(x, y, px, py, k, bay, icx, icy, icyR) {
+        const IR = 12,
+          PR = 4.8;
+        const d = py - k.yu,
+          sh = clamp(1 - d / 4.5, 0, 1); /* shadow cast by upper lid */
+        const dx = px - icx,
+          dy = py - icy,
+          r = Math.hypot(dx, dy);
+        let c;
+        if (r <= IR) {
+          if (r <= PR) c = PUPIL;
+          else if (r <= PR + 1.1) c = PUPIL_RING;
+          else if (r > IR - 1.3) c = LIMBAL;
+          else {
+            const t = (r - PR) / (IR - PR);
+            const ang = (Math.atan2(dy, dx) + Math.PI) / (2 * Math.PI);
+            const s1 = hash(Math.floor(ang * 40) + 101),
+              s2 = hash(Math.floor(ang * 90) + 977);
+            const tt = clamp(
+              t + (s1 - 0.5) * 0.34 + (s2 - 0.5) * 0.12,
+              0,
+              0.999,
+            );
+            c = IRIS[Math.floor(tt * 4)];
+            if (t < 0.3 && s1 > 0.58) c = t < 0.17 ? AMBER2 : AMBER;
+          }
+          if (sh > bay) c = dark(c, 0.55);
+        } else {
+          let L = 3 - 1.7 * smooth(0.45, 1, Math.abs(k.ux));
+          L -= 2.0 * sh;
+          L -= 0.5 * clamp(1 - (k.yl - py) / 2.5, 0, 1);
+          if (r < IR + 1.6) L -= 0.6; /* soft occlusion around iris */
+          c = pick(SCLERA, L, x, y);
+          if (k.ux < -0.93) c = CAR1; /* tear duct */
+          else if (k.ux < -0.78) {
+            if (smooth(-0.78, -0.9, k.ux) > bay) c = CAR2;
+          }
+        }
+        for (const h of HL) if (x === icx + h[0] && y === icyR + h[1]) c = h[2];
+        if (k.yl - k.yu > 2.4 && py >= k.yl - 1.1)
+          c = x >= 34 && x <= 44 ? WATER_HI : WATER; /* wet lower rim */
+        return c;
+      }
+
+      /* ---------- lashes ---------- */
+      function lashes(cols, b) {
+        const N = 11;
+        for (let i = 0; i < N; i++) {
+          const x = Math.round(11 + (i / (N - 1)) * 45);
+          const k = cols[x];
+          if (!k.inR) continue;
+          const ux = k.ux;
+          const len =
+            3.5 + 5.5 * smooth(-0.5, 0.9, ux) + (hash(i + 40) - 0.5) * 1.2;
+          const a0 = Math.atan2(-1, ux * 0.9);
+          let a1 = Math.atan2(1, ux * 0.5);
+          if (ux < -0.05)
+            a1 -= Math.PI * 2; /* inner lashes swing the other way */
+          const ang =
+            a0 +
+            (a1 - a0) * b; /* lashes rotate from pointing up to pointing down */
+          const curl = 0.075 * (1 - 2 * b);
+          const x0 = x + 0.5,
+            y0 = k.yu - k.tU * (1 - b);
+          for (let s = 0; s <= len; s += 0.5) {
+            const a = ang + curl * s;
+            put(
+              Math.floor(x0 + Math.cos(a) * s),
+              Math.floor(y0 + Math.sin(a) * s),
+              s > len - 1.2 ? LASH_TIP : LASH,
+            );
+          }
+        }
+        if (b < 0.6) {
+          for (let i = 0; i < 6; i++) {
+            const x = Math.round(20 + i * 6),
+              k = cols[x];
+            if (!k.inR) continue;
+            const len = 2 + hash(i + 70) * 1.5;
+            for (let s = 0; s <= len; s += 0.5) {
+              put(
+                Math.floor(x + 0.5 + (0.25 + k.ux * 0.4) * s),
+                Math.floor(k.yl + 1.1 + s),
+                LASH_LOW,
+              );
+            }
+          }
+        }
+      }
+
+      /* ---------- frame ---------- */
+      function render(b) {
+        const cols = columns(b);
+        const icx = 32,
+          icy = 33 - 4 * b,
+          icyR = Math.round(icy); /* eyeball rolls up slightly during a blink */
+        for (let y = 0; y < H; y++) {
+          const py = y + 0.5;
+          for (let x = 0; x < W; x++) {
+            const px = x + 0.5,
+              k = cols[x],
+              bay = BAY[y & 3][x & 3];
+            let c;
+            if (k.inR && py >= k.yu - k.tU && py < k.yu)
+              c = LASH; /* lash line */
+            else if (k.inR && py >= k.yu && py < k.yl)
+              c = eye(x, y, px, py, k, bay, icx, icy, icyR);
+            else if (k.inR && py >= k.yl && py < k.yl + 1.1)
+              c = RIM; /* lower lid edge */
+            else c = skin(x, y, px, py, k);
+            put(x, y, c);
+          }
+        }
+        lashes(cols, b);
+        ctx.putImageData(img, 0, 0);
+      }
+
+      /* ---------- blink timing: fast close, tiny hold, slower open ---------- */
+      const CLOSE = 120,
+        HOLD = 50,
+        OPEN = 200,
+        TOTAL = CLOSE + HOLD + OPEN;
+      let last = 0,
+        wait = 700,
+        bt = -1,
+        dbl = 0,
+        rate = 1;
+
+      function frame(now) {
+        if (!last) last = now;
+        const dt = Math.min(60, now - last);
+        last = now;
+        let b = 0;
+        if (bt < 0) {
+          wait -= dt;
+          if (wait <= 0) bt = 0;
+        }
+        if (bt >= 0) {
+          bt += dt * rate;
+          if (bt < CLOSE) {
+            const p = bt / CLOSE;
+            b = Math.pow(p, 1.7);
+          } else if (bt < CLOSE + HOLD) {
+            b = 1;
+          } else if (bt < TOTAL) {
+            const p = (bt - CLOSE - HOLD) / OPEN;
+            b = Math.pow(1 - p, 2);
+          } else {
+            bt = -1;
+            if (dbl > 0) {
+              dbl--;
+              wait = 140;
+            } else {
+              wait = 2200 + Math.random() * 2600;
+              dbl = Math.random() < 0.22 ? 1 : 0;
+            }
+          }
+        }
+        render(b);
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+
+      const btn = document.getElementById("slow");
+      btn.onclick = () => {
+        rate = rate === 1 ? 0.1 : 1;
+        btn.textContent = rate === 1 ? "Slow motion" : "Normal speed";
+        if (rate !== 1 && bt < 0) wait = Math.min(wait, 400);
+      };
+    </script>
+  </body>
+</html>

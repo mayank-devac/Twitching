@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f7f4ee">
+<title>Hallo — a little moment of colour</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f7f4ee;color:#32332f}main{width:100%;height:100%;position:relative;isolation:isolate;overflow:hidden}
+.wash{position:absolute;inset:-25%;z-index:-2;background:radial-gradient(ellipse at 26% 58%,#ffcbba66,transparent 38%),radial-gradient(ellipse at 73% 50%,#bfe4df66,transparent 35%),radial-gradient(ellipse at 52% 84%,#ffe4ad55,transparent 33%);filter:blur(45px);animation:drift 24s ease-in-out infinite alternate}
+.grain{position:absolute;inset:0;pointer-events:none;opacity:.14;z-index:3;mix-blend-mode:multiply}
+header{position:absolute;top:5.5%;left:6.5%;right:6.5%;display:flex;justify-content:space-between;align-items:center;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#77766d}.brand{display:flex;align-items:center;gap:11px}.spark{width:19px;height:19px}.edition{letter-spacing:.06em;color:#96958c}
+.art{position:absolute;left:3.5%;right:3.5%;top:26%;height:39%;display:flex;align-items:center;justify-content:center;animation:float 9s ease-in-out infinite}.word{width:100%;height:auto;overflow:visible;transform:rotate(-5deg)}.ink{fill:none;stroke:url(#ink);stroke-width:15;stroke-linecap:round;stroke-linejoin:round}.underlight{fill:none;stroke:url(#ink);stroke-width:21;stroke-linecap:round;stroke-linejoin:round;opacity:.11;filter:url(#soft)}.highlight{fill:none;stroke:url(#shine);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;opacity:.34;transform:translate(-1,-3)}
+.tip{fill:#fff9ee;opacity:0;filter:url(#tipglow)}.small-star{position:absolute;width:13px;height:13px;color:#c4aaa1;animation:twinkle 7s ease-in-out infinite}.star-one{left:18%;top:31%;transform:rotate(12deg)}.star-two{right:13%;top:61%;width:9px;height:9px;animation-delay:-3s;color:#a4bfb9}
+.note{position:absolute;top:68%;width:100%;text-align:center;font-size:12px;letter-spacing:.055em;color:#928b81;animation:breathe 9s ease-in-out infinite}
+footer{position:absolute;bottom:6.4%;left:6.5%;right:6.5%;display:flex;justify-content:space-between;align-items:flex-end}.greeting h1{font-size:clamp(24px,3.7vw,35px);font-weight:450;letter-spacing:-.055em;line-height:1.2;margin:0 0 11px}.greeting p{font-size:12px;line-height:1.6;color:#8b887e;margin:0;letter-spacing:.015em}.palette{display:flex;gap:7px;align-items:center;padding-bottom:6px}.palette span{height:7px;width:7px;border-radius:50%;background:var(--c);animation:pulse 6s ease-in-out infinite;animation-delay:var(--d)}
+@keyframes drift{from{transform:translate(-2%,-2%) rotate(-6deg)}to{transform:translate(3%,3%) rotate(6deg)}}@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}@keyframes twinkle{0%,100%{opacity:.3}50%{opacity:.85}}@keyframes breathe{0%,100%{opacity:.6}50%{opacity:1}}@keyframes pulse{0%,100%{transform:scale(1);opacity:.65}50%{transform:scale(1.22);opacity:1}}
+@media(max-width:540px){header{font-size:9px}.edition{font-size:9px}.art{left:1%;right:1%;top:29%;height:32%}.greeting p{font-size:11px}.note{top:64%;font-size:10px}.palette{gap:5px}.palette span{width:6px;height:6px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<main aria-label="An animated handwritten hallo in warm, flowing colours">
+<div class="wash"></div>
+<svg class="grain" width="100%" height="100%" aria-hidden="true"><filter id="paper"><feTurbulence type="fractalNoise" baseFrequency=".78" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter><rect width="100%" height="100%" filter="url(#paper)" opacity=".3"/></svg>
+<header><div class="brand"><svg class="spark" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2v5m0 10v5M2 12h5m10 0h5M5 5l3.5 3.5m7 7L19 19M5 19l3.5-3.5m7-7L19 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg><span>A little hello</span></div><span class="edition">EVERY DAY, A NEW BEGINNING</span></header>
+<svg class="small-star star-one" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 0C10 7 7 10 0 10c7 0 10 3 10 10 0-7 3-10 10-10C13 10 10 7 10 0Z" fill="currentColor"/></svg>
+<div class="art">
+<svg class="word" viewBox="0 0 860 360" role="img" aria-label="hallo, written in colourful cursive">
+<defs>
+<linearGradient id="ink" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#d9537c"/><stop offset=".23" stop-color="#ec7870"/><stop offset=".43" stop-color="#eda24c"/><stop offset=".6" stop-color="#9db88b"/><stop offset=".77" stop-color="#58aaa7"/><stop offset="1" stop-color="#6f91c3"/></linearGradient>
+<linearGradient id="shine" x1="0" x2="1"><stop stop-color="#fff4da" stop-opacity=".15"/><stop offset=".5" stop-color="#fff8e5"/><stop offset="1" stop-color="#d9f5ed" stop-opacity=".3"/></linearGradient>
+<filter id="soft" x="-20%" y="-25%" width="140%" height="150%"><feGaussianBlur stdDeviation="5"/></filter>
+<filter id="tipglow" x="-300%" y="-300%" width="700%" height="700%"><feGaussianBlur stdDeviation="2"/></filter>
+<!-- Each curve is drawn by hand: tall loops, rounded bowls and a long final flourish. -->
+<path id="handwriting" d="M 46,267 C 81,237 127,163 147,97 C 168,28 139,23 119,61 C 99,100 105,211 107,280 C 128,216 154,177 177,183 C 210,193 174,260 197,275 C 215,288 242,253 258,225 C 282,185 320,170 338,193 C 359,222 320,276 291,277 C 261,278 268,234 290,209 C 308,188 324,186 339,193 C 331,222 317,260 337,275 C 358,292 390,247 408,216 C 440,161 474,79 462,48 C 451,18 424,51 415,101 C 405,154 400,254 424,275 C 446,295 479,248 498,216 C 534,155 562,77 550,47 C 538,18 511,54 503,107 C 493,169 491,251 515,273 C 536,294 572,253 594,220 C 617,186 658,173 680,197 C 707,225 679,274 650,281 C 619,289 598,268 603,240 C 609,209 641,184 668,190 C 693,195 693,224 715,232 C 737,240 769,221 803,184"/>
+</defs>
+<use href="#handwriting" class="underlight"/>
+<use href="#handwriting" class="ink"/>
+<use href="#handwriting" class="highlight"/>
+<circle class="tip" r="5"/>
+</svg>
+</div>
+<svg class="small-star star-two" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 0C10 7 7 10 0 10c7 0 10 3 10 10 0-7 3-10 10-10C13 10 10 7 10 0Z" fill="currentColor"/></svg>
+<div class="note">The world feels a little warmer when we say hello.</div>
+<footer><div class="greeting"><h1>Hello, you.</h1><p>Glad you're here.</p></div><div class="palette" aria-hidden="true"><span style="--c:#d9537c;--d:0s"></span><span style="--c:#ec7870;--d:-.5s"></span><span style="--c:#eda24c;--d:-1s"></span><span style="--c:#9db88b;--d:-1.5s"></span><span style="--c:#58aaa7;--d:-2s"></span><span style="--c:#6f91c3;--d:-2.5s"></span></div></footer>
+</main>
+<script>
+(() => {
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const path = document.getElementById('handwriting');
+  const strokes = [...document.querySelectorAll('.ink, .underlight, .highlight')];
+  const tip = document.querySelector('.tip');
+  const stops = [...document.querySelectorAll('#ink stop')];
+  const length = path.getTotalLength();
+  const colours = [
+    ['#d9537c','#ec7870','#eda24c','#9db88b','#58aaa7','#6f91c3'],
+    ['#9d80b8','#d27eaa','#e79280','#e8b364','#9ab989','#5daaa9'],
+    ['#5c9fb5','#77b8b1','#a7bd85','#e3b168','#e78b77','#cb789e']
+  ];
+  let frame = 0, origin = null, previousCycle = -1;
+  strokes.forEach(stroke => stroke.style.strokeDasharray = `${length} ${length}`);
+  function render(now) {
+    if (origin === null) origin = now;
+    const elapsed = (now - origin) / 1000;
+    const cycle = Math.floor(elapsed / 18);
+    const t = elapsed % 18;
+    // Begin with the complete greeting, then gently erase and write it again.
+    let progress = 1, opacity = 1;
+    if (t >= 5 && t < 6.4) opacity = 1 - (t - 5) / 1.4;
+    else if (t >= 6.4 && t < 7.1) { progress = 0; opacity = 0; }
+    else if (t >= 7.1 && t < 13.8) {
+      const p = (t - 7.1) / 6.7;
+      progress = p * p * (3 - 2 * p);
+    }
+    if (t >= 6.4 && previousCycle !== cycle) {
+      const next = colours[(cycle + 1) % colours.length];
+      stops.forEach((stop, i) => stop.setAttribute('stop-color', next[i]));
+      previousCycle = cycle;
+    }
+    strokes.forEach(stroke => {
+      stroke.style.strokeDashoffset = length * (1 - progress);
+      stroke.style.opacity = opacity * (stroke.classList.contains('underlight') ? .11 : stroke.classList.contains('highlight') ? .34 : 1);
+    });
+    if (progress > 0 && progress < 1) {
+      const point = path.getPointAtLength(length * progress);
+      tip.setAttribute('cx', point.x); tip.setAttribute('cy', point.y);
+      tip.style.opacity = Math.sin(progress * Math.PI) * .8;
+    } else tip.style.opacity = 0;
+    frame = requestAnimationFrame(render);
+  }
+  function start() {
+    cancelAnimationFrame(frame);
+    origin = null; previousCycle = -1;
+    strokes.forEach(stroke => { stroke.style.strokeDashoffset = 0; stroke.style.opacity = ''; });
+    tip.style.opacity = 0;
+    if (!reduced.matches) frame = requestAnimationFrame(render);
+  }
+  reduced.addEventListener('change', start);
+  // Pause off-screen animation, and return to a complete greeting on return.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) cancelAnimationFrame(frame); else start();
+  });
+  start();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+services:
+  egress:
+    image: ubuntu/squid:latest
+    read_only: true
+    tmpfs:
+      # Squid only needs these paths to start. The sizes are the disk cap while it runs.
+      - /tmp:size=8m,mode=1777
+      - /var/spool/squid:size=4m,mode=1777
+      - /var/log/squid:size=1m,mode=1777
+      - /run:size=1m,mode=1777
+    volumes:
+      - type: bind
+        source: ./squid.conf
+        target: /etc/squid/squid.conf
+        read_only: true
+    # 520 MB of headroom so Docker does not kill the proxy during a live round.
+    mem_limit: 520m
+    pids_limit: 32
+    logging:
+      driver: json-file
+      options:
+        max-size: "1m"
+        max-file: "1"
+    networks:
+      agents:
+        aliases: [egress]
+      internet: {}
+    restart: unless-stopped
+networks:
+  agents:
+    name: stram_agents
+    internal: true
+  internet: {}
+  previews:
+    name: stram_previews
+    internal: true

@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hello</title>
+<style>
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: fixed;
+    inset: 0;
+    background: #07080c;
+    overscroll-behavior: none;
+    color-scheme: dark;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="stage" role="img" aria-label="Hello. Bonjour. Hallo. A greeting in many languages."></canvas>
+<script>
+"use strict";
+
+const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif';
+const FADE_IN = 0.8;
+const FADE_OUT = 0.66;
+const GAP = 0.18;
+
+const WORDS = [
+  { t: "Hello", hold: 1.5, track: true, chord: [[168, 196, 224], [214, 228, 242], [110, 146, 184]] },
+  { t: "Bonjour", hold: 1.4, track: true, chord: [[232, 170, 184], [255, 214, 210], [176, 112, 140]] },
+  { t: "Hallo", hold: 2.5, track: true, hero: true, chord: [[255, 176, 96], [255, 214, 160], [214, 112, 48]] },
+  { t: "Ciao", hold: 1.32, track: true, chord: [[236, 140, 108], [255, 196, 164], [176, 84, 68]] },
+  { t: "Hola", hold: 1.36, track: true, chord: [[255, 150, 102], [255, 198, 150], [210, 78, 64]] },
+  { t: "Olá", hold: 1.36, track: true, chord: [[132, 196, 146], [198, 226, 170], [64, 140, 104]] },
+  { t: "こんにちは", hold: 1.58, chord: [[255, 164, 190], [255, 210, 220], [210, 104, 146]] },
+  { t: "你好", hold: 1.52, chord: [[236, 84, 84], [255, 168, 140], [160, 40, 52]] },
+  { t: "안녕하세요", hold: 1.64, chord: [[148, 132, 224], [198, 188, 250], [88, 76, 176]] },
+  { t: "Привет", hold: 1.46, track: true, chord: [[120, 186, 230], [196, 224, 246], [60, 118, 176]] },
+  { t: "नमस्ते", hold: 1.58, chord: [[240, 168, 64], [255, 210, 130], [186, 96, 24]] },
+  { t: "سلام", hold: 1.48, rtl: true, chord: [[64, 180, 150], [170, 222, 196], [24, 112, 96]] },
+  { t: "Aloha", hold: 1.8, track: true, tail: 1.15, chord: [[64, 196, 196], [160, 230, 220], [20, 130, 146]] }
+];
+
+const BLOOMS = [
+  { ox: 0.5, oy: 0.42, ax: 0.03, ay: 0.025, rx: 0.62, ry: 0.4, sp: 0.07, ph: 0.4, ci: 0, a: 0.72 },
+  { ox: 0.34, oy: 0.58, ax: 0.035, ay: 0.03, rx: 0.5, ry: 0.36, sp: 0.055, ph: 2.4, ci: 2, a: 0.48 },
+  { ox: 0.68, oy: 0.62, ax: 0.03, ay: 0.028, rx: 0.46, ry: 0.34, sp: 0.08, ph: 4.2, ci: 1, a: 0.42 }
+];
+
+function span(w) {
+  return FADE_IN + w.hold + FADE_OUT + GAP + (w.tail || 0);
+}
+const CYCLE = WORDS.reduce(function (sum, w) { return sum + span(w); }, 0);
+const HALLO = WORDS[2];
+
+const canvas = document.getElementById("stage");
+const ctx = canvas.getContext("2d", { alpha: false });
+const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+let canTrack = false;
+try {
+  ctx.letterSpacing = "0px";
+  canTrack = typeof ctx.letterSpacing === "string";
+} catch (err) {
+  canTrack = false;
+}
+
+const noise = document.createElement("canvas");
+noise.width = 180;
+noise.height = 180;
+(function () {
+  const g = noise.getContext("2d");
+  const img = g.createImageData(180, 180);
+  const data = img.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const v = 124 + (Math.random() - 0.5) * 28;
+    data[i] = v;
+    data[i + 1] = v;
+    data[i + 2] = v;
+    data[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+})();
+
+let grain = null;
+let W = 0;
+let H = 0;
+let fitKey = "";
+let fitVal = 64;
+let ambient = 0.6;
+let elapsed = 0;
+let shown = WORDS[0].chord.map(function (c) { return c.slice(); });
+
+const motes = [];
+for (let i = 0; i < 16; i++) {
+  motes.push({
+    x: Math.random(),
+    y: (i + 0.5) / 16,
+    r: Math.random() * 1.1 + 0.35,
+    v: Math.random() * 0.006 + 0.002,
+    drift: Math.random() * Math.PI * 2,
+    a: Math.random() * 0.28 + 0.08
+  });
+}
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+function clamp01(t) { return t < 0 ? 0 : t > 1 ? 1 : t; }
+function smooth(t) { return t * t * (3 - 2 * t); }
+function lerp3(a, b, t) {
+  return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+}
+function mixChord(a, b, t) {
+  return [lerp3(a[0], b[0], t), lerp3(a[1], b[1], t), lerp3(a[2], b[2], t)];
+}
+function tint(c, t) { return lerp3(c, [255, 255, 255], t); }
+function rgba(c, a) {
+  return "rgba(" + (c[0] | 0) + "," + (c[1] | 0) + "," + (c[2] | 0) + "," + clamp01(a).toFixed(3) + ")";
+}
+
+function layout() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  if (w < 2 || h < 2) return false;
+  const bw = Math.round(w * dpr);
+  const bh = Math.round(h * dpr);
+  if (canvas.width !== bw || canvas.height !== bh) {
+    canvas.width = bw;
+    canvas.height = bh;
+    fitKey = "";
+    grain = ctx.createPattern(noise, "repeat");
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  W = w;
+  H = h;
+  return true;
+}
+
+function measure(text, size, trackPx, rtl) {
+  ctx.save();
+  ctx.font = "300 " + size.toFixed(2) + "px " + FONT;
+  ctx.direction = rtl ? "rtl" : "ltr";
+  if (canTrack) ctx.letterSpacing = trackPx.toFixed(2) + "px";
+  const width = ctx.measureText(text).width;
+  ctx.restore();
+  return width;
+}
+
+function fitSize(word) {
+  const key = word.t + "@" + (W | 0) + "x" + (H | 0);
+  if (key === fitKey) return fitVal;
+  const maxW = W * 0.84;
+  let size = Math.min(W * 0.19, H * 0.145);
+  const tracking = word.track ? 0.055 : 0;
+  for (let i = 0; i < 10; i++) {
+    const width = measure(word.t, size, size * tracking, !!word.rtl);
+    if (width <= maxW || size <= 34) break;
+    size = Math.max(34, size * (maxW / width) * 0.98);
+  }
+  fitKey = key;
+  fitVal = size;
+  return size;
+}
+
+function sample(time) {
+  let t = ((time % CYCLE) + CYCLE) % CYCLE;
+  for (let i = 0; i < WORDS.length; i++) {
+    const w = WORDS[i];
+    const d = span(w);
+    if (t < d) return atWord(w, WORDS[(i + 1) % WORDS.length], t);
+    t -= d;
+  }
+  return atWord(WORDS[0], WORDS[1], 0);
+}
+
+function atWord(w, next, local) {
+  const holdEnd = FADE_IN + w.hold;
+  const outEnd = holdEnd + FADE_OUT;
+  const gapLen = GAP + (w.tail || 0);
+  let phase = "gap";
+  let u = 1;
+  let alpha = 0;
+  let scale = 1;
+  let y = 0;
+  let track = 0;
+  let spark = 1;
+
+  if (local < FADE_IN) {
+    phase = "in";
+    u = local / FADE_IN;
+    const e = smooth(u);
+    alpha = e;
+    scale = lerp(0.955, 1, e);
+    y = lerp(1, 0, e);
+    track = lerp(0.055, 0.018, e);
+    spark = 1 - e;
+  } else if (local < holdEnd) {
+    phase = "hold";
+    u = (local - FADE_IN) / w.hold;
+    alpha = 1;
+    scale = 1;
+    y = 0;
+    track = 0.018;
+    spark = 0;
+  } else if (local < outEnd) {
+    phase = "out";
+    u = (local - holdEnd) / FADE_OUT;
+    const e = smooth(u);
+    alpha = 1 - e;
+    scale = lerp(1, 1.02, e);
+    y = lerp(0, -0.85, e);
+    track = lerp(0.018, 0.04, e);
+    spark = e;
+  } else {
+    u = clamp01((local - outEnd) / gapLen);
+  }
+
+  if (!w.track) track = 0;
+  if (w.hero && phase !== "gap") scale *= 1.04;
+  return { w: w, next: next, phase: phase, u: u, alpha: alpha, scale: scale, y: y, track: track, spark: spark };
+}
+
+function stillHallo() {
+  return {
+    w: HALLO,
+    next: WORDS[3],
+    phase: "hold",
+    u: 0,
+    alpha: 1,
+    scale: 1.04,
+    y: 0,
+    track: 0.018,
+    spark: 0
+  };
+}
+
+function glow(x, y, rx, ry, color, alpha) {
+  if (alpha < 0.004 || rx < 1 || ry < 1) return;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(rx, ry);
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+  g.addColorStop(0, rgba(color, alpha));
+  g.addColorStop(0.38, rgba(color, alpha * 0.45));
+  g.addColorStop(0.72, rgba(color, alpha * 0.12));
+  g.addColorStop(1, rgba(color, 0));
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(0, 0, 1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function targetChord(pose) {
+  if (pose.phase === "out") return mixChord(pose.w.chord, pose.next.chord, smooth(pose.u) * 0.4);
+  if (pose.phase === "gap") return mixChord(pose.w.chord, pose.next.chord, 0.4 + 0.6 * pose.u);
+  return pose.w.chord;
+}
+
+function drawField(pose, heroAmt) {
+  const breath = 0.94 + 0.06 * Math.sin(ambient * 0.42);
+  const open = 0.86 + pose.alpha * 0.14;
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  for (let i = 0; i < BLOOMS.length; i++) {
+    const o = BLOOMS[i];
+    const x = (o.ox + Math.sin(ambient * o.sp + o.ph) * o.ax) * W;
+    const y = (o.oy + Math.cos(ambient * o.sp * 0.7 + o.ph) * o.ay) * H;
+    glow(x, y, o.rx * W * open, o.ry * H * open, shown[o.ci], o.a * breath);
+  }
+  const cx = W * 0.5;
+  const cy = H * 0.46;
+  if (heroAmt > 0.02) {
+    glow(cx, cy, W * 0.42, H * 0.36, shown[0], 0.34 * heroAmt);
+  }
+  const sparkR = Math.min(W, H) * 0.22;
+  glow(cx, cy, sparkR, sparkR * 0.78, shown[0], pose.spark * 0.38);
+  ctx.restore();
+}
+
+function drawMotes(dt, motion) {
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  for (let i = 0; i < motes.length; i++) {
+    const m = motes[i];
+    m.y -= m.v * dt * motion;
+    m.x += Math.sin(ambient * 0.6 + m.drift) * 0.01 * dt;
+    if (m.y < -0.03) {
+      m.y = 1.03;
+      m.x = Math.random();
+    }
+    const near = 1 - Math.min(1, Math.hypot(m.x - 0.5, m.y - 0.46) * 1.35);
+    const a = m.a * (0.35 + near * 0.65);
+    ctx.fillStyle = rgba(tint(shown[1], 0.55), a);
+    ctx.beginPath();
+    ctx.arc(m.x * W, m.y * H, m.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawVignette() {
+  const g = ctx.createRadialGradient(W * 0.5, H * 0.44, Math.min(W, H) * 0.18, W * 0.5, H * 0.5, Math.max(W, H) * 0.74);
+  g.addColorStop(0, "rgba(0,0,0,0)");
+  g.addColorStop(0.58, "rgba(0,0,0,0.12)");
+  g.addColorStop(1, "rgba(0,0,0,0.78)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawGreeting(pose) {
+  if (pose.alpha < 0.006) return;
+  const word = pose.w;
+  const size = fitSize(word) * pose.scale;
+  const trackPx = word.track ? size * pose.track : 0;
+  const x = W * 0.5;
+  const y = H * 0.46 + pose.y * Math.min(W, H) * 0.018;
+  const rtl = !!word.rtl;
+  const glowColor = tint(shown[0], 0.15);
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.globalAlpha = pose.alpha;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.direction = rtl ? "rtl" : "ltr";
+  ctx.font = "300 " + size.toFixed(2) + "px " + FONT;
+  if (canTrack) ctx.letterSpacing = trackPx.toFixed(2) + "px";
+  ctx.fillStyle = word.hero ? "#fff9f4" : "#f4f5f7";
+  ctx.shadowColor = "rgba(0,0,0,0.5)";
+  ctx.shadowBlur = Math.max(12, size * 0.1);
+  ctx.fillText(word.t, 0, 0);
+  ctx.shadowColor = rgba(glowColor, 0.95);
+  ctx.shadowBlur = size * 0.22;
+  ctx.fillText(word.t, 0, 0);
+  ctx.shadowBlur = 0;
+  ctx.fillText(word.t, 0, 0);
+  ctx.restore();
+}
+
+function drawGrain() {
+  if (!grain) return;
+  ctx.save();
+  ctx.globalCompositeOperation = "overlay";
+  ctx.globalAlpha = 0.045;
+  const ox = (ambient * 14) % 180;
+  const oy = (ambient * 9) % 180;
+  ctx.translate(-ox, -oy);
+  ctx.fillStyle = grain;
+  ctx.fillRect(0, 0, W + 180, H + 180);
+  ctx.restore();
+}
+
+function step(dt) {
+  if (!layout()) return;
+  const calm = reduce.matches;
+  const motion = calm ? 0.12 : 1;
+  ambient += dt * motion;
+  if (!calm) elapsed += dt;
+
+  const pose = calm ? stillHallo() : sample(elapsed);
+  const dest = calm ? HALLO.chord : targetChord(pose);
+  const k = 1 - Math.exp(-Math.max(dt, 0) * 2.2);
+  shown = mixChord(shown, dest, k);
+
+  const heroNow = pose.phase === "gap" ? !!pose.next.hero : !!pose.w.hero;
+  const heroAmt = heroNow ? (pose.phase === "gap" ? 0.45 : Math.max(pose.alpha, 0.4)) : 0;
+
+  ctx.globalCompositeOperation = "source-over";
+  ctx.globalAlpha = 1;
+  ctx.filter = "none";
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "#07080c";
+  ctx.fillRect(0, 0, W, H);
+
+  drawField(pose, heroAmt);
+  drawMotes(dt, motion);
+  drawVignette();
+  drawGreeting(pose);
+  drawGrain();
+}
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  if (!document.hidden) step(dt);
+  requestAnimationFrame(frame);
+}
+
+document.addEventListener("visibilitychange", function () {
+  last = performance.now();
+});
+
+step(0);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

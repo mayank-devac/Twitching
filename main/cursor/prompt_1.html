@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Colorwake — color that follows you</title>
+  <style>
+    :root {
+      --hue: 280;
+      --ink: #16101f;
+      --paper: #f7f3ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 28% 24%, #ff7ad9, transparent 42%),
+        radial-gradient(circle at 78% 62%, #5df0ff, transparent 40%),
+        radial-gradient(circle at 46% 86%, #ffe56a, transparent 38%),
+        #6d4dff;
+      color: var(--paper);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    }
+
+    body { min-height: 100dvh; }
+
+    #stage {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+      cursor: crosshair;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      background: radial-gradient(ellipse at center, transparent 48%, rgb(28 8 48 / 0.28) 100%);
+    }
+
+    .skip {
+      position: fixed;
+      z-index: 4;
+      top: 0.75rem;
+      left: 0.75rem;
+      padding: 0.65rem 0.95rem;
+      background: #fff;
+      color: #1a1024;
+      border-radius: 999px;
+      font-weight: 700;
+      text-decoration: none;
+      transform: translateY(-180%);
+    }
+
+    .skip:focus-visible {
+      transform: translateY(0);
+      outline: 3px solid #1a1024;
+      outline-offset: 3px;
+    }
+
+    header, nav, noscript {
+      position: fixed;
+      z-index: 2;
+      background: var(--ink);
+      background: color-mix(in srgb, var(--ink) 90%, transparent);
+      box-shadow:
+        0 18px 50px rgb(20 8 40 / 0.28),
+        inset 0 1px 0 rgb(255 255 255 / 0.16);
+    }
+
+    header {
+      top: 0.75rem;
+      left: 0.75rem;
+      right: 0.75rem;
+      width: auto;
+      padding: 1rem 1.15rem 0.95rem;
+      border-radius: 1.25rem;
+      border: 1px solid hsl(var(--hue) 85% 78% / 0.45);
+      pointer-events: none;
+      backdrop-filter: blur(16px) saturate(1.35);
+    }
+
+    .eyebrow {
+      margin: 0 0 0.3rem;
+      font-size: 0.74rem;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: hsl(var(--hue) 100% 84%);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2.4rem, 7vw, 4.15rem);
+      font-weight: 800;
+      letter-spacing: -0.05em;
+      line-height: 0.92;
+      color: #fff;
+    }
+
+    @supports ((-webkit-background-clip: text) or (background-clip: text)) {
+      h1 {
+        background-image: linear-gradient(
+          104deg,
+          hsl(var(--hue) 100% 86%),
+          #fff 42%,
+          hsl(calc(var(--hue) + 68) 100% 78%)
+        );
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+    }
+
+    .lede, .keys, .readout { margin: 0.55rem 0 0; }
+
+    .lede {
+      font-size: 1.02rem;
+      line-height: 1.4;
+      color: #f4f0ff;
+    }
+
+    .motion-calm { display: none; }
+
+    .keys {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.28rem 0.75rem;
+      font-size: 0.86rem;
+      line-height: 1.45;
+      color: #e4dcff;
+    }
+
+    .keys span { white-space: nowrap; }
+
+    kbd {
+      font: inherit;
+      font-size: 0.84em;
+      font-weight: 700;
+      padding: 0.08em 0.38em;
+      border-radius: 0.35em;
+      background: rgb(255 255 255 / 0.12);
+      border: 1px solid rgb(255 255 255 / 0.22);
+    }
+
+    .readout {
+      font-size: 0.82rem;
+      letter-spacing: 0.01em;
+      font-variant-numeric: tabular-nums;
+      color: #ddd4ff;
+    }
+
+    nav {
+      left: 0.75rem;
+      right: 0.75rem;
+      bottom: 0.75rem;
+      width: auto;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.5rem;
+      border-radius: 999px;
+      border: 1px solid rgb(255 255 255 / 0.14);
+      backdrop-filter: blur(16px) saturate(1.35);
+    }
+
+    button {
+      font: inherit;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #1a1024;
+      background: hsl(var(--hue) 95% 76%);
+      border: 0;
+      border-radius: 999px;
+      padding: 0.7rem 1.05rem;
+      min-height: 44px;
+      flex: 1 1 8.5rem;
+      min-width: 0;
+      max-width: 100%;
+      cursor: pointer;
+      transition: transform 160ms ease, filter 160ms ease;
+    }
+
+    button[aria-pressed="true"] {
+      background: #fff;
+      color: #1a1024;
+    }
+
+    button:focus-visible {
+      outline: 3px solid #fff;
+      outline-offset: 3px;
+    }
+
+    button:active { transform: translateY(1px); }
+
+    @media (hover: hover) and (pointer: fine) {
+      button:hover {
+        transform: translateY(-1px);
+        filter: brightness(1.06);
+      }
+    }
+
+    noscript {
+      left: 1rem;
+      right: 1rem;
+      bottom: 1rem;
+      padding: 1rem 1.1rem;
+      border-radius: 1rem;
+      color: #fff;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      clip-path: inset(50%);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (min-width: 720px) {
+      header {
+        top: 1rem;
+        left: 1rem;
+        right: auto;
+        width: 26rem;
+      }
+
+      nav {
+        left: 50%;
+        right: auto;
+        bottom: 1rem;
+        width: max-content;
+        max-width: 36rem;
+        transform: translateX(-50%);
+        border-radius: 999px;
+      }
+
+      nav button { flex: 0 0 auto; }
+    }
+
+    @media (max-width: 719px) {
+      nav { border-radius: 1.15rem; }
+      .lede { font-size: 0.98rem; }
+    }
+
+    @media (max-width: 480px) {
+      nav { flex-direction: column; }
+      nav button {
+        width: 100%;
+        flex: 0 0 auto;
+      }
+    }
+
+    @media (max-height: 560px) {
+      header { padding: 0.65rem 0.8rem; }
+      h1 { font-size: 2rem; }
+      .readout { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .motion-full { display: none; }
+      .motion-calm { display: block; }
+      button { transition: none; }
+      button:active,
+      button:hover { transform: none; }
+    }
+
+    @media (prefers-reduced-transparency: reduce) {
+      header, nav, noscript {
+        background: #16101f;
+        backdrop-filter: none;
+      }
+    }
+
+    @media (forced-colors: active) {
+      header, nav, noscript, button, .skip {
+        background: Canvas;
+        color: CanvasText;
+        border: 1px solid CanvasText;
+        box-shadow: none;
+        backdrop-filter: none;
+        forced-color-adjust: auto;
+      }
+
+      h1 {
+        color: CanvasText;
+        background: none;
+      }
+
+      button:focus-visible,
+      .skip:focus-visible {
+        outline: 3px solid CanvasText;
+      }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#controls">Skip to controls</a>
+  <canvas id="stage" width="800" height="600" aria-hidden="true"></canvas>
+  <header>
+    <p class="eyebrow">Pointer colors</p>
+    <h1>Colorwake</h1>
+    <p class="lede motion-full">Move across the page. The light leans toward you.</p>
+    <p class="lede motion-calm">Motion is calmed. Moving still changes the color.</p>
+    <p class="keys"><span><kbd>Arrows</kbd> move</span><span><kbd>Space</kbd> pauses</span><span><kbd>Enter</kbd> bursts</span><span><kbd>Esc</kbd> resets</span></p>
+    <p id="readout" class="readout" aria-hidden="true">x — · y — · hue —</p>
+  </header>
+  <nav id="controls" aria-label="Field controls">
+    <button type="button" id="mode" aria-label="Color mode: Pull">Pull colors</button>
+    <button type="button" id="burst">Burst</button>
+    <button type="button" id="pause" aria-pressed="false">Pause</button>
+  </nav>
+  <p id="live" class="sr-only" aria-live="polite"></p>
+  <noscript>
+    <p>Colorwake needs JavaScript to follow your pointer. Without it, this page stays a still wash of color.</p>
+  </noscript>
+  <script>
+    (function () {
+      "use strict";
+
+      var canvas = document.getElementById("stage");
+      var live = document.getElementById("live");
+      var readout = document.getElementById("readout");
+      var modeBtn = document.getElementById("mode");
+      var burstBtn = document.getElementById("burst");
+      var pauseBtn = document.getElementById("pause");
+      var ledes = document.querySelectorAll(".lede");
+      if (!canvas || !live) return;
+
+      var ctx = canvas.getContext("2d", { alpha: false });
+      if (!ctx) {
+        live.textContent = "This browser could not open a drawing surface.";
+        return;
+      }
+
+      var motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+      var reduced = motionQuery.matches;
+      var w = 1;
+      var h = 1;
+      var dpr = 1;
+      var px = 0;
+      var py = 0;
+      var tx = 0;
+      var ty = 0;
+      var lastX = 0;
+      var lastY = 0;
+      var speed = 0;
+      var hue = 280;
+      var paintedHue = -1;
+      var pushMode = false;
+      var paused = false;
+      var hasPointer = false;
+      var sized = false;
+      var running = false;
+      var raf = 0;
+      var lastHud = 0;
+      var lastAnnounce = 0;
+      var origin = 0;
+      var history = [];
+      var sparks = [];
+      var ripples = [];
+      var ghosts = [
+        { x: 0, y: 0, lag: 0.09, shift: 0 },
+        { x: 0, y: 0, lag: 0.05, shift: 52 },
+        { x: 0, y: 0, lag: 0.028, shift: 210 }
+      ];
+      var cells = [];
+      var specks = [];
+      var c;
+      var r;
+      var i;
+
+      for (r = 0; r < 3; r += 1) {
+        for (c = 0; c < 4; c += 1) {
+          cells.push({
+            u: clamp((c + 0.5) / 4 + (Math.random() - 0.5) * 0.08, 0.08, 0.92),
+            v: clamp((r + 0.5) / 3 + (Math.random() - 0.5) * 0.08, 0.1, 0.9),
+            hueShift: Math.random() * 360,
+            size: 0.75 + Math.random() * 0.7,
+            phase: Math.random() * Math.PI * 2
+          });
+        }
+      }
+
+      for (i = 0; i < 42; i += 1) {
+        specks.push({
+          u: Math.random(),
+          v: Math.random(),
+          depth: Math.random(),
+          hue: Math.random() * 360,
+          phase: Math.random() * Math.PI * 2,
+          radius: 1 + Math.random() * 2.2
+        });
+      }
+
+      function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+      }
+
+      function wrapHue(value) {
+        return ((value % 360) + 360) % 360;
+      }
+
+      function scaleOf() {
+        return clamp(Math.min(w, h) / 820, 0.55, 1.12);
+      }
+
+      function announce(text) {
+        var now = performance.now();
+        if (now - lastAnnounce < 650) return;
+        lastAnnounce = now;
+        live.textContent = text;
+      }
+
+      function setLede(text) {
+        var n;
+        for (n = 0; n < ledes.length; n += 1) ledes[n].textContent = text;
+      }
+
+      function fromUi(target) {
+        return target instanceof Element && Boolean(target.closest("nav, a, button"));
+      }
+
+      function place(x, y) {
+        hasPointer = true;
+        tx = clamp(x, 0, w);
+        ty = clamp(y, 0, h);
+      }
+
+      function resize() {
+        w = Math.max(1, window.innerWidth);
+        h = Math.max(1, window.innerHeight);
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+        canvas.style.width = w + "px";
+        canvas.style.height = h + "px";
+        history = [];
+        if (!sized) {
+          px = tx = lastX = w / 2;
+          py = ty = lastY = h / 2;
+          ghosts.forEach(function (ghost) {
+            ghost.x = px;
+            ghost.y = py;
+          });
+          sized = true;
+        } else {
+          tx = clamp(tx, 0, w);
+          ty = clamp(ty, 0, h);
+        }
+      }
+
+      function burst(x, y) {
+        var base = wrapHue((x / w) * 360);
+        var count = reduced ? 12 : 26;
+        var n;
+        var angle;
+        var sparkSpeed;
+        ripples.push(
+          { x: x, y: y, r: 10, maxR: 150, hue: base, alpha: 0.9 },
+          { x: x, y: y, r: 18, maxR: 230, hue: wrapHue(base + 42), alpha: 0.75 },
+          { x: x, y: y, r: 26, maxR: 300, hue: wrapHue(base + 84), alpha: 0.6 }
+        );
+        for (n = 0; n < count; n += 1) {
+          angle = (n / count) * Math.PI * 2;
+          sparkSpeed = 1.6 + (n % 5) * 0.62;
+          sparks.push({
+            x: x,
+            y: y,
+            vx: Math.cos(angle) * sparkSpeed,
+            vy: Math.sin(angle) * sparkSpeed,
+            life: 1,
+            hue: wrapHue(base + n * (360 / count))
+          });
+        }
+        if (sparks.length > 160) sparks = sparks.slice(sparks.length - 160);
+        if (ripples.length > 18) ripples = ripples.slice(ripples.length - 18);
+      }
+
+      function resetField() {
+        hasPointer = false;
+        tx = w / 2;
+        ty = h / 2;
+        history = [];
+        sparks = [];
+        ripples = [];
+        setLede(reduced
+          ? "Field cleared. Moving still changes the color."
+          : "Field cleared. Move and the light follows again.");
+        announce("Field cleared.");
+      }
+
+      function fillGlow(x, y, radius, glowHue, alpha) {
+        var gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+        gradient.addColorStop(0, "hsla(" + wrapHue(glowHue) + " 100% 68% / " + alpha + ")");
+        gradient.addColorStop(0.42, "hsla(" + wrapHue(glowHue + 18) + " 100% 58% / " + (alpha * 0.42) + ")");
+        gradient.addColorStop(1, "hsla(" + wrapHue(glowHue) + " 100% 50% / 0)");
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      function fillOrb(x, y, radius, orbHue, alpha, highlightX, highlightY) {
+        var gradient = ctx.createRadialGradient(
+          highlightX,
+          highlightY,
+          Math.max(1, radius * 0.06),
+          x,
+          y,
+          Math.max(1, radius)
+        );
+        gradient.addColorStop(0, "hsla(" + wrapHue(orbHue) + " 100% 86% / " + alpha + ")");
+        gradient.addColorStop(0.46, "hsla(" + wrapHue(orbHue + 16) + " 96% 58% / " + (alpha * 0.92) + ")");
+        gradient.addColorStop(1, "hsla(" + wrapHue(orbHue + 36) + " 90% 46% / 0)");
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      function drawBackground(tilt) {
+        var base = ctx.createLinearGradient(0, 0, w, h);
+        base.addColorStop(0, "hsl(" + wrapHue(hue + 18) + " 92% " + (52 - tilt * 8) + "%)");
+        base.addColorStop(0.48, "hsl(" + wrapHue(hue + 78) + " 88% " + (42 + tilt * 8) + "%)");
+        base.addColorStop(1, "hsl(" + wrapHue(hue + 188) + " 90% " + (32 + (1 - tilt) * 8) + "%)");
+        ctx.fillStyle = base;
+        ctx.fillRect(0, 0, w, h);
+
+        var far = ctx.createRadialGradient(w - px, h - py, 0, w - px, h - py, Math.max(w, h) * 0.62);
+        far.addColorStop(0, "hsla(" + wrapHue(hue + 148) + " 96% 56% / 0.55)");
+        far.addColorStop(1, "hsla(" + wrapHue(hue + 148) + " 90% 40% / 0)");
+        ctx.fillStyle = far;
+        ctx.fillRect(0, 0, w, h);
+
+        var glow = ctx.createRadialGradient(px, py, 0, px, py, Math.max(w, h) * 0.5);
+        glow.addColorStop(0, "hsla(" + wrapHue(hue) + " 100% 70% / 0.55)");
+        glow.addColorStop(0.38, "hsla(" + wrapHue(hue + 36) + " 100% 58% / 0.22)");
+        glow.addColorStop(1, "hsla(" + wrapHue(hue) + " 100% 50% / 0)");
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, w, h);
+      }
+
+      function drawSpecks(time, scale) {
+        var n;
+        var speck;
+        var twinkle;
+        var x;
+        var y;
+        for (n = 0; n < specks.length; n += 1) {
+          speck = specks[n];
+          twinkle = reduced ? 0.75 : 0.45 + Math.sin(time * 1.4 + speck.phase) * 0.4;
+          x = speck.u * w + (px - w / 2) * 0.035 * speck.depth;
+          y = speck.v * h + (py - h / 2) * 0.035 * speck.depth;
+          ctx.fillStyle = "hsla(" + wrapHue(hue + speck.hue) + " 100% 78% / " + (0.28 + twinkle * 0.45) + ")";
+          ctx.beginPath();
+          ctx.arc(x, y, speck.radius * scale * (0.75 + twinkle), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      function drawCells(time, scale) {
+        var drift = reduced ? 0 : 8 * scale;
+        var pull = pushMode ? -1 : 1;
+        var n;
+        var cell;
+        var bx;
+        var by;
+        var dx;
+        var dy;
+        var dist;
+        var reach;
+        var x;
+        var y;
+        var radius;
+        var toPointer;
+        for (n = 0; n < cells.length; n += 1) {
+          cell = cells[n];
+          bx = cell.u * w;
+          by = cell.v * h;
+          dx = px - bx;
+          dy = py - by;
+          dist = Math.hypot(dx, dy) || 1;
+          reach = Math.min(150 * scale, 36000 / dist);
+          x = bx + (dx / dist) * reach * pull + Math.cos(time * 0.7 + cell.phase) * drift;
+          y = by + (dy / dist) * reach * pull + Math.sin(time * 0.62 + cell.phase) * drift;
+          radius = (30 + cell.size * 34 + (1 - Math.min(1, dist / Math.max(w, h))) * 20) * scale;
+          toPointer = Math.hypot(px - x, py - y) || 1;
+          fillOrb(
+            x,
+            y,
+            radius,
+            hue + cell.hueShift * 0.42,
+            0.78,
+            x + ((px - x) / toPointer) * radius * 0.32,
+            y + ((py - y) / toPointer) * radius * 0.32
+          );
+        }
+      }
+
+      function drawTrail(scale, fvx, fvy) {
+        var mag = Math.hypot(fvx, fvy) || 1;
+        var offset = Math.min(18, speed * 0.9) * (pushMode ? -1 : 1);
+        strokeHistory((-fvy / mag) * offset, (fvx / mag) * offset, hue, 0.62, scale);
+        strokeHistory((fvy / mag) * offset, (-fvx / mag) * offset, hue + 58, 0.42, scale);
+      }
+
+      function strokeHistory(offX, offY, trailHue, alphaMul, scale) {
+        var i;
+        var fade;
+        if (history.length < 2) return;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        for (i = 1; i < history.length; i += 1) {
+          fade = i / history.length;
+          ctx.strokeStyle = "hsla(" + wrapHue(trailHue + fade * 70) + " 100% 70% / " + (alphaMul * fade) + ")";
+          ctx.lineWidth = (2 + fade * 16) * scale;
+          ctx.beginPath();
+          ctx.moveTo(history[i - 1].x + offX, history[i - 1].y + offY);
+          ctx.lineTo(history[i].x + offX, history[i].y + offY);
+          ctx.stroke();
+        }
+      }
+
+      function drawPointer(time, scale) {
+        var count = 10;
+        var spin = reduced ? 0.4 : time * (0.65 + Math.min(speed, 28) * 0.035) * (pushMode ? -1 : 1);
+        var orbit = (48 + Math.min(speed, 42) * 1.7) * scale;
+        var n;
+        var angle;
+        var sx;
+        var sy;
+        var core;
+        for (n = 0; n < count; n += 1) {
+          angle = spin + (n / count) * Math.PI * 2;
+          sx = px + Math.cos(angle) * orbit;
+          sy = py + Math.sin(angle) * orbit * 0.86;
+          ctx.strokeStyle = "hsla(" + wrapHue(hue + n * 36) + " 100% 72% / 0.55)";
+          ctx.lineWidth = 2 * scale;
+          ctx.beginPath();
+          ctx.moveTo(px, py);
+          ctx.lineTo(sx, sy);
+          ctx.stroke();
+          fillOrb(sx, sy, 11 * scale, hue + n * 36, 0.95, sx - 3, sy - 3);
+        }
+        core = (16 + Math.min(speed, 26) * 0.35) * scale;
+        fillOrb(px, py, core, hue, 1, px - core * 0.3, py - core * 0.34);
+        ctx.beginPath();
+        ctx.arc(px, py, (30 + Math.min(speed, 22)) * scale, 0, Math.PI * 2);
+        ctx.strokeStyle = "hsla(" + wrapHue(hue + 180) + " 100% 84% / 0.95)";
+        ctx.lineWidth = 2.4 * scale;
+        ctx.stroke();
+      }
+
+      function drawBursts(scale) {
+        var n;
+        var ripple;
+        var spark;
+        for (n = 0; n < ripples.length; n += 1) {
+          ripple = ripples[n];
+          ctx.beginPath();
+          ctx.arc(ripple.x, ripple.y, ripple.r, 0, Math.PI * 2);
+          ctx.strokeStyle = "hsla(" + wrapHue(ripple.hue) + " 100% 72% / " + ripple.alpha + ")";
+          ctx.lineWidth = (2 + ripple.alpha * 5) * scale;
+          ctx.stroke();
+        }
+        for (n = 0; n < sparks.length; n += 1) {
+          spark = sparks[n];
+          ctx.fillStyle = "hsla(" + wrapHue(spark.hue) + " 100% 62% / " + Math.max(spark.life, 0) + ")";
+          ctx.beginPath();
+          ctx.arc(spark.x, spark.y, (2.1 + spark.life * 3.6) * scale, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      function step(now) {
+        var time = origin ? (now - origin) / 1000 : 0;
+        var follow = reduced ? 0.65 : 0.18;
+        var scale = scaleOf();
+        var tilt;
+        var fvx;
+        var fvy;
+        var nextSparks = [];
+        var nextRipples = [];
+        var trailMax = reduced ? 10 : 56;
+        var ghost;
+        var n;
+        var spark;
+        var ripple;
+        if (!origin) origin = now;
+
+        if (!hasPointer && !reduced) {
+          tx = w * 0.5 + Math.cos(time * 0.42) * w * 0.16;
+          ty = h * 0.5 + Math.sin(time * 0.31) * h * 0.12;
+        }
+
+        px += (tx - px) * follow;
+        py += (ty - py) * follow;
+        fvx = px - lastX;
+        fvy = py - lastY;
+        lastX = px;
+        lastY = py;
+        speed += (Math.hypot(fvx, fvy) - speed) * 0.28;
+        tilt = py / h;
+        hue = wrapHue((px / w) * 360 + (reduced ? 0 : Math.sin(time * 0.2) * 8));
+
+        for (n = 0; n < ghosts.length; n += 1) {
+          ghost = ghosts[n];
+          ghost.x += (px - ghost.x) * (reduced ? 0.45 : ghost.lag);
+          ghost.y += (py - ghost.y) * (reduced ? 0.45 : ghost.lag);
+        }
+
+        for (n = 0; n < sparks.length; n += 1) {
+          spark = sparks[n];
+          spark.x += spark.vx;
+          spark.y += spark.vy;
+          spark.vx *= 0.985;
+          spark.vy *= 0.985;
+          spark.life -= reduced ? 0.04 : 0.018;
+          if (spark.life > 0) nextSparks.push(spark);
+        }
+        sparks = nextSparks;
+
+        for (n = 0; n < ripples.length; n += 1) {
+          ripple = ripples[n];
+          ripple.r += (reduced ? 3.4 : 6.4) * scale;
+          ripple.alpha *= 0.964;
+          if (ripple.alpha > 0.03 && ripple.r < ripple.maxR) nextRipples.push(ripple);
+        }
+        ripples = nextRipples;
+
+        if (!reduced && speed > 18 && sparks.length < 90 && Math.random() < 0.22) {
+          sparks.push({
+            x: px,
+            y: py,
+            vx: (Math.random() - 0.5) * speed * 0.12,
+            vy: (Math.random() - 0.5) * speed * 0.12,
+            life: 0.7,
+            hue: wrapHue(hue + Math.random() * 80)
+          });
+        }
+
+        if (speed > 0.35) {
+          if (!history.length || Math.hypot(px - history[history.length - 1].x, py - history[history.length - 1].y) > 3.5) {
+            history.push({ x: px, y: py });
+          }
+        } else if (history.length) {
+          history.shift();
+        }
+        if (history.length > trailMax) history = history.slice(history.length - trailMax);
+
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.globalCompositeOperation = "source-over";
+        drawBackground(tilt);
+        drawSpecks(time, scale);
+        for (n = 0; n < ghosts.length; n += 1) {
+          var spreadAngle = (n / ghosts.length) * Math.PI * 2 + (reduced ? 0 : time * 0.35);
+          var spread = (82 + Math.min(speed, 36) * 1.5) * scale * (pushMode ? 1.28 : 1);
+          fillGlow(
+            ghosts[n].x + Math.cos(spreadAngle) * spread,
+            ghosts[n].y + Math.sin(spreadAngle) * spread * 0.82,
+            (118 + Math.min(speed, 34) * 1.5) * scale,
+            hue + ghosts[n].shift,
+            0.46
+          );
+        }
+        drawCells(time, scale);
+        drawTrail(scale, fvx, fvy);
+        drawPointer(time, scale);
+        drawBursts(scale);
+
+        if (Math.abs(hue - paintedHue) > 0.8) {
+          paintedHue = hue;
+          document.documentElement.style.setProperty("--hue", hue.toFixed(1));
+        }
+        if (readout && now - lastHud > 100) {
+          lastHud = now;
+          readout.textContent = "x " + Math.round(px) + "  ·  y " + Math.round(py) + "  ·  hue " + Math.round(hue) + "  ·  speed " + Math.round(speed);
+        }
+      }
+
+      function loop(now) {
+        step(now);
+        if (running) raf = requestAnimationFrame(loop);
+      }
+
+      function start() {
+        if (running || paused || document.hidden) return;
+        running = true;
+        raf = requestAnimationFrame(loop);
+      }
+
+      function stop() {
+        running = false;
+        cancelAnimationFrame(raf);
+      }
+
+      window.addEventListener("pointermove", function (event) {
+        if (fromUi(event.target)) return;
+        place(event.clientX, event.clientY);
+      }, { passive: true });
+
+      window.addEventListener("pointerdown", function (event) {
+        if (fromUi(event.target)) return;
+        place(event.clientX, event.clientY);
+      }, { passive: true });
+
+      canvas.addEventListener("click", function (event) {
+        burst(event.clientX, event.clientY);
+        announce("Color burst.");
+      });
+
+      window.addEventListener("keydown", function (event) {
+        var onButton = event.target instanceof HTMLButtonElement;
+        var stepPx = event.shiftKey ? 64 : 22;
+        if ((event.key === " " || event.key === "Enter") && onButton) return;
+        if (event.key === "ArrowLeft") {
+          place((hasPointer ? tx : px) - stepPx, hasPointer ? ty : py);
+          event.preventDefault();
+        } else if (event.key === "ArrowRight") {
+          place((hasPointer ? tx : px) + stepPx, hasPointer ? ty : py);
+          event.preventDefault();
+        } else if (event.key === "ArrowUp") {
+          place(hasPointer ? tx : px, (hasPointer ? ty : py) - stepPx);
+          event.preventDefault();
+        } else if (event.key === "ArrowDown") {
+          place(hasPointer ? tx : px, (hasPointer ? ty : py) + stepPx);
+          event.preventDefault();
+        } else if (event.key === " ") {
+          togglePause();
+          event.preventDefault();
+        } else if (event.key === "Enter") {
+          burst(px, py);
+          announce("Color burst at the light.");
+          event.preventDefault();
+        } else if (event.key === "Escape") {
+          resetField();
+        }
+      });
+
+      function togglePause() {
+        paused = !paused;
+        if (pauseBtn) {
+          pauseBtn.setAttribute("aria-pressed", paused ? "true" : "false");
+          pauseBtn.textContent = paused ? "Play" : "Pause";
+        }
+        announce(paused ? "Animation paused. Color stays where you left it." : "Animation playing.");
+        if (paused) stop();
+        else start();
+      }
+
+      if (modeBtn) {
+        modeBtn.addEventListener("click", function () {
+          pushMode = !pushMode;
+          modeBtn.textContent = pushMode ? "Push colors" : "Pull colors";
+          modeBtn.setAttribute("aria-label", pushMode ? "Color mode: Push" : "Color mode: Pull");
+          var message = pushMode
+            ? "Colors push away from the pointer."
+            : "Colors pull toward the pointer.";
+          setLede(message);
+          announce(message);
+        });
+      }
+
+      if (burstBtn) {
+        burstBtn.addEventListener("click", function () {
+          burst(px, py);
+          announce("Color burst at the light.");
+        });
+      }
+
+      if (pauseBtn) pauseBtn.addEventListener("click", togglePause);
+
+      window.addEventListener("resize", function () {
+        resize();
+        if (!running) step(performance.now());
+      });
+      document.addEventListener("visibilitychange", function () {
+        if (document.hidden || paused) stop();
+        else start();
+      });
+
+      if (motionQuery.addEventListener) {
+        motionQuery.addEventListener("change", function () {
+          reduced = motionQuery.matches;
+        });
+      }
+
+      resize();
+      start();
+    }());
+  </script>
+</body>
+</html>
