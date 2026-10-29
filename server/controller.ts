@@ -67,11 +67,12 @@ export class Controller extends EventEmitter {
   private checkingQuota = false;
   private ending = false;
   private switchingToSession = false;
+  private arenaCleanupFailed = false;
   // The session owner prevents stale arena controls from restarting a different mode.
   arenaEnabled: () => boolean = () => true;
 
   get sessionReady() {
-    return !this.switchingToSession && !this.busy && !this.ending &&
+    return !this.arenaCleanupFailed && !this.switchingToSession && !this.busy && !this.ending &&
       !this.launching && !this.handles && !this.breaks.transitioning &&
       ["paused", "stopped"].includes(this.state.status) &&
       !Object.values(this.state.round?.attempts ?? {}).some((a) =>
@@ -93,9 +94,13 @@ export class Controller extends EventEmitter {
     try {
       const stopped = await this.stop("Prompt arena stopped for coding sessions", false);
       if (!stopped) throw new Error("Arena cleanup failed. Retry switching before starting a session.");
-      return "ready" as const;
-    } finally {
+      if (this.handles || Object.values(this.state.round?.attempts ?? {}).some((a) =>
+        ["running", "validating"].includes(a.status))) return "waiting" as const;
       this.switchingToSession = false;
+      return "ready" as const;
+    } catch (error) {
+      this.switchingToSession = false;
+      throw error;
     }
   }
   private generation = 0;
@@ -976,8 +981,10 @@ export class Controller extends EventEmitter {
       await this.runner.recover();
       if (stopBroadcast && this.state.mode === "live")
         await this.integrations.stopBroadcast();
+      this.arenaCleanupFailed = false;
       return true;
     } catch {
+      this.arenaCleanupFailed = true;
       this.state.reason = `${reason}. Could not confirm runner or OBS shutdown; check the host.`;
       return false;
     } finally {

@@ -134,6 +134,39 @@ async function fixture(
     },
   };
 }
+// Switching experiences must not interrupt work without consent or stop OBS.
+test("arena handover waits for the current run and blocks stale arena controls", async () => {
+  const f = await fixture();
+  try {
+    assert.equal(await f.controller.leaveArena(), "choice");
+    assert.equal(f.controller.state.status, "running");
+    assert.equal(await f.controller.leaveArena("wait"), "waiting");
+    await assert.rejects(() => f.controller.resume(), /Open Prompt arena/);
+    assert.deepEqual(f.runner.stopped, []);
+    f.runner.resolvers.codex({ status: "complete" });
+    f.runner.resolvers.cursor({ status: "complete" });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(await f.controller.leaveArena("wait"), "ready");
+    assert.equal(f.controller.sessionReady, true);
+    assert.equal(f.broadcastStops(), 0);
+    f.controller.arenaEnabled = () => false;
+    await assert.rejects(() => f.controller.start(), /Open Prompt arena/);
+  } finally { await f.cleanup(); }
+});
+
+test("arena handover cancels only on request and refuses failed cleanup", async () => {
+  const f = await fixture();
+  try {
+    assert.equal(await f.controller.leaveArena("cancel"), "ready");
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(f.runner.stopped.sort(), ["codex", "cursor"]);
+    assert.equal(f.broadcastStops(), 0);
+    f.runner.recover = async () => { throw new Error("cleanup unavailable"); };
+    await assert.rejects(() => f.controller.leaveArena(), /cleanup failed/);
+    assert.equal(f.controller.sessionReady, false);
+  } finally { await f.cleanup(); }
+});
+
 test("two Codex usage failures share one in-flight quota request", async () => {
   const sessions: SessionConfig[] = [
     { id: "session-1", cli: "codex", model: "fixture-a" },

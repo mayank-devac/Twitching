@@ -160,6 +160,115 @@ body:has(.welcome-page) {
   background: #262050;
   color: #fff;
 }
+/* Mode controls retain their selected appearance while a handover is pending. */
+.welcome-options button {
+  white-space: normal;
+}
+.welcome-options button:focus-visible,
+.mode-handover button:focus-visible,
+.mode-switch-warning button:focus-visible {
+  outline: 2px solid var(--welcome-accent);
+  outline-offset: 3px;
+}
+.mode-switch-hint {
+  margin: -3px 4px 2px;
+  color: var(--welcome-muted);
+  font-size: 12px;
+}
+.mode-handover {
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  margin: auto;
+  padding: 28px;
+  overflow-y: auto;
+  border: 1px solid var(--welcome-border-strong);
+  border-radius: 18px;
+  background: var(--welcome-panel);
+  color: var(--welcome-text);
+  box-shadow: 0 24px 80px #0008;
+}
+.mode-handover::backdrop {
+  background: #05070bc9;
+}
+.mode-handover-eyebrow {
+  color: var(--welcome-accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+.mode-handover h2 {
+  margin: 12px 0;
+  font-size: 22px;
+  line-height: 1.25;
+}
+.mode-handover p {
+  margin: 0 0 14px;
+  color: var(--welcome-muted);
+  line-height: 1.6;
+}
+.mode-handover .mode-handover-note {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #a99bff0d;
+  color: var(--welcome-text);
+  font-size: 13px;
+}
+.mode-handover-actions,
+.mode-handover-progress {
+  display: grid;
+  gap: 10px;
+  margin-top: 22px;
+}
+.mode-handover-actions button,
+.mode-handover-progress button {
+  min-height: 44px;
+  white-space: normal;
+}
+.mode-handover .mode-handover-cancel {
+  border-color: #69404a;
+  color: #ffb9c2;
+  background: #301e25;
+}
+.mode-handover .mode-handover-stay {
+  background: transparent;
+  color: var(--welcome-muted);
+}
+.mode-handover-progress {
+  color: var(--welcome-accent);
+  font-size: 13px;
+}
+/* Keep each consequence visually attached to its action on narrow dialogs too. */
+.mode-handover-option {
+  display: grid;
+  gap: 6px;
+}
+.mode-handover-option p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.mode-handover-actions {
+  gap: 18px;
+}
+.mode-switch-warning {
+  display: grid;
+  gap: 10px;
+}
+.mode-switch-warning strong {
+  font-size: 13px;
+}
+.mode-switch-warning p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.mode-switch-warning-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mode-switch-warning-actions button {
+  min-height: 36px;
+}
 .welcome-error,
 .welcome-notice {
   max-width: 100%;
@@ -531,7 +640,10 @@ body:has(.welcome-page) {
   font-size: 11px !important;
   height: 24px;
   line-height: 1;
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
 }
 .visibility-chip:hover {
   border-color: var(--welcome-accent);

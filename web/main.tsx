@@ -1,5 +1,9 @@
 import { hostRefresh } from "./host-refresh.js";
-import { PresentationControls, GoalStrip, usePrivacyShortcuts } from "./presentation-controls.js";
+import {
+  PresentationControls,
+  GoalStrip,
+  usePrivacyShortcuts,
+} from "./presentation-controls.js";
 import { RehearsalCheck } from "./welcome/RehearsalCheck.js";
 import { sessionCli, sessionLabel } from "../shared/types.js";
 import { QuickSettings } from "./settings/QuickSettings.js";
@@ -31,7 +35,9 @@ import { mergeActivityPatches } from "../shared/activity-stream.js";
 const settingsPage = location.pathname === "/control/settings";
 const welcomePage = location.pathname === "/control/welcome";
 const namedOverlay = location.pathname.startsWith("/overlay/");
-const outputId = namedOverlay ? location.pathname.slice("/overlay/".length) : "default";
+const outputId = namedOverlay
+  ? location.pathname.slice("/overlay/".length)
+  : "default";
 const control = location.pathname === "/control" || settingsPage || welcomePage;
 function MarkdownText({ children }: { children: string }) {
   return (
@@ -76,18 +82,33 @@ function App() {
     let retry: ReturnType<typeof setTimeout>;
     let delay = 1000;
     let context = "";
-    const refresh = hostRefresh(async (signal) => {
-      const response = await fetch("/api/host-state", { signal, headers: { "X-Host-Token": csrfRef.current } });
-      if (!response.ok) throw new Error("Host refresh failed");
-      return response.json() as Promise<ShowState>;
-    }, (hostState) => setState((current) => ({ ...hostState,
-      experience: hostState.experience,
-      sharedSession: hostState.sharedSession,
-      sharedOverlay: hostState.sharedOverlay,
-      events: current && !hostState.presentation?.hidden ? [...current.events.filter((event) => !event.lane), ...hostState.events.filter((event) => event.lane)] : hostState.events,
-      presentation: hostState.presentation,
-    })));
-    const loadHostState = (_token: string, _fallback?: ShowState) => refresh.request();
+    const refresh = hostRefresh(
+      async (signal) => {
+        const response = await fetch("/api/host-state", {
+          signal,
+          headers: { "X-Host-Token": csrfRef.current },
+        });
+        if (!response.ok) throw new Error("Host refresh failed");
+        return response.json() as Promise<ShowState>;
+      },
+      (hostState) =>
+        setState((current) => ({
+          ...hostState,
+          experience: hostState.experience,
+          sharedSession: hostState.sharedSession,
+          sharedOverlay: hostState.sharedOverlay,
+          events:
+            current && !hostState.presentation?.hidden
+              ? [
+                  ...current.events.filter((event) => !event.lane),
+                  ...hostState.events.filter((event) => event.lane),
+                ]
+              : hostState.events,
+          presentation: hostState.presentation,
+        })),
+    );
+    const loadHostState = (_token: string, _fallback?: ShowState) =>
+      refresh.request();
     const connect = () => {
       ws = new WebSocket(
         `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/events${namedOverlay ? `?overlay=${encodeURIComponent(outputId)}` : ""}`,
@@ -100,35 +121,77 @@ function App() {
         try {
           const payload = JSON.parse(e.data);
           // An old session/connection must never overwrite a newer private host lane.
-          const nextContext = JSON.stringify([payload.state?.hostContext, payload.state?.experience, payload.state?.round?.id, payload.state?.sharedOverlay?.frames?.map((f: SessionView) => f.conversation.id), payload.state?.presentation?.hidden]);
+          const nextContext = JSON.stringify([
+            payload.state?.hostContext,
+            payload.state?.experience,
+            payload.state?.round?.id,
+            payload.state?.sharedOverlay?.frames?.map(
+              (f: SessionView) => f.conversation.id,
+            ),
+            payload.state?.presentation?.hidden,
+          ]);
           const changedContext = nextContext !== context;
-          if (changedContext) { context = nextContext; refresh.invalidate(); }
+          if (changedContext) {
+            context = nextContext;
+            refresh.invalidate();
+          }
 
           if (payload.type === "update") {
             setPreviewOrigin(payload.previewOrigin);
             setState((current) => {
               // Hidden sockets carry no transcript; the authenticated refresh supplies private host content.
               if (control && payload.state.presentation?.hidden && current) {
-                return { ...current, presentation: current.presentation ? { ...current.presentation, hidden: true } : payload.state.presentation };
+                return {
+                  ...current,
+                  presentation: current.presentation
+                    ? { ...current.presentation, hidden: true }
+                    : payload.state.presentation,
+                };
               }
               try {
-                const events = mergeActivityPatches(current?.events ?? [], payload.patches, payload.eventIds);
+                const events = mergeActivityPatches(
+                  current?.events ?? [],
+                  payload.patches,
+                  payload.eventIds,
+                );
                 if (payload.state.sharedOverlay) {
-                  payload.state.sharedOverlay = applyOverlayPatches(current?.sharedOverlay, payload.state.sharedOverlay, payload.overlayPatches ?? []);
-                  payload.state.sharedSession = payload.state.sharedOverlay.frames.length === 1 ? payload.state.sharedOverlay.frames[0] : undefined;
-                } else {
-                  const session = payload.state.sharedSession as SessionView | undefined;
-                  if (session) session.page.items = mergeActivityPatches(
-                    current?.sharedSession?.conversation.id === session.conversation.id ? current.sharedSession.page.items : [],
-                    payload.sessionPatches ?? [], payload.sessionItemIds ?? [],
+                  payload.state.sharedOverlay = applyOverlayPatches(
+                    current?.sharedOverlay,
+                    payload.state.sharedOverlay,
+                    payload.overlayPatches ?? [],
                   );
+                  payload.state.sharedSession =
+                    payload.state.sharedOverlay.frames.length === 1
+                      ? payload.state.sharedOverlay.frames[0]
+                      : undefined;
+                } else {
+                  const session = payload.state.sharedSession as
+                    SessionView | undefined;
+                  if (session)
+                    session.page.items = mergeActivityPatches(
+                      current?.sharedSession?.conversation.id ===
+                        session.conversation.id
+                        ? current.sharedSession.page.items
+                        : [],
+                      payload.sessionPatches ?? [],
+                      payload.sessionItemIds ?? [],
+                    );
                 }
-                return { ...payload.state,
-                  presentation: control && payload.state.presentation?.hidden && current?.presentation ? { ...current.presentation, hidden: true } : payload.state.presentation,
+                return {
+                  ...payload.state,
+                  presentation:
+                    control &&
+                    payload.state.presentation?.hidden &&
+                    current?.presentation
+                      ? { ...current.presentation, hidden: true }
+                      : payload.state.presentation,
                   events: [
-                  ...events,
-                  ...(control && !changedContext ? current?.events.filter((event) => event.lane) ?? [] : []),
-                ] };
+                    ...events,
+                    ...(control && !changedContext
+                      ? (current?.events.filter((event) => event.lane) ?? [])
+                      : []),
+                  ],
+                };
               } catch {
                 ws.close();
                 return current;
@@ -136,17 +199,38 @@ function App() {
             });
             if (control && csrfRef.current) void loadHostState(csrfRef.current);
           } else if (payload.type === "snapshot") {
-            if (payload.state.sharedOverlay) payload.state.sharedSession = payload.state.sharedOverlay.frames.length === 1 ? payload.state.sharedOverlay.frames[0] : undefined;
+            if (payload.state.sharedOverlay)
+              payload.state.sharedSession =
+                payload.state.sharedOverlay.frames.length === 1
+                  ? payload.state.sharedOverlay.frames[0]
+                  : undefined;
             setPreviewOrigin(payload.previewOrigin);
             if (control && csrfRef.current) {
-              setState((current) => control && payload.state.presentation?.hidden && current ? { ...current, presentation: current.presentation ? { ...current.presentation, hidden: true } : payload.state.presentation } : ({
-                ...payload.state,
-                presentation: control && payload.state.presentation?.hidden && current?.presentation ? { ...current.presentation, hidden: true } : payload.state.presentation,
-                events: [
-                  ...payload.state.events,
-                  ...(!changedContext ? current?.events.filter((event) => event.lane) ?? [] : []),
-                ],
-              }));
+              setState((current) =>
+                control && payload.state.presentation?.hidden && current
+                  ? {
+                      ...current,
+                      presentation: current.presentation
+                        ? { ...current.presentation, hidden: true }
+                        : payload.state.presentation,
+                    }
+                  : {
+                      ...payload.state,
+                      presentation:
+                        control &&
+                        payload.state.presentation?.hidden &&
+                        current?.presentation
+                          ? { ...current.presentation, hidden: true }
+                          : payload.state.presentation,
+                      events: [
+                        ...payload.state.events,
+                        ...(!changedContext
+                          ? (current?.events.filter((event) => event.lane) ??
+                            [])
+                          : []),
+                      ],
+                    },
+              );
               void loadHostState(csrfRef.current, payload.state);
             } else setState(payload.state);
           }
@@ -246,11 +330,34 @@ function App() {
       </main>
     );
   // A normal route keeps Quick Settings separate from the broadcast layout.
-  if (settingsPage) return <QuickSettings state={state} token={csrf} connected={connected}/>;
-  if (welcomePage || (control && state.experience !== "arena")) return <Welcome token={csrf} publishedId={state.sharedSession?.conversation.id} hostControls={<PresentationControls state={state} token={csrf} shortcutsOnly />} />;
-  if (!control && (state.presentation?.hidden || !connected)) return <main className="privacy-screen">Back shortly</main>;
-  if (!control && state.presentation?.breakActive) return <BreakScreen state={state} now={now} host={false} />;
-  if (!control && (namedOverlay || state.experience && state.experience !== "arena")) return <div className="public-surface"><GoalStrip value={state.presentation} /><OverlayScreen view={state.sharedOverlay} /></div>;
+  if (settingsPage)
+    return <QuickSettings state={state} token={csrf} connected={connected} />;
+  if (welcomePage || (control && state.experience !== "arena"))
+    return (
+      <Welcome
+        token={csrf}
+        arenaActive={state.experience === "arena"}
+        publishedId={state.sharedSession?.conversation.id}
+        breakControl={welcomePage}
+        hostControls={
+          <PresentationControls state={state} token={csrf} shortcutsOnly />
+        }
+      />
+    );
+  if (!control && (state.presentation?.hidden || !connected))
+    return <main className="privacy-screen">Back shortly</main>;
+  if (!control && state.presentation?.breakActive)
+    return <BreakScreen state={state} now={now} host={false} />;
+  if (
+    !control &&
+    (namedOverlay || (state.experience && state.experience !== "arena"))
+  )
+    return (
+      <div className="public-surface">
+        <GoalStrip value={state.presentation} />
+        <OverlayScreen view={state.sharedOverlay} />
+      </div>
+    );
   const round = state.round;
   const countdown =
     state.status === "break"
@@ -260,8 +367,20 @@ function App() {
         : state.collectionDeadline;
   return (
     <main className={control ? "host" : "overlay"}>
-      {control ? <nav className="host-top-tools" aria-label="Show controls"><BreakControl token={csrf} /></nav> : <GoalStrip value={state.presentation} />}
-      {control && <RehearsalCheck token={csrf} context="arena" revision={state.quickSettings?.revision} />}
+      {control ? (
+        <nav className="host-top-tools" aria-label="Show controls">
+          {welcomePage ? <BreakControl token={csrf} /> : null}
+        </nav>
+      ) : (
+        <GoalStrip value={state.presentation} />
+      )}
+      {control && (
+        <RehearsalCheck
+          token={csrf}
+          context="arena"
+          revision={state.quickSettings?.revision}
+        />
+      )}
       {control && (
         <section className="prompt-strip" hidden={!round?.task.text}>
           {round?.task.text && <h1>{round.task.text}</h1>}
@@ -302,7 +421,10 @@ function App() {
             </span>
           )}
           {state.quota && (
-            <span className="quota" title="Shared Codex account allowance for all Codex sessions">
+            <span
+              className="quota"
+              title="Shared Codex account allowance for all Codex sessions"
+            >
               {Math.round(state.quota.remainingPercent)}%
             </span>
           )}
@@ -319,7 +441,7 @@ function App() {
         </footer>
       )}
       {state.status === "break" ? (
-        <BreakScreen state={state} now={now} host={control}/>
+        <BreakScreen state={state} now={now} host={control} />
       ) : (
         <>
           {!control && round?.task.text && (
@@ -351,179 +473,195 @@ function App() {
           {/* Host settings open in a separate accessible tab. */}
           <div className="control-heading">
             <a href="/control/welcome">Sessions</a>
-            <a href="/control/settings" target="_blank" rel="noopener noreferrer">Quick Settings ↗</a>
+            <a
+              href="/control/settings"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Quick Settings ↗
+            </a>
             <a href="/overlay" target="_blank" rel="noreferrer">
               overlay ↗
             </a>
           </div>
           <div className="control-toolbar">
             <div className="buttons">
-            <button
-              disabled={
-                working ||
-                !csrf ||
-                ["running", "collecting", "results", "break"].includes(
-                  state.status,
-                ) && !(state.status === "break" && state.breakKind === "manual")
-              }
-              onClick={() => action("start")}
-            >
-              Start
-            </button>
-            <button
-              disabled={working || ["paused", "stopped"].includes(state.status)}
-              onClick={() => action("pause")}
-            >
-              Pause
-            </button>
-            <button
-              disabled={working || (state.status !== "paused" && !(state.status === "break" && state.breakKind === "manual"))}
-              onClick={() => action("resume")}
-            >
-              Resume
-            </button>
-            <button
-              disabled={
-                working ||
-                !round ||
-                !Object.values(round.attempts).some(
-                  (a) => a.status === "running",
-                )
-              }
-              onClick={() => action("skip")}
-            >
-              Skip
-            </button>
-            <button
-              className={stopMenu ? "danger toggle-on" : "danger"}
-              disabled={working || state.status === "stopped"}
-              aria-expanded={stopMenu}
-              onClick={() => setStopMenu((open) => !open)}
-            >
-              Stop
-            </button>
-            {stopMenu && state.status !== "stopped" && (
-              <>
-                {(state.playlistTotal || state.awaitingHostChoice) && (
+              <button
+                disabled={
+                  working ||
+                  !csrf ||
+                  (["running", "collecting", "results", "break"].includes(
+                    state.status,
+                  ) &&
+                    !(state.status === "break" && state.breakKind === "manual"))
+                }
+                onClick={() => action("start")}
+              >
+                Start
+              </button>
+              <button
+                disabled={
+                  working || ["paused", "stopped"].includes(state.status)
+                }
+                onClick={() => action("pause")}
+              >
+                Pause
+              </button>
+              <button
+                disabled={
+                  working ||
+                  (state.status !== "paused" &&
+                    !(state.status === "break" && state.breakKind === "manual"))
+                }
+                onClick={() => action("resume")}
+              >
+                Resume
+              </button>
+              <button
+                disabled={
+                  working ||
+                  !round ||
+                  !Object.values(round.attempts).some(
+                    (a) => a.status === "running",
+                  )
+                }
+                onClick={() => action("skip")}
+              >
+                Skip
+              </button>
+              <button
+                className={stopMenu ? "danger toggle-on" : "danger"}
+                disabled={working || state.status === "stopped"}
+                aria-expanded={stopMenu}
+                onClick={() => setStopMenu((open) => !open)}
+              >
+                Stop
+              </button>
+              {stopMenu && state.status !== "stopped" && (
+                <>
+                  {(state.playlistTotal || state.awaitingHostChoice) && (
+                    <button
+                      className={chatOpen ? "toggle-on" : ""}
+                      aria-expanded={chatOpen}
+                      disabled={working}
+                      onClick={() => {
+                        setEndOpen(false);
+                        setChatOpen((open) => !open);
+                      }}
+                    >
+                      Chat
+                    </button>
+                  )}
                   <button
-                    className={chatOpen ? "toggle-on" : ""}
-                    aria-expanded={chatOpen}
+                    className={endOpen ? "danger toggle-on" : "danger"}
+                    aria-expanded={endOpen}
                     disabled={working}
                     onClick={() => {
-                      setEndOpen(false);
-                      setChatOpen((open) => !open);
+                      setChatOpen(false);
+                      setEndOpen((open) => !open);
                     }}
                   >
-                    Chat
+                    End
                   </button>
-                )}
-                <button
-                  className={endOpen ? "danger toggle-on" : "danger"}
-                  aria-expanded={endOpen}
-                  disabled={working}
-                  onClick={() => {
-                    setChatOpen(false);
-                    setEndOpen((open) => !open);
-                  }}
-                >
-                  End
-                </button>
-                {chatOpen &&
-                  (state.playlistTotal || state.awaitingHostChoice) && (
+                  {chatOpen &&
+                    (state.playlistTotal || state.awaitingHostChoice) && (
+                      <>
+                        <label className="stop-platform">
+                          <input
+                            type="checkbox"
+                            checked={chatYoutube}
+                            onChange={(e) => setChatYoutube(e.target.checked)}
+                          />
+                          YouTube
+                        </label>
+                        <label className="stop-platform">
+                          <input
+                            type="checkbox"
+                            checked={chatTwitch}
+                            onChange={(e) => setChatTwitch(e.target.checked)}
+                          />
+                          Twitch
+                        </label>
+                        <label className="stop-platform">
+                          <input
+                            type="checkbox"
+                            checked={chatKick}
+                            onChange={(e) => setChatKick(e.target.checked)}
+                          />
+                          Kick
+                        </label>
+                        <button
+                          disabled={
+                            working ||
+                            (!chatYoutube && !chatTwitch && !chatKick)
+                          }
+                          onClick={() => void pickStop("chat-after")}
+                        >
+                          After this round
+                        </button>
+                        <button
+                          disabled={
+                            working ||
+                            (!chatYoutube && !chatTwitch && !chatKick)
+                          }
+                          onClick={() => void pickStop("chat-now")}
+                        >
+                          Now
+                        </button>
+                      </>
+                    )}
+                  {endOpen && (
                     <>
-                      <label className="stop-platform">
-                        <input
-                          type="checkbox"
-                          checked={chatYoutube}
-                          onChange={(e) => setChatYoutube(e.target.checked)}
-                        />
-                        YouTube
-                      </label>
-                      <label className="stop-platform">
-                        <input
-                          type="checkbox"
-                          checked={chatTwitch}
-                          onChange={(e) => setChatTwitch(e.target.checked)}
-                        />
-                        Twitch
-                      </label>
-                      <label className="stop-platform">
-                        <input
-                          type="checkbox"
-                          checked={chatKick}
-                          onChange={(e) => setChatKick(e.target.checked)}
-                        />
-                        Kick
-                      </label>
                       <button
-                        disabled={
-                          working || (!chatYoutube && !chatTwitch && !chatKick)
-                        }
-                        onClick={() => void pickStop("chat-after")}
+                        disabled={working}
+                        onClick={() => void pickStop("stream-after")}
                       >
                         After this round
                       </button>
                       <button
-                        disabled={
-                          working || (!chatYoutube && !chatTwitch && !chatKick)
-                        }
-                        onClick={() => void pickStop("chat-now")}
+                        className="danger"
+                        disabled={working}
+                        onClick={() => void pickStop("stream-now")}
                       >
                         Now
                       </button>
                     </>
                   )}
-                {endOpen && (
-                  <>
-                    <button
-                      disabled={working}
-                      onClick={() => void pickStop("stream-after")}
-                    >
-                      After this round
-                    </button>
-                    <button
-                      className="danger"
-                      disabled={working}
-                      onClick={() => void pickStop("stream-now")}
-                    >
-                      Now
-                    </button>
-                  </>
-                )}
-              </>
-            )}
-            {state.mode === "rehearsal" && !state.playlistTotal && (
-              <>
-                <button
-                  disabled={
-                    working || !["paused", "collecting"].includes(state.status)
-                  }
-                  onClick={() => action("rehearsal-task")}
-                >
-                  Task
-                </button>
-                <button
-                  disabled={
-                    working ||
-                    !round ||
-                    Object.values(round.attempts).some(
-                      (a) => a.status !== "complete",
-                    )
-                  }
-                  onClick={() => action("confirm-rehearsal")}
-                >
-                  Confirm
-                </button>
-                <button
-                  type="button"
-                  className={suggestOpen ? "toggle-on" : ""}
-                  aria-expanded={suggestOpen}
-                  onClick={() => setSuggestOpen((open) => !open)}
-                >
-                  Prompt
-                </button>
-              </>
-            )}
+                </>
+              )}
+              {state.mode === "rehearsal" && !state.playlistTotal && (
+                <>
+                  <button
+                    disabled={
+                      working ||
+                      !["paused", "collecting"].includes(state.status)
+                    }
+                    onClick={() => action("rehearsal-task")}
+                  >
+                    Task
+                  </button>
+                  <button
+                    disabled={
+                      working ||
+                      !round ||
+                      Object.values(round.attempts).some(
+                        (a) => a.status !== "complete",
+                      )
+                    }
+                    onClick={() => action("confirm-rehearsal")}
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    type="button"
+                    className={suggestOpen ? "toggle-on" : ""}
+                    aria-expanded={suggestOpen}
+                    onClick={() => setSuggestOpen((open) => !open)}
+                  >
+                    Prompt
+                  </button>
+                </>
+              )}
             </div>
             <button
               type="button"
@@ -655,7 +793,10 @@ function CliColumn({
       </span>
       <ul ref={log}>
         {rows.map((row) => (
-          <li key={row.id} className={lane === "terminal" ? "command-line" : undefined}>
+          <li
+            key={row.id}
+            className={lane === "terminal" ? "command-line" : undefined}
+          >
             {row.text}
           </li>
         ))}
@@ -706,7 +847,9 @@ function AgentPanel({
   const cli = sessionCli(state, agent);
   const model = attempt ? sessionLabel(attempt) : state.models?.[agent];
   // Visibility affects public presentation only; host inspection keeps the full view.
-  const visibility = control ? defaultVisibility : state.quickSettings?.visibility[agent] ?? defaultVisibility;
+  const visibility = control
+    ? defaultVisibility
+    : (state.quickSettings?.visibility[agent] ?? defaultVisibility);
   const cliLabel = `${cli === "codex" ? "Codex" : "Cursor"} ${(state.agents?.indexOf(agent) ?? 0) === 0 ? "Left" : "Right"}`;
   const showIntro = !control && !state.round;
   const events = state.events.filter((e) => e.agent === agent && !e.lane);
@@ -749,12 +892,14 @@ function AgentPanel({
   return (
     <section className={`agent-panel ${cli}`}>
       <div className="agent-header">
-        {visibility.cliIcon && <div className="agent-icon">
-          <img
-            src={cli === "codex" ? codexLogo : cursorLogo}
-            alt={cli === "codex" ? "Codex" : "Cursor"}
-          />
-        </div>}
+        {visibility.cliIcon && (
+          <div className="agent-icon">
+            <img
+              src={cli === "codex" ? codexLogo : cursorLogo}
+              alt={cli === "codex" ? "Codex" : "Cursor"}
+            />
+          </div>
+        )}
         <div>
           {visibility.cliName && <h2>{cliLabel}</h2>}
           {visibility.model && model && <p>{model}</p>}
@@ -769,11 +914,13 @@ function AgentPanel({
       <div className="agent-content">
         {showIntro ? (
           <div className="empty-state model-intro">
-            {visibility.cliIcon && <img
-              className="empty-logo"
-              src={cli === "codex" ? codexLogo : cursorLogo}
-              alt=""
-            />}
+            {visibility.cliIcon && (
+              <img
+                className="empty-logo"
+                src={cli === "codex" ? codexLogo : cursorLogo}
+                alt=""
+              />
+            )}
             {visibility.cliName && <h3>{cliLabel}</h3>}
             {visibility.model && model && <p>{model}</p>}
           </div>
@@ -804,7 +951,11 @@ function AgentPanel({
           <div className="failure-card">
             <span>!</span>
             <h3>{attempt?.status}</h3>
-            <p>{visibility.error ? attempt?.error ?? "" : "Error details hidden by overlay settings"}</p>
+            <p>
+              {visibility.error
+                ? (attempt?.error ?? "")
+                : "Error details hidden by overlay settings"}
+            </p>
           </div>
         ) : (
           <div className="activity-log" ref={log}>
@@ -825,11 +976,13 @@ function AgentPanel({
               ))
             ) : (
               <div className="empty-state">
-                {visibility.cliIcon && <img
-                  className="empty-logo"
-                  src={cli === "codex" ? botLogo : cursorLogo}
-                  alt=""
-                />}
+                {visibility.cliIcon && (
+                  <img
+                    className="empty-logo"
+                    src={cli === "codex" ? botLogo : cursorLogo}
+                    alt=""
+                  />
+                )}
               </div>
             )}
           </div>

@@ -74,6 +74,8 @@ export const preferencesSchema = z
           .string()
           .regex(/^[a-f0-9]{32}\.(png|jpg|gif|webp)$/)
           .optional(),
+        // Older saved preference rows default to Fit until the next normal save.
+        visualFit: z.enum(["fit", "center", "fill"]).default("fit"),
       })
       .strict(),
   })

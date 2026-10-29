@@ -395,6 +395,11 @@ fieldset.qs-main {
   color: #85909f;
   font-size: 11px;
 }
+.qs-visual-fit {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px !important;
+}
 .quick-settings .qs-text-button {
   padding: 2px 0;
   border: 0;

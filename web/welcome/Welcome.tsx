@@ -1,4 +1,5 @@
 import { LastSetup } from "./LastSetup.js";
+import { ModeHandover, type ModeHandoverState } from "./ModeHandover.js";
 import { RehearsalCheck } from "./RehearsalCheck.js";
 import { BreakControl } from "../break-control.js";
 import React, { useEffect, useRef, useState } from "react";
@@ -102,14 +103,21 @@ export function Welcome({
   token,
   publishedId,
   hostControls,
+  breakControl = false,
+  arenaActive = false,
 }: {
   token: string;
   publishedId?: string;
   hostControls?: React.ReactNode;
+  breakControl?: boolean;
+  arenaActive?: boolean;
 }) {
   const [document, setDocument] = useState<SettingsDocument>();
   const [ready, setReady] = useState<Readiness>();
-  const [path, setPath] = useState<"existing" | "new" | "arena">("existing");
+  // Reflect server ownership on entry; loading this page must never switch modes.
+  const [path, setPath] = useState<"existing" | "new" | "arena">(arenaActive ? "arena" : "existing");
+  const [handover, setHandover] = useState<ModeHandoverState>();
+  const [failedMode, setFailedMode] = useState<"existing" | "new" | "arena">();
   const [cli, setCli] = useState<Agent>("codex");
   const [runner, setRunner] = useState<"docker" | "native">("native");
   const [nativeConsent, setNativeConsent] = useState("NATIVE");
@@ -154,6 +162,52 @@ export function Welcome({
       setBusy(false);
     }
   }
+  // Change tabs only after the server has transferred ownership of the arena.
+  async function switchPath(target: "existing" | "new" | "arena") {
+    setFailedMode(target);
+    if (target === "arena") {
+      await request("/api/sessions/action", { action: "arena" });
+    } else {
+      const result = await request<{ status: "ready" | "choice" | "waiting" }>(
+        "/api/sessions/action", { action: "session-mode" });
+      if (result.status !== "ready") {
+        setPath("arena");
+        setHandover({ target, ...(result.status === "waiting" ? { choice: "wait" as const } : {}) });
+        setFailedMode(undefined);
+        return false;
+      }
+    }
+    setPath(target);
+    setFailedMode(undefined);
+    return true;
+  }
+  // Poll only during an explicit handover, one request at a time; never launch a model.
+  useEffect(() => {
+    if (!handover?.choice) return;
+    let closed = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const check = async () => {
+      try {
+        const result = await hostRequest<{ status: string }>(token, "/api/sessions/action", {
+          action: "session-mode", choice: handover.choice,
+        });
+        if (closed) return;
+        if (result.status === "ready") {
+          setPath(handover.target);
+          setHandover(undefined);
+          setNotice("Arena stopped. You can now continue with your session. OBS was left running.");
+        } else timer = setTimeout(() => void check(), 1000);
+      } catch (e) {
+        if (!closed) {
+          setError(e instanceof Error ? e.message : "Mode switch failed");
+          setFailedMode(handover.target);
+          setHandover(undefined);
+        }
+      }
+    };
+    void check();
+    return () => { closed = true; clearTimeout(timer); };
+  }, [handover, token]);
   useEffect(() => {
     if (!token) return;
     let closed = false;
@@ -314,6 +368,7 @@ export function Welcome({
   const remember = (nextPath: "arena" | "existing" | "new", id?: string, boundary = runner) => request("/api/last-setup", { path: nextPath, runner: boundary, ...(id ? { sessionId: id } : {}) });
   async function continueFlow() {
     await perform(async () => {
+      if (!(await switchPath(path))) return;
       if (path === "arena") {
         await save();
         await request("/api/sessions/action", { action: "arena" });
@@ -402,7 +457,9 @@ export function Welcome({
             setResultUrl(""); setNotice("Choices applied. Review, rehearse, then go live. Nothing started.");
           }} />
           {hostControls}
-          <BreakControl token={token} preferredId={overlayDraft?.id} initial={overlayEditor.document} />
+          {breakControl && (
+            <BreakControl token={token} preferredId={overlayDraft?.id} initial={overlayEditor.document} />
+          )}
           <RehearsalCheck token={token} context={path === "arena" ? "arena" : selected?.conversation.id ?? "unselected"} revision={document?.revision} />
           {overlayDraft && overlayEditor.document && (
             <OverlayPresentation
@@ -421,7 +478,7 @@ export function Welcome({
       </header>
       <div className="welcome-layout">
         <aside className="welcome-controls">
-          <nav className="welcome-options" aria-label="Experience">
+          <nav className="welcome-options" aria-label="Choose a mode" aria-busy={busy || !!handover}>
             {(
               [
                 ["existing", "Existing session"],
@@ -431,21 +488,33 @@ export function Welcome({
             ).map(([id, title]) => (
               <button
                 key={id}
-                disabled={busy}
+                disabled={busy || !!handover || !token}
                 aria-pressed={path === id}
-                onClick={() => {
-                  setPath(id);
-                  setError("");
-                }}
+                onClick={() => { if (id !== path) void perform(() => switchPath(id)); }}
               >
                 {title}
               </button>
             ))}
           </nav>
+          <p className="mode-switch-hint">{path === "arena"
+            ? "Arena mode · automatic prompt rounds"
+            : path === "new" ? "Session mode · choose a model and start coding"
+              : "Session mode · choose a conversation to preview"}</p>
+          {handover && (
+            <ModeHandover state={handover}
+              choose={(choice) => setHandover({ ...handover, choice })}
+              stay={() => { setHandover(undefined); setPath("arena"); }} />
+          )}
           {error && (
-            <p className="welcome-error" role="alert">
-              {error} <button onClick={() => location.reload()}>Reload</button>
-            </p>
+            <div className="welcome-error mode-switch-warning" role="alert">
+              <div><strong>{failedMode ? "Couldn’t switch modes" : "Action needs attention"}</strong><p>{error}</p></div>
+              <div className="mode-switch-warning-actions">
+                {failedMode
+                  ? <button disabled={busy} onClick={() => { const target = failedMode; if (target) void perform(() => switchPath(target)); }}>Retry switch</button>
+                  : <button onClick={() => location.reload()}>Reload</button>}
+                <button onClick={() => { setError(""); setFailedMode(undefined); }}>Dismiss</button>
+              </div>
+            </div>
           )}
           {notice && (
             <p className="welcome-notice" role="status">
@@ -857,6 +926,7 @@ export function Welcome({
             className="primary-button"
             disabled={
               busy ||
+              !!handover ||
               !document ||
               (path === "new" &&
                 (!models?.some((model) => model.id === choice?.model) ||

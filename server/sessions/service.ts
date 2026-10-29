@@ -52,6 +52,8 @@ export class Sessions extends EventEmitter {
     { handle?: RunHandle; settled: Promise<void> }
   >();
   private closing = false;
+  private switchingMode = false;
+  private modeRequest?: Promise<{ status: "choice" | "waiting" | "ready" }>;
   private rehearsals = new Set<string>();
   // HTTP supplies the host-confirmed checklist without coupling it to provider connectors.
   requirePresentationRehearsal: (context: string, output?: import("../../shared/sessions.js").OverlayDefinition) => void = () => {};
@@ -369,8 +371,26 @@ export class Sessions extends EventEmitter {
     };
   }
   // Keep mode ownership on the server; navigating a tab alone never starts work.
-  async sessionMode(choice?: "wait" | "cancel") {
-    const status = this.leaveArena ? await this.leaveArena(choice) : this.arenaIdle() ? "ready" : "choice";
+  sessionMode(choice?: "wait" | "cancel") {
+    if (this.modeRequest) return this.modeRequest;
+    const pending = this.switchSessionMode(choice).finally(() => { this.modeRequest = undefined; });
+    this.modeRequest = pending;
+    return pending;
+  }
+  private async switchSessionMode(choice?: "wait" | "cancel") {
+    if (this.experience === "session" && !this.switchingMode && this.arenaIdle())
+      return { status: "ready" as const };
+    if (this.switchingMode && !choice)
+      return { status: "waiting" as const };
+    this.switchingMode = true;
+    let status: "choice" | "waiting" | "ready";
+    try {
+      status = this.leaveArena ? await this.leaveArena(choice) : this.arenaIdle() ? "ready" : "choice";
+    } catch (error) {
+      this.switchingMode = false;
+      throw error;
+    }
+    this.switchingMode = status === "waiting";
     if (status === "ready") {
       this.experience = "session";
       this.emit("state");
@@ -378,6 +398,7 @@ export class Sessions extends EventEmitter {
     return { status };
   }
   arena() {
+    if (this.switchingMode) throw new Error("Wait for the arena handover to finish");
     if (this.active.size)
       throw new Error(
         "Wait for managed prompts to finish before opening the prompt arena",
@@ -390,6 +411,9 @@ export class Sessions extends EventEmitter {
     if (this.closing) throw new Error("The server is shutting down");
     if (!this.arenaIdle()) throw new Error("Stop the prompt arena first");
     const c = await this.get(id);
+    // Another tab may have changed modes while the conversation was being loaded.
+    if (this.experience === "arena" || this.switchingMode || !this.arenaIdle())
+      throw new Error("Switch to coding sessions before sending a prompt");
     if (c.source !== "managed")
       throw new Error(
         "External sessions are read-only. Start a managed session to send prompts.",

@@ -124,7 +124,7 @@ Keep the terminal open. **Ctrl+C ends the activated show and broadcast.**
 
 **Run the show:** open the [host control panel](http://127.0.0.1:3210/control).
 
-**Quick Settings:** use the control panel's **Quick Settings ↗** link to open a separate host tab at `/control/settings`. New chat-source defaults are unchecked. Saved source choices and explicit startup choices remain meaningful; guided startup enables sources only with repeated `--chat yt`, `--chat twitch` or `--chat kick` flags (or later through Settings).
+**Quick Settings:** use the control panel's **Quick Settings ↗** link to open a separate host tab at `/control/settings`. New chat-source defaults are unchecked. Saved source choices and explicit startup choices remain meaningful; guided startup enables sources only with repeated `--chat yt`, `--chat twitch` or `--chat kick` flags (or later through Settings). Break visuals can fit the whole image, show it centered at original size, or fill the screen and crop edges.
 
 
 Focused verification (run manually):

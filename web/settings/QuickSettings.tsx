@@ -15,7 +15,6 @@ import { BreakMedia } from "./BreakMedia.js";
 import { HarnessForm } from "./HarnessForm.js";
 import { StreamSettings } from "./StreamSettings.js";
 import { ActionBar } from "./ActionBar.js";
-import { BreakControl } from "../break-control.js";
 import { RehearsalCheck } from "../welcome/RehearsalCheck.js";
 import "./settings.css";
 
@@ -214,7 +213,6 @@ export function QuickSettings({
           <h1>Quick Settings</h1>
         </div>
         <div className="qs-status">
-          <BreakControl token={token} />
           <span className={`qs-dot ${connected ? "online" : ""}`} />
           {connected ? state.mode : "Reconnecting…"}
           <span className="qs-badge">{state.status}</span>

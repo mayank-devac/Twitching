@@ -20,6 +20,7 @@ Purpose: Route agents to the most relevant source files quickly. Verify details 
 `scripts/welcome-launcher.ts`, `Start Twitching.command`, `web/welcome/Welcome.tsx`, `web/welcome/LaunchChoices.tsx`, `web/welcome/SessionBrowser.tsx`, `web/welcome/Timeline.tsx`, `web/welcome/welcome.css`
 
 - Work: No-flag idle welcome startup, host readiness, managed/external session browser, settings reuse and ordinary scrolling. Existing CLI flags retain the guided arena flow.
+- `web/welcome/ModeHandover.tsx` owns the native modal for finish/cancel/stay choices and handover progress; `Welcome.tsx` owns server switching and retry actions.
 - Used by: `scripts/stream.ts`, `web/main.tsx`, `server/index.ts`, `server/http.ts`. Settings changes retain revision checks; publication requires explicit selection and live rehearsal/OBS gates. Never run a model merely to observe an external session.
 
 `server/startup-config.ts`, `scripts/session-selection.ts`
@@ -57,7 +58,7 @@ Purpose: Route agents to the most relevant source files quickly. Verify details 
 `web/settings/QuickSettings.tsx`, `web/settings/SessionCard.tsx`, `web/settings/PreparedPrompt.tsx`, `web/settings/HistoryPanel.tsx`, `web/settings/BreakMedia.tsx`, `web/settings/ActionBar.tsx`, `web/settings/api.ts`, `web/settings/use-unsaved-warning.ts`, `web/settings/StreamSettings.tsx`, `web/settings/HarnessForm.tsx`, `web/settings/settings.css`, `web/break-screen.tsx`
 
 - Work: Render the separate `/control/settings` host page, independent session cards, prompt/history panels, media selection, and explicit stream/break/harness actions. The shared break screen owns full-frame GIF display, compact break status, overlay-only music playback and media fallbacks.
-- Useful for: Settings layout, unsaved drafts, current/pending models, immediate visibility saves, stale-tab feedback, browser autoplay failures, one-file drag-and-drop uploads, unsaved-change highlights and close/navigation guards.
+- Useful for: Settings layout, unsaved drafts, current/pending models, immediate visibility saves, one-file drag-and-drop uploads, unsaved-change warnings, and saved fit/center/fill settings for break visuals.
 - Used by: `web/main.tsx`.
 
 ## `server/`

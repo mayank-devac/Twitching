@@ -16,6 +16,14 @@ export interface SessionVisibility {
   cliIcon: boolean;
   cliName: boolean;
 }
+
+// Saved visual modes map to predictable browser image fitting behavior.
+export type BreakVisualMode = "fit" | "center" | "fill";
+export const breakVisualObjectFit: Record<BreakVisualMode, "contain" | "none" | "cover"> = {
+  fit: "contain",
+  center: "none",
+  fill: "cover",
+};
 export const defaultVisibility: SessionVisibility = {
   tool: true,
   command: false,
@@ -46,7 +54,7 @@ export interface QuickPreferences {
   };
   jevCriteria: string;
   jevProbe: string;
-  media: { audio?: string; visual?: string };
+  media: { audio?: string; visual?: string; visualFit?: BreakVisualMode };
 }
 export interface SettingsDocument {
   revision: number;

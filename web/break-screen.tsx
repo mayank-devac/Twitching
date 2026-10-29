@@ -1,6 +1,7 @@
 import { playExclusive } from "./audio-owner.js";
 import React, { useEffect, useRef, useState } from "react";
 import type { ShowState } from "../shared/types.js";
+import { breakVisualObjectFit } from "../shared/settings.js";
 
 // The overlay fills the output frame; host previews keep controls available and never autoplay.
 export function BreakScreen({
@@ -55,6 +56,9 @@ export function BreakScreen({
         <img
           className="break-upload"
           alt="Break visual"
+          style={{
+            objectFit: breakVisualObjectFit[media?.visualFit ?? "fit"],
+          }}
           src={visual}
           onError={() =>
             custom ? setImageFailed(true) : setDefaultMissing(true)

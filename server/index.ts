@@ -77,7 +77,7 @@ const preferences = new QuickSettings(
     },
     jevCriteria: defaultCriteria,
     jevProbe: settings.jevProbe,
-    media: {},
+    media: { visualFit: "fit" },
   },
   {
     platforms: [

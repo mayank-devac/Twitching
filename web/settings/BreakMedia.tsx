@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { QuickPreferences } from "../../shared/settings.js";
+import { breakVisualObjectFit } from "../../shared/settings.js";
 import { hostRequest } from "./api.js";
 type Asset = { id: string; name: string; type: string; bytes: number };
 type Defaults = Record<"audio" | "visual", { name: string; url?: string }>;
@@ -173,6 +174,26 @@ export function BreakMedia({
                   </button>
                 )}
               </div>
+              {kind === "visual" && (
+                <label className="qs-visual-fit">
+                  Visual display
+                  <select
+                    value={value.visualFit ?? "fit"}
+                    disabled={disabled || busy}
+                    onChange={(event) =>
+                      change({
+                        ...value,
+                        visualFit: event.target
+                          .value as QuickPreferences["media"]["visualFit"],
+                      })
+                    }
+                  >
+                    <option value="fit">Fit · show the whole image</option>
+                    <option value="center">Center · original size</option>
+                    <option value="fill">Fill · cover the screen</option>
+                  </select>
+                </label>
+              )}
               {open && (
                 <div className="qs-media-preview">
                   {kind === "visual" && (
@@ -211,6 +232,7 @@ export function BreakMedia({
                   ) : value.visual ? (
                     <img
                       alt={selected?.name ?? "Selected break image"}
+                      style={{ objectFit: breakVisualObjectFit[value.visualFit ?? "fit"] }}
                       src={url}
                       onError={() =>
                         setError(
@@ -221,6 +243,7 @@ export function BreakMedia({
                   ) : url ? (
                     <img
                       alt="Default break GIF preview"
+                      style={{ objectFit: breakVisualObjectFit[value.visualFit ?? "fit"] }}
                       src={url}
                       onError={() => setError("Default GIF is unavailable")}
                     />
