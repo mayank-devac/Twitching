@@ -8,11 +8,9 @@ export function LaunchChoices({
   cli,
   runner,
   consent,
-  mode,
   changeCli,
   changeRunner,
   changeConsent,
-  changeMode,
   discover,
 }: {
   newSession: boolean;
@@ -20,11 +18,9 @@ export function LaunchChoices({
   cli: Agent;
   runner: "docker" | "native";
   consent: string;
-  mode: "live" | "rehearsal";
   changeCli(cli: Agent): void;
   changeRunner(runner: "docker" | "native"): void;
   changeConsent(value: string): void;
-  changeMode(mode: "live" | "rehearsal"): void;
   discover(): void;
 }) {
   return (
@@ -77,21 +73,6 @@ export function LaunchChoices({
           </p>
         </>
       )}
-      <label>
-        Stream mode
-        <select
-          value={mode}
-          onChange={(e) => changeMode(e.target.value as "live" | "rehearsal")}
-        >
-          <option value="rehearsal">Private rehearsal</option>
-          <option value="live">
-            Live — confirmed private preview & active OBS required
-          </option>
-        </select>
-      </label>
-      <p className="qs-hint">
-        Opening OBS and opening the overlay never start a broadcast.
-      </p>
     </fieldset>
   );
 }

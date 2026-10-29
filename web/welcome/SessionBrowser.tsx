@@ -8,7 +8,8 @@ export interface SessionListing {
   before?: string;
   note?: string;
 }
-// Browsing and selecting are private operations; publication has its own explicit action.
+
+// The browser owns discovery controls; selecting a row only opens the private preview.
 export function SessionBrowser({
   source,
   search,
@@ -35,72 +36,120 @@ export function SessionBrowser({
   select(id: string): void;
 }) {
   return (
-    <section className="welcome-card">
-      <h2>Session browser</h2>
-      <label>
-        Source
-        <select
-          value={source}
-          onChange={(e) => changeSource(e.target.value as typeof source)}
-        >
-          <option value="managed">Managed sessions (Codex & Cursor)</option>
-          <option value="codex">Codex saved sessions</option>
-          <option value="cursor">Cursor existing sessions — unavailable</option>
-        </select>
-      </label>
-      <label>
-        Search title or project
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => changeSearch(e.target.value)}
-        />
-      </label>
-      <button disabled={busy} onClick={refresh}>
-        Refresh sessions
-      </button>
-      {listing.note && <p className="qs-hint">{listing.note}</p>}
-      {(["codex", "cursor"] as const).map((cli) => (
-        <div key={cli}>
-          <h3>{cli}</h3>
-          {listing.conversations
-            .filter((c) => c.cli === cli)
-            .map((c) => (
-              <button
-                className="session-choice"
-                key={c.id}
-                disabled={busy}
-                aria-pressed={c.id === selectedId}
-                onClick={() => select(c.id)}
-              >
-                <b>{c.title}</b>
+    <section className="session-browser">
+      <div className="session-toolbar">
+        <label className="session-search">
+          <span className="sr-only">Search sessions</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.5-3.5" />
+          </svg>
+          <input
+            type="search"
+            placeholder="Search sessions"
+            value={search}
+            onChange={(e) => changeSearch(e.target.value)}
+          />
+        </label>
+        <label className="session-source">
+          <span className="sr-only">Session source</span>
+          <select
+            value={source}
+            onChange={(e) => changeSource(e.target.value as typeof source)}
+          >
+            <option value="codex">Codex saved</option>
+            <option value="managed">Managed</option>
+            <option value="cursor">Cursor saved</option>
+          </select>
+        </label>
+      </div>
+      <div className="session-list-card">
+        {(["codex", "cursor"] as const).map((cli) => {
+          const rows = listing.conversations.filter((c) => c.cli === cli);
+          if (source === "managed" && !rows.length) return null;
+          if (source !== "managed" && source !== cli) return null;
+          return (
+            <section className="session-group" key={cli}>
+              <header>
                 <span>
-                  {c.project} {c.model && `· ${c.model}`}
+                  {cli.toUpperCase()} ·{" "}
+                  {source === "managed" ? "MANAGED SESSIONS" : "SAVED SESSIONS"}
                 </span>
-                <small>
-                  {c.updatedAt
-                    ? new Date(c.updatedAt).toLocaleString()
-                    : "Activity unknown"}{" "}
-                  ·{" "}
-                  {c.status === "running"
-                    ? "Running"
-                    : c.status === "idle"
-                      ? "Waiting / Idle"
-                      : c.status === "unknown"
-                        ? "Runtime unknown"
-                        : "Disconnected"}
-                  {c.id === publishedId && " · On stream"}
-                </small>
-              </button>
-            ))}
-        </div>
-      ))}
-      {!listing.conversations.length && <p>No sessions on this page.</p>}
-      {listing.before && (
-        <button disabled={busy} onClick={() => more(listing.before!)}>
-          Load more sessions
-        </button>
-      )}
+                <button
+                  className="refresh-sessions"
+                  disabled={busy}
+                  onClick={refresh}
+                >
+                  Refresh
+                </button>
+              </header>
+              {rows.map((conversation) => (
+                <button
+                  className="session-choice"
+                  key={conversation.id}
+                  disabled={busy}
+                  aria-pressed={conversation.id === selectedId}
+                  onClick={() => select(conversation.id)}
+                >
+                  <span className="session-choice-copy">
+                    <b>{conversation.title}</b>
+                    <small>
+                      {conversation.project}
+                      {conversation.model && ` · ${conversation.model}`}
+                    </small>
+                  </span>
+                  <span className="session-choice-meta">
+                    <time>
+                      {conversation.updatedAt
+                        ? new Date(conversation.updatedAt).toLocaleTimeString(
+                            [],
+                            { hour: "numeric", minute: "2-digit" },
+                          )
+                        : "Unknown"}
+                    </time>
+                    <small>
+                      {conversation.status === "running"
+                        ? "Running"
+                        : conversation.status === "idle"
+                          ? "Waiting"
+                          : conversation.status === "unknown"
+                            ? "Unknown"
+                            : "Disconnected"}
+                      {conversation.id === publishedId && " · On stream"}
+                    </small>
+                  </span>
+                </button>
+              ))}
+              {!rows.length && (
+                <p className="session-list-empty">
+                  No saved Codex sessions on this page.
+                </p>
+              )}
+            </section>
+          );
+        })}
+        {source === "cursor" && (
+          <p className="session-list-empty">
+            Existing Cursor sessions cannot be browsed here. Start a managed
+            Cursor session instead.
+          </p>
+        )}
+        {listing.note && <p className="session-list-note">{listing.note}</p>}
+        {listing.before && (
+          <button
+            className="load-sessions"
+            disabled={busy}
+            onClick={() => more(listing.before!)}
+          >
+            Load more sessions
+          </button>
+        )}
+        {!listing.conversations.length && source === "managed" && (
+          <p className="session-list-empty">
+            No managed sessions yet. Choose New session to start one.
+          </p>
+        )}
+      </div>
     </section>
   );
 }

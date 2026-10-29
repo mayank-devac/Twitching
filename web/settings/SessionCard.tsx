@@ -31,6 +31,8 @@ export function SessionCard({
   remove,
   visibilitySaveLabel = "Saves immediately",
   displayOnly = false,
+  hideVisibility = false,
+  displayName,
 }: {
   session: SessionConfig;
   index: number;
@@ -43,6 +45,8 @@ export function SessionCard({
   remove?: () => void;
   visibilitySaveLabel?: string;
   displayOnly?: boolean;
+  hideVisibility?: boolean;
+  displayName?: string;
 }) {
   const supported = models?.find((m) => m.id === session.model);
   const display = visibility ?? defaultVisibility;
@@ -50,8 +54,8 @@ export function SessionCard({
     <article className="qs-session">
       <div className="qs-row">
         <h3>
-          {session.cli === "codex" ? "Codex" : "Cursor"}{" "}
-          {displayOnly ? "session" : index === 0 ? "Left" : "Right"}
+          {displayName ??
+            `${session.cli === "codex" ? "Codex" : "Cursor"} ${displayOnly ? "session" : index === 0 ? "Left" : "Right"}`}
         </h3>
         <small>{session.id}</small>
         {remove && (
@@ -130,30 +134,32 @@ export function SessionCard({
                 : "Supported choices from the installed CLI."}
           </p>
         </div>
-        <details open className="qs-details qs-visibility-details">
-          <summary>
-            Overlay visibility <small>{visibilitySaveLabel}</small>
-          </summary>
-          <fieldset className="qs-visibility" disabled={busy}>
-            <legend className="qs-sr-only">Overlay visibility</legend>
-            {choices.map(([key, label]) => (
-              <label key={key}>
-                <input
-                  type="checkbox"
-                  checked={!!display[key]}
-                  onChange={(e) =>
-                    toggle({ ...display, [key]: e.target.checked })
-                  }
-                />
-                {label}
-              </label>
-            ))}
-          </fieldset>
-          <p className="qs-hint">
-            Only safe output filenames are shown. Private paths and contents
-            stay hidden; history is kept.
-          </p>
-        </details>
+        {!hideVisibility && (
+          <details open className="qs-details qs-visibility-details">
+            <summary>
+              Overlay visibility <small>{visibilitySaveLabel}</small>
+            </summary>
+            <fieldset className="qs-visibility" disabled={busy}>
+              <legend className="qs-sr-only">Overlay visibility</legend>
+              {choices.map(([key, label]) => (
+                <label key={key}>
+                  <input
+                    type="checkbox"
+                    checked={!!display[key]}
+                    onChange={(e) =>
+                      toggle({ ...display, [key]: e.target.checked })
+                    }
+                  />
+                  {label}
+                </label>
+              ))}
+            </fieldset>
+            <p className="qs-hint">
+              Only safe output filenames are shown. Private paths and contents
+              stay hidden; history is kept.
+            </p>
+          </details>
+        )}
       </div>
     </article>
   );

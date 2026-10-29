@@ -6,6 +6,7 @@ import type {
   SessionView,
 } from "../../shared/sessions.js";
 import type { ModelChoice, SettingsDocument } from "../../shared/settings.js";
+import type { SessionVisibility } from "../../shared/settings.js";
 import { defaultVisibility } from "../../shared/settings.js";
 import { SessionCard } from "../settings/SessionCard.js";
 import { hostRequest } from "../settings/api.js";
@@ -24,6 +25,68 @@ interface Readiness {
   connectors: Record<Agent, ConnectorCapabilities>;
 }
 
+const visibilityChoices: [keyof SessionVisibility, string][] = [
+  ["tool", "Tool use"],
+  ["edit", "Edits"],
+  ["message", "Messages"],
+  ["summary", "Thinking summaries"],
+  ["output", "Output notices"],
+  ["complete", "Completion"],
+  ["error", "Errors"],
+  ["model", "Model name"],
+  ["cliIcon", "CLI icon"],
+  ["cliName", "CLI name"],
+  ["command", "Commands"],
+  ["read", "Read file names"],
+];
+
+function OverlayVisibility({
+  value,
+  busy,
+  change,
+}: {
+  value: SessionVisibility;
+  busy: boolean;
+  change(value: SessionVisibility): void;
+}) {
+  const shown = visibilityChoices.filter(([key]) => value[key]).length;
+  return (
+    <section className="overlay-visibility">
+      <header>
+        <h2>Overlay visibility</h2>
+        <span>
+          {shown} of {visibilityChoices.length} shown
+        </span>
+      </header>
+      <div className="visibility-chips">
+        {visibilityChoices.map(([key, label]) => (
+          <button
+            type="button"
+            key={key}
+            className="visibility-chip"
+            aria-pressed={!!value[key]}
+            disabled={busy}
+            onClick={() => change({ ...value, [key]: !value[key] })}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <label className="hide-runs-choice">
+        <input
+          type="checkbox"
+          checked={!!value.hidePreviousRuns}
+          disabled={busy}
+          onChange={(event) =>
+            change({ ...value, hidePreviousRuns: event.target.checked })
+          }
+        />
+        Hide previous prompt runs <span>(history is kept)</span>
+      </label>
+    </section>
+  );
+}
+
 // The welcome dialog edits the same revisioned preferences as Quick Settings.
 export function Welcome({
   token,
@@ -40,7 +103,7 @@ export function Welcome({
   const [nativeConsent, setNativeConsent] = useState("");
   const [models, setModels] = useState<ModelChoice[]>();
   const [choice, setChoice] = useState<SessionConfig>();
-  const [source, setSource] = useState<"managed" | Agent>("managed");
+  const [source, setSource] = useState<"managed" | Agent>("codex");
   const [search, setSearch] = useState("");
   const [listing, setListing] = useState<Listing>({ conversations: [] });
   const [selected, setSelected] = useState<SessionView>();
@@ -280,27 +343,38 @@ export function Welcome({
     document?.value.visibility[slot] ??
     selected?.visibility ??
     defaultVisibility;
+  const updateVisibility = (next: SessionVisibility) =>
+    setDocument(
+      (current) =>
+        current && {
+          ...current,
+          value: {
+            ...current.value,
+            visibility: { ...current.value.visibility, [slot]: next },
+          },
+        },
+    );
+  const toolStatus = (name: string) =>
+    ready?.tools.find((tool) => tool.name === name);
   return (
     <main className="welcome-page">
       <header className="welcome-header">
         <div>
           <span className="welcome-eyebrow">TWITCHING</span>
           <h1>Share the work. Keep your screen private.</h1>
-          <p>
-            Choose a session, preview its conversation, then decide what goes on
-            stream.
-          </p>
         </div>
-        <a href="/control/settings">Quick Settings ↗</a>
+        <a className="quick-settings-link" href="/control/settings">
+          Quick settings ↗
+        </a>
       </header>
       <div className="welcome-layout">
-        <section className="welcome-controls">
+        <aside className="welcome-controls">
           <nav className="welcome-options" aria-label="Experience">
             {(
               [
-                ["existing", "Share existing session"],
-                ["new", "Start new session"],
-                ["arena", "Existing prompt arena"],
+                ["existing", "Existing session"],
+                ["new", "New session"],
+                ["arena", "Prompt arena"],
               ] as const
             ).map(([id, title]) => (
               <button
@@ -317,130 +391,15 @@ export function Welcome({
             ))}
           </nav>
           {error && (
-            <p className="qs-error" role="alert">
-              {error}{" "}
-              <button onClick={() => location.reload()}>Reload latest</button>
+            <p className="welcome-error" role="alert">
+              {error} <button onClick={() => location.reload()}>Reload</button>
             </p>
           )}
-          {notice && <p role="status">{notice}</p>}
-          <LaunchChoices
-            newSession={path === "new"}
-            busy={busy || !document}
-            cli={cli}
-            runner={runner}
-            consent={nativeConsent}
-            mode={document?.value.stream.mode ?? "rehearsal"}
-            changeCli={(next) => {
-              setCli(next);
-              setModels(undefined);
-              setChoice({ id: "session-1", cli: next, model: "" });
-            }}
-            changeRunner={(next) => {
-              setRunner(next);
-              setModels(undefined);
-              setNativeConsent("");
-            }}
-            changeConsent={setNativeConsent}
-            changeMode={(mode) =>
-              setDocument(
-                (d) =>
-                  d && {
-                    ...d,
-                    value: { ...d.value, stream: { ...d.value.stream, mode } },
-                  },
-              )
-            }
-            discover={() => void discover()}
-          />
-          {document && (
-            <>
-              {path === "existing" &&
-                selected?.conversation.source === "managed" && (
-                  <button disabled={busy} onClick={() => void discover()}>
-                    Load models for this session’s next prompt
-                  </button>
-                )}
-              <SessionCard
-                displayOnly={
-                  path !== "new" && selected?.conversation.source !== "managed"
-                }
-                visibilitySaveLabel="Save with Continue or Show on stream"
-                session={
-                  (path === "new" ||
-                    selected?.conversation.source === "managed") &&
-                  choice
-                    ? choice
-                    : (document.value.sessions.find((s) => s.id === slot) ??
-                      document.value.sessions[0])
-                }
-                index={0}
-                visibility={visibility}
-                models={models}
-                busy={busy}
-                change={setChoice}
-                toggle={(v) =>
-                  setDocument(
-                    (d) =>
-                      d && {
-                        ...d,
-                        value: {
-                          ...d.value,
-                          visibility: { ...d.value.visibility, [slot]: v },
-                        },
-                      },
-                  )
-                }
-              />
-            </>
+          {notice && (
+            <p className="welcome-notice" role="status">
+              {notice}
+            </p>
           )}
-          <p className="qs-hint">
-            Keep previous prompt runs visible by default. The hide option
-            changes the display only; history is never deleted.
-          </p>
-          <div className="welcome-actions">
-            <button
-              disabled={busy}
-              onClick={() =>
-                void perform(() =>
-                  request("/api/sessions/action", { action: "open-obs" }),
-                )
-              }
-            >
-              Open OBS
-            </button>
-            <a
-              className="welcome-button"
-              href="/overlay"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Preview overlay
-            </a>
-            <button
-              className="primary"
-              disabled={busy || !document}
-              onClick={() => void continueFlow()}
-            >
-              Continue
-            </button>
-          </div>
-          <details className="welcome-card">
-            <summary>Readiness & connector limits</summary>
-            {ready?.tools.map((t) => (
-              <p key={t.name}>
-                {t.name}: {t.available ? "Ready" : "Needs attention"} ·{" "}
-                {t.message}
-              </p>
-            ))}
-            <p>{ready?.login}</p>
-            <p>{ready?.obs}</p>
-            {ready &&
-              Object.entries(ready.connectors).map(([name, c]) => (
-                <p key={name}>
-                  <b>{name}:</b> {c.note}
-                </p>
-              ))}
-          </details>
           {path === "existing" && (
             <SessionBrowser
               source={source}
@@ -456,169 +415,363 @@ export function Welcome({
               select={(id) => void preview(id)}
             />
           )}
-        </section>
-        <section className="welcome-preview">
-          <header className="welcome-preview-heading">
-            <span>Private session preview</span>
-            <button
-              disabled={busy}
-              onClick={() =>
-                void perform(async () => {
-                  await request("/api/sessions/action", {
-                    action: "unpublish",
-                  });
-                  setSelected((s) => s && { ...s, published: false });
-                  setListing((s) => ({ ...s, publishedId: undefined }));
-                })
-              }
-            >
-              Stop publication
-            </button>
-          </header>
-          {selected ? (
-            <>
-              <nav className="welcome-actions" aria-label="Session view">
-                <button onClick={() => setResultUrl("")}>Conversation</button>
-                <button
-                  disabled={busy || !selected.conversation.result}
-                  onClick={() =>
-                    void perform(async () => {
-                      const result = await request<{ url: string }>(
-                        `/api/sessions/result?id=${encodeURIComponent(selected.conversation.id)}`,
-                      );
-                      setResultUrl(result.url);
-                    })
-                  }
-                >
-                  Result (optional HTML)
-                </button>
-              </nav>
-              <div hidden={!!resultUrl}>
-                <Timeline
-                  key={selected.conversation.id}
-                  view={selected}
-                  older={(before) =>
-                    request(
-                      `/api/sessions/view?${new URLSearchParams({ id: selected.conversation.id, before })}`,
-                    )
-                  }
-                />
-              </div>
-              {resultUrl && (
-                <iframe
-                  className="session-result"
-                  title="Isolated optional HTML result"
-                  src={resultUrl}
-                  sandbox="allow-scripts allow-same-origin"
+          {path === "new" && document && (
+            <div className="new-session-settings">
+              <LaunchChoices
+                newSession
+                busy={busy}
+                cli={cli}
+                runner={runner}
+                consent={nativeConsent}
+                changeCli={(next) => {
+                  setCli(next);
+                  setModels(undefined);
+                  setChoice({ id: "session-1", cli: next, model: "" });
+                }}
+                changeRunner={(next) => {
+                  setRunner(next);
+                  setModels(undefined);
+                  setNativeConsent("");
+                }}
+                changeConsent={setNativeConsent}
+                discover={() => void discover()}
+              />
+              {choice && (
+                <SessionCard
+                  hideVisibility
+                  displayName="New managed session"
+                  visibilitySaveLabel="Save with Continue"
+                  session={choice}
+                  index={0}
+                  visibility={visibility}
+                  models={models}
+                  busy={busy}
+                  change={setChoice}
+                  toggle={updateVisibility}
                 />
               )}
+            </div>
+          )}
+          {path === "existing" &&
+            selected?.conversation.source === "managed" && (
+              <details className="session-model-settings">
+                <summary>
+                  Next prompt model ·{" "}
+                  {choice?.model ?? selected.conversation.model}
+                </summary>
+                <button disabled={busy} onClick={() => void discover()}>
+                  Refresh models
+                </button>
+                {choice && (
+                  <SessionCard
+                    hideVisibility
+                    displayName="Managed session"
+                    session={choice}
+                    index={0}
+                    visibility={visibility}
+                    models={models}
+                    busy={busy}
+                    change={setChoice}
+                    toggle={updateVisibility}
+                  />
+                )}
+              </details>
+            )}
+          {path === "arena" && (
+            <div className="arena-hint">
+              <b>Existing prompt arena</b>
+              <span>
+                Continue to open the arena controls. Its existing HTML result
+                rules remain in place.
+              </span>
+            </div>
+          )}
+          <details className="welcome-readiness">
+            <summary>Readiness and connector limits</summary>
+            {ready?.tools.map((tool) => (
+              <p key={tool.name}>
+                {tool.name}: {tool.available ? "Ready" : "Needs attention"} ·{" "}
+                {tool.message}
+              </p>
+            ))}
+            <p>{ready?.login}</p>
+            <p>{ready?.obs}</p>
+            {ready &&
+              Object.entries(ready.connectors).map(([name, connector]) => (
+                <p key={name}>
+                  <b>{name}:</b> {connector.note}
+                </p>
+              ))}
+          </details>
+        </aside>
+        <section className="welcome-content">
+          <div className="preview-card">
+            <header className="preview-card-heading">
+              <span>
+                Private preview{" "}
+                <small
+                  className={
+                    selected?.published
+                      ? "published-status"
+                      : "unpublished-status"
+                  }
+                >
+                  {selected?.published ? "On stream" : "Not published"}
+                </small>
+              </span>
               <button
-                className="primary"
-                disabled={busy}
+                className="ghost-button"
+                disabled={busy || !listing.publishedId}
                 onClick={() =>
                   void perform(async () => {
-                    await save();
                     await request("/api/sessions/action", {
-                      action: "publish",
-                      id: selected.conversation.id,
+                      action: "unpublish",
                     });
-                    setSelected((s) => s && { ...s, published: true });
-                    setListing((s) => ({
-                      ...s,
-                      publishedId: selected.conversation.id,
+                    setSelected(
+                      (current) => current && { ...current, published: false },
+                    );
+                    setListing((current) => ({
+                      ...current,
+                      publishedId: undefined,
                     }));
                   })
                 }
               >
-                Show conversation on stream
+                Stop publication
               </button>
-              {selected.published &&
-                document?.value.stream.mode === "rehearsal" && (
+            </header>
+            {selected ? (
+              <>
+                <nav className="preview-tabs" aria-label="Preview content">
                   <button
-                    disabled={busy}
+                    aria-pressed={!resultUrl}
+                    onClick={() => setResultUrl("")}
+                  >
+                    Conversation
+                  </button>
+                  <button
+                    aria-pressed={!!resultUrl}
+                    disabled={busy || !selected.conversation.result}
                     onClick={() =>
                       void perform(async () => {
-                        await request("/api/sessions/action", {
-                          action: "confirm-rehearsal",
-                          id: selected.conversation.id,
-                        });
-                        setNotice(
-                          "Private rehearsal confirmed for this session. You can now choose live mode and publish after starting OBS manually.",
+                        const result = await request<{ url: string }>(
+                          `/api/sessions/result?id=${encodeURIComponent(selected.conversation.id)}`,
                         );
+                        setResultUrl(result.url);
                       })
                     }
                   >
-                    Confirm private rehearsal
+                    Result
                   </button>
+                </nav>
+                <div className="preview-scroll" hidden={!!resultUrl}>
+                  <Timeline
+                    key={selected.conversation.id}
+                    view={selected}
+                    older={(before) =>
+                      request<SessionView>(
+                        `/api/sessions/view?${new URLSearchParams({ id: selected.conversation.id, before })}`,
+                      )
+                    }
+                  />
+                  {selected.conversation.source === "managed" && (
+                    <form
+                      className="welcome-prompt"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void perform(async () => {
+                          await save();
+                          await request("/api/sessions/action", {
+                            action: "run",
+                            id: selected.conversation.id,
+                            text: prompt,
+                            ...(nativeConsent === "NATIVE"
+                              ? { nativeConsent }
+                              : {}),
+                          });
+                          setPrompt("");
+                          setResultUrl("");
+                        });
+                      }}
+                    >
+                      <textarea
+                        aria-label="Next prompt"
+                        maxLength={12000}
+                        value={prompt}
+                        onChange={(event) => setPrompt(event.target.value)}
+                        placeholder="Explain code, fix a bug, or build something…"
+                      />
+                      {selected.conversation.runner === "native" && (
+                        <label className="native-consent">
+                          Type NATIVE to approve this server’s native runs
+                          <input
+                            value={nativeConsent}
+                            onChange={(event) =>
+                              setNativeConsent(event.target.value)
+                            }
+                            autoComplete="off"
+                          />
+                        </label>
+                      )}
+                      <button
+                        className="send-prompt"
+                        disabled={
+                          busy ||
+                          !prompt.trim() ||
+                          selected.conversation.pendingRun
+                        }
+                      >
+                        {selected.conversation.pendingRun
+                          ? "Prompt running"
+                          : "Send prompt"}
+                      </button>
+                    </form>
+                  )}
+                  {selected.conversation.source !== "managed" && (
+                    <p className="read-only-note">
+                      Read-only saved history. Sending prompts and controlling
+                      this external CLI are unavailable.
+                    </p>
+                  )}
+                </div>
+                {resultUrl && (
+                  <iframe
+                    className="session-result"
+                    title="Isolated optional HTML result"
+                    src={resultUrl}
+                    sandbox="allow-scripts allow-same-origin"
+                  />
                 )}
-              {selected.conversation.source === "managed" ? (
-                <form
-                  className="welcome-prompt"
-                  onSubmit={(e) => {
-                    e.preventDefault();
+              </>
+            ) : (
+              <div className="preview-empty">
+                <h2>Pick a session to preview</h2>
+                <p>
+                  Nothing reaches the overlay until you choose Show on stream.
+                </p>
+              </div>
+            )}
+            {selected && (
+              <div className="publication-actions">
+                {selected.published &&
+                  document?.value.stream.mode === "rehearsal" && (
+                    <button
+                      className="ghost-button"
+                      disabled={busy}
+                      onClick={() =>
+                        void perform(async () => {
+                          await request("/api/sessions/action", {
+                            action: "confirm-rehearsal",
+                            id: selected.conversation.id,
+                          });
+                          setNotice(
+                            "Private rehearsal confirmed. Start OBS manually before choosing live mode.",
+                          );
+                        })
+                      }
+                    >
+                      Confirm private rehearsal
+                    </button>
+                  )}
+                <button
+                  className="primary-button"
+                  disabled={busy}
+                  onClick={() =>
                     void perform(async () => {
                       await save();
                       await request("/api/sessions/action", {
-                        action: "run",
+                        action: "publish",
                         id: selected.conversation.id,
-                        text: prompt,
-                        ...(nativeConsent === "NATIVE"
-                          ? { nativeConsent }
-                          : {}),
                       });
-                      setPrompt("");
-                      setResultUrl("");
-                    });
-                  }}
+                      setSelected(
+                        (current) => current && { ...current, published: true },
+                      );
+                      setListing((current) => ({
+                        ...current,
+                        publishedId: selected.conversation.id,
+                      }));
+                    })
+                  }
                 >
-                  <label>
-                    Next prompt
-                    <textarea
-                      maxLength={12000}
-                      value={prompt}
-                      onChange={(e) => setPrompt(e.target.value)}
-                      placeholder="Explain code, fix a bug, or build something…"
-                    />
-                  </label>
-                  {selected.conversation.runner === "native" && (
-                    <label>
-                      Native runs have access to this computer. Type NATIVE if
-                      this server has not been approved yet.
-                      <input
-                        value={nativeConsent}
-                        onChange={(e) => setNativeConsent(e.target.value)}
-                        autoComplete="off"
-                      />
-                    </label>
-                  )}
-                  <button
-                    disabled={
-                      busy || !prompt.trim() || selected.conversation.pendingRun
-                    }
-                  >
-                    {selected.conversation.pendingRun
-                      ? "Prompt running"
-                      : "Send prompt"}
-                  </button>
-                </form>
-              ) : (
-                <p className="qs-hint">
-                  Read-only saved history. Sending prompts, resuming, and
-                  controlling this external CLI are disabled.
-                </p>
-              )}
-            </>
-          ) : (
-            <div className="welcome-empty">
-              <h2>Your conversation appears here.</h2>
-              <p>
-                Choose a session or start a new one. Nothing from this private
-                preview goes to the overlay until you select Show on stream.
-              </p>
-            </div>
-          )}
+                  {selected.published ? "On stream" : "Show on stream"}
+                </button>
+              </div>
+            )}
+          </div>
+          <OverlayVisibility
+            value={visibility}
+            busy={busy}
+            change={updateVisibility}
+          />
         </section>
       </div>
+      <footer className="welcome-footer">
+        <div className="footer-status">
+          <label className="footer-mode">
+            Mode
+            <select
+              value={document?.value.stream.mode ?? "rehearsal"}
+              disabled={!document || busy}
+              onChange={(event) =>
+                setDocument(
+                  (current) =>
+                    current && {
+                      ...current,
+                      value: {
+                        ...current.value,
+                        stream: {
+                          ...current.value.stream,
+                          mode: event.target.value as "live" | "rehearsal",
+                        },
+                      },
+                    },
+                )
+              }
+            >
+              <option value="rehearsal">Private rehearsal</option>
+              <option value="live">Live</option>
+            </select>
+          </label>
+          {(["Codex", "Docker", "Cursor"] as const).map((name) => {
+            const tool = toolStatus(name);
+            return (
+              <span className="readiness-pill" key={name}>
+                <i className={tool?.available ? "ready" : "missing"} />
+                {name}
+                <b>{tool?.message ?? "Checking"}</b>
+              </span>
+            );
+          })}
+        </div>
+        <div className="footer-actions">
+          <button
+            className="ghost-button"
+            disabled={busy}
+            onClick={() =>
+              void perform(() =>
+                request("/api/sessions/action", { action: "open-obs" }),
+              )
+            }
+          >
+            Open OBS
+          </button>
+          <a
+            className="ghost-button"
+            href="/overlay"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Preview overlay
+          </a>
+          <button
+            className="primary-button"
+            disabled={busy || !document}
+            onClick={() => void continueFlow()}
+          >
+            Continue
+          </button>
+        </div>
+      </footer>
     </main>
   );
 }
