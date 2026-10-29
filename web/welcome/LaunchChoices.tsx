@@ -54,8 +54,7 @@ export function LaunchChoices({
           </label>
           {runner === "native" && (
             <label>
-              Native agents run without Docker isolation. The NATIVE opt-in is
-              filled.
+              Native — no Docker isolation. Type NATIVE to accept.
               <input
                 value={consent}
                 onChange={(e) => changeConsent(e.target.value)}
@@ -63,14 +62,10 @@ export function LaunchChoices({
               />
             </label>
           )}
-          <button onClick={discover}>
-            Load installed models / check login
-          </button>
+          <button onClick={discover}>Load installed models</button>
           <p className="qs-hint">
-            Each prompt starts a fresh CLI process in this session’s workspace,
-            with up to 24,000 characters of recent conversation. Files remain;
-            older messages stay in history. No model starts until you send a
-            prompt.
+            Each prompt starts a fresh CLI process in this workspace. No model
+            starts until you send a prompt.
           </p>
         </>
       )}

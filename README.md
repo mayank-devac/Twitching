@@ -59,7 +59,9 @@ Jev safety checks remain enabled.
 
 The **Multiple overlays** panel sits below Overlay visibility. Choose or create a named output, then tick up to **eight sessions** in the session browser. **Apply to this overlay** changes its assignment, including during a stream; **Publish overlay** enables it. Paste that output's URL into its own OBS browser source. Main uses `/overlay`; named outputs use `/overlay/<id>`. Changes keep the same URL and do not require replacing the OBS source.
 
-Choose **Selected sessions**, **Running now — fixed selection**, or **Follow running — automatic**. A fixed capture keeps its sessions after they finish, until you capture again or change the assignment. Automatic mode adds and removes verified running sessions, taking the first eight when more are running. Only general coding sessions started and observed by Twitching have reliable runtime status; external Codex history remains Unknown and can be selected manually. Live automatic additions must also satisfy the existing rehearsal checks.
+Agent replies in the prompt arena and session overlays render GitHub-style Markdown tables. Wide tables scroll inside the message, including narrow multi-session tiles. Raw HTML and remote images from replies are not rendered.
+
+Choose **Selected sessions**, **Running now — fixed selection**, or **Follow managed running — automatic**. A fixed capture keeps its sessions after they finish, until you capture again or change the assignment. Automatic mode adds and removes managed sessions with verified running activity, taking the first eight when more are running. External Codex history remains Unknown and must be selected manually. Live automatic additions must also satisfy the existing rehearsal checks.
 
 Each output divides its area into independent conversation tiles. History, reconnect patches and public history requests are scoped to that output and conversation. The latest page is bounded to 20 text fragments per tile; older pages remain accessible. Visibility choices belong to the session and apply wherever it appears. Different outputs can show different session sets, including the same session on multiple outputs.
 
@@ -664,3 +666,30 @@ Released under the [MIT License](LICENSE) — © 2026 Bikash Ranjan Baral and Ma
 
 ___
 > **Status: early alpha.** things works. but it is messy, kind of imperfect, and the code is not optimim. everyone can contribute.
+
+
+### Privacy, goals and pre-live review
+
+The Welcome header keeps **Use last setup**, **Shortcuts** and **Quick settings** in one row. In **Multiple overlays**, choose an output to access its **Hide overlay / Show overlay** button and goal/stopwatch popover. **Hide all overlays / Show all overlays** remains a separate emergency action in that panel. All controls match the dark purple UI. Per-output Hide persists in SQLite across reloads and server restart, replaces only that public output with “Back shortly”, blocks that output’s public history requests (and Main’s result preview), and strips coding content and goal text from public snapshots and WebSocket patches. Private host transcripts and coding processes continue; hiding does not create a break, stop OBS or reset time. Reveal sends a complete fresh snapshot before further text patches. Show all removes the global privacy flag; it preserves any output hidden individually. Show overlay never starts an unpublished output—use Publish overlay separately. Previously delivered/broadcast content cannot be recalled, and a disconnected control page cannot send Hide. Public pages replace their content when they detect a disconnected socket; network failure detection is not instantaneous.
+
+With a host page focused, **Alt + Shift + H** hides all outputs and **Alt + Shift + S** removes that global hide. Individual output hides stay in place. These commands ignore repeated keys, typing fields and text composition. They are page shortcuts, not system-wide shortcuts. Choose other OS-level bindings if your desktop already reserves the suggested keys.
+
+For privacy while your editor has focus, create a neutral **Privacy** scene in OBS. In **Settings → Hotkeys**, assign separate unused shortcuts to **Switch to scene: Privacy** and to your normal scene (for example Ctrl + Shift + F9 / F10). In **Settings → Advanced → Hotkeys**, set **Never disable hotkeys**, then Apply. Grant keyboard access if macOS requests it. Test with the editor focused and inspect **Program** output; Studio Mode may require an explicit transition. OBS's native hotkeys do not require a helper or new dependency. This app never changes your scenes/settings automatically. Switching OBS scenes affects the broadcast only; also use this app's Hide action if its browser feed must stop publishing. See the [OBS project hotkey focus reference](https://github.com/obsproject/obs-studio/issues/6624).
+
+**Goal & stopwatch** offers **Own goal + stopwatch** or **Shared goal + stopwatch** for each output. New outputs start with their own empty goal and paused clock; existing outputs retain the shared pair during migration. Shared edits, Pause and Reset affect every output using that pair. Switching sources does not copy or reset time; an already-running inactive clock continues until explicitly paused. The badge shows up to 160 characters of redacted plain text with the stopwatch in a compact bottom-left corner badge. A running or previously started stopwatch can also appear without goal text. The overlay checkbox can hide the strip independently. Start, Pause/Resume and Reset are manual; editing or clearing the goal does not reset time. Hide leaves time running. All tabs derive elapsed duration from the server's start time. A clean restart restores accumulated time **paused**; a crash restores the most recent one-second checkpoint, excluding downtime. Reset requires a separate confirmation and preserves running/paused mode.
+
+**Use last setup** reviews the most recently applied welcome configuration before Apply. It shows the selected session/CLI, model/effort where known, runner, stream mode and visibility/history choices. It stores only allowlisted public choices; credentials, native consent and prompt text are excluded. Apply rechecks installed models and the saved session, rejects stale settings, and preserves unrelated session choices. It never creates a run, publishes an overlay, reveals a hidden feed or starts OBS. A saved native runner still needs the normal explicit native consent. If a saved session/model is gone, use the existing manual path.
+
+The **Short pre-live check** records the host's confirmation of the correct session, readability at target output dimensions, visibility in OBS Program output and audible break music through the intended OBS path. Preview and test audio are deliberate controls and do not start broadcasting. Same-origin tabs in one browser share an audio lock; OBS has a separate browser profile, so stop a local audio test before listening in OBS. A file/source existing does not prove visible or audible output. Changes to relevant model, visibility, goal, media or output assignments require renewed confirmation; collection timing and renaming an overlay do not. Review each intended private layout before switching it live. Existing successful-rehearsal and manual OBS-start gates still apply, including after reuse of last setup. Checklist confirmations are session-memory only and expire on server restart.
+
+Host refreshes use one active request, one coalesced follow-up and a minimum 750ms interval between starts. Live WebSocket text patches remain immediate. Session/experience changes, privacy transitions, disconnects, token replacement and unmount invalidate old host responses.
+
+Focused verification (not run during implementation):
+
+```sh
+npx tsx --test tests/presentation.test.ts tests/host-refresh.test.ts tests/overlays.test.ts tests/session-publication.test.ts
+npm run check
+npm run build
+```
+
+Real OBS hotkeys, keyboard focus, multi-tab playback and target-size readability/audibility still need a private rehearsal in the actual browser and OBS installation.

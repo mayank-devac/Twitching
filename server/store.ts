@@ -52,11 +52,11 @@ export class Store {
       CREATE TABLE IF NOT EXISTS gifts (viewer TEXT PRIMARY KEY, at INTEGER NOT NULL, evidence TEXT NOT NULL);`);
   }
   // Session-scoped keyset pages retain old prompts without loading a whole transcript.
-  presentation(): import("../shared/presentation.js").Presentation | undefined {
+  presentation(): (import("../shared/presentation.js").Presentation & Partial<Pick<import("../shared/presentation.js").SavedPresentation, "outputs" | "revision">>) | undefined {
     const row = this.db.prepare("SELECT value FROM presentation WHERE id=1").get() as { value: string } | undefined;
     return row ? JSON.parse(row.value) : undefined;
   }
-  savePresentation(value: import("../shared/presentation.js").Presentation) {
+  savePresentation(value: import("../shared/presentation.js").SavedPresentation) {
     this.db.prepare("INSERT OR REPLACE INTO presentation VALUES (1,?)").run(JSON.stringify(value));
   }
   lastSetup(): import("../shared/settings.js").LastSetup | undefined {

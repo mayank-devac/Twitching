@@ -54,7 +54,7 @@ export class Sessions extends EventEmitter {
   private closing = false;
   private rehearsals = new Set<string>();
   // HTTP supplies the host-confirmed checklist without coupling it to provider connectors.
-  requirePresentationRehearsal: (context: string) => void = () => {};
+  requirePresentationRehearsal: (context: string, output?: import("../../shared/sessions.js").OverlayDefinition) => void = () => {};
   get mode() { return this.preferences.get().value.stream.mode; }
   private publicationMode?: "live" | "rehearsal";
   readonly recoveryRunners: Set<"docker" | "native">;
@@ -91,11 +91,11 @@ export class Sessions extends EventEmitter {
         if (!this.rehearsals.has(id)) return false;
         try { this.requirePresentationRehearsal(id); return true; } catch { return false; }
       },
-      approve: async (ids) => {
+      approve: async (ids, output) => {
         if (!this.arenaIdle())
           throw new Error("Stop the prompt arena before publishing sessions");
         if (preferences.get().value.stream.mode === "live") {
-          for (const id of ids) this.requirePresentationRehearsal(id);
+          for (const id of ids) this.requirePresentationRehearsal(id, output);
           if (ids.some((id) => !this.rehearsals.has(id)))
             throw new Error(
               "Confirm a private rehearsal for every selected session before publishing live",

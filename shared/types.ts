@@ -153,6 +153,8 @@ export interface Round {
   attempts: Record<SessionId, Attempt>;
 }
 export interface ShowState {
+  // Opaque selection generation lets host fetches expire even while public content is hidden.
+  hostContext?: number;
   presentation?: import("./presentation.js").Presentation;
   experience?: import("./sessions.js").Experience;
   sharedSession?: import("./sessions.js").SessionView;

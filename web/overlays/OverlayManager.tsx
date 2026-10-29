@@ -12,17 +12,21 @@ import "./overlays.css";
 export function OverlayManager({
   editor,
   conversations,
+  children,
 }: {
   editor: OverlayEditor;
   conversations: Conversation[];
+  children?: React.ReactNode;
 }) {
   const [name, setName] = useState("");
+  const [copied, setCopied] = useState(false);
   const { document, draft } = editor;
   if (!document || !draft)
     return (
       <section className="multi-overlays">
-        <h2>Multiple overlays</h2>
+        <h2>Overlay output</h2>
         <p>{editor.error || "Loading overlays…"}</p>
+        {children}
       </section>
     );
   const url =
@@ -39,14 +43,89 @@ export function OverlayManager({
     document.running.length - MAX_OVERLAY_SESSIONS,
   );
   const applied = document.overlays.find((overlay) => overlay.id === draft.id);
+  async function copyUrl() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard permission denied; the input stays selectable.
+    }
+  }
+  const selectionLabel =
+    draft.selection === "selected"
+      ? "Selected"
+      : draft.selection === "running-snapshot"
+        ? "Running"
+        : "Automatic";
   return (
-    <section className="multi-overlays" aria-label="Multiple overlays">
+    <section className="multi-overlays" aria-label="Overlay output">
       <header className="overlay-heading">
-        <h2>Multiple overlays</h2>
-        <span>
+        <h2>Overlay output</h2>
+        <span className="overlay-heading-meta">
           {document.overlays.length}{" "}
-          {document.overlays.length === 1 ? "output" : "outputs"}
+          {document.overlays.length === 1 ? "output" : "outputs"} ·{" "}
+          {applied?.published ? "On stream" : "Not published"}
         </span>
+        <details className="overlay-menu">
+          <summary
+            aria-label="More output options"
+            title="Create, capture or delete outputs"
+          >
+            ⋯
+          </summary>
+          <div className="overlay-menu-panel">
+            <label className="overlay-menu-new">
+              New output
+              <input
+                placeholder="Name"
+                value={name}
+                maxLength={80}
+                disabled={editor.busy}
+                onChange={(event) => setName(event.target.value)}
+              />
+            </label>
+            <button
+              disabled={
+                editor.busy ||
+                editor.dirty ||
+                document.overlays.length >= MAX_OVERLAYS ||
+                !name.trim()
+              }
+              onClick={async () => {
+                if (await editor.create(name.trim())) setName("");
+              }}
+            >
+              Create output
+            </button>
+            <button
+              disabled={editor.busy || draft.id === "default" || editor.stale}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Delete this output and its URL assignment? Coding sessions will keep running.",
+                  )
+                )
+                  void editor.remove();
+              }}
+            >
+              Delete this output
+            </button>
+            {draft.selection === "running-snapshot" && (
+              <button disabled={editor.busy} onClick={editor.capture}>
+                Capture running sessions again
+              </button>
+            )}
+            {draft.selection === "running-snapshot" && draft.capturedAt && (
+              <p>
+                Last captured {new Date(draft.capturedAt).toLocaleString()}.
+              </p>
+            )}
+            {document.overlays.length >= MAX_OVERLAYS && (
+              <p>All {MAX_OVERLAYS} output slots are in use.</p>
+            )}
+          </div>
+        </details>
       </header>
       <div className="overlay-editor-fields">
         <label>
@@ -82,7 +161,7 @@ export function OverlayManager({
               className="overlay-mode-info"
               tabIndex={0}
               aria-label="Automatic session eligibility"
-              title="Automatic mode includes sessions started by Twitching with verified running activity. Saved external Codex history has unknown status; select those sessions manually. Live outputs require rehearsal confirmation."
+              title="Automatic mode follows managed sessions with verified running activity. External Codex history has unknown status and must be selected manually. Live outputs require rehearsal confirmation."
             >
               ⓘ
             </span>
@@ -95,119 +174,83 @@ export function OverlayManager({
             }
           >
             <option value="selected">Selected sessions</option>
-            <option value="running-snapshot">
-              Running now — fixed selection
-            </option>
-            <option value="follow-running">Follow running — automatic</option>
+            <option value="running-snapshot">Running now</option>
+            <option value="follow-running">Follow running</option>
           </select>
         </label>
-        <label>
-          New overlay
-          <input
-            placeholder="Overlay name"
-            value={name}
-            maxLength={80}
-            disabled={editor.busy}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </label>
+        <div className="overlay-selection-col">
+          <h3>
+            {selectionLabel} · {draft.sessionIds.length} /{" "}
+            {MAX_OVERLAY_SESSIONS}
+          </h3>
+          <div className="overlay-chips">
+            {draft.sessionIds.map((id) => (
+              <div className="overlay-chip" key={id}>
+                <span>{titles.get(id) ?? id}</span>
+                <button
+                  aria-label={"Remove " + (titles.get(id) ?? id)}
+                  disabled={editor.busy || draft.selection === "follow-running"}
+                  onClick={() => editor.toggle(id)}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            {!draft.sessionIds.length && (
+              <span className="overlay-chips-empty">
+                Tick sessions in the list on the left
+              </span>
+            )}
+          </div>
+          <small>
+            {applied?.published
+              ? `On stream · ${applied.sessionIds.length}`
+              : "Not published"}
+            {editor.dirty && " · Apply to update"}
+          </small>
+        </div>
       </div>
-      <div className="overlay-editor-actions">
-        <button
-          disabled={
-            editor.busy ||
-            editor.dirty ||
-            document.overlays.length >= MAX_OVERLAYS ||
-            !name.trim()
-          }
-          onClick={async () => {
-            if (await editor.create(name.trim())) setName("");
-          }}
-        >
-          Create overlay
-        </button>
-        <button disabled={editor.busy} onClick={editor.reload}>
-          Reload latest
-        </button>
-      </div>
-      {document.overlays.length >= MAX_OVERLAYS && (
-        <p>All {MAX_OVERLAYS} output slots are in use.</p>
-      )}
-      <div className="overlay-target-summary">
-        <b>
-          {draft.sessionIds.length} / {MAX_OVERLAY_SESSIONS}{" "}
-          {editor.dirty ? "in draft" : "sessions"}
-        </b>
-        <span>
-          {applied?.published
-            ? "Live output: " +
-              applied.sessionIds.length +
-              (applied.sessionIds.length === 1 ? " session" : " sessions")
-            : "Not published"}
-        </span>
-        {editor.dirty && <span>Apply to update this output</span>}
-      </div>
-      {draft.selection === "running-snapshot" && (
-        <button disabled={editor.busy} onClick={editor.capture}>
-          Capture running sessions again
-        </button>
-      )}
-      {draft.selection === "running-snapshot" && draft.capturedAt && (
-        <p>Last captured {new Date(draft.capturedAt).toLocaleString()}.</p>
-      )}
-      <p>
-        {draft.selection === "selected"
-          ? "Tick sessions in the saved-session list on the left. Apply updates this output during the stream."
-          : draft.selection === "running-snapshot"
-            ? "Apply captures sessions verified as running now. They stay selected after finishing."
-            : document.running.length
-              ? "Verified running sessions join and leave automatically."
-              : "No verified running sessions yet. Automatic mode waits for activity."}
-      </p>
+      {children}
       {runningOverflow > 0 && draft.selection !== "selected" && (
-        <p>
-          {runningOverflow} extra running session(s) cannot fit; the first eight
-          are used.
+        <p className="overlay-url-note">
+          {runningOverflow} extra running sessions dropped (8 max).
         </p>
       )}
-      <div className="overlay-selection-list">
-        {draft.sessionIds.map((id) => (
-          <div className="overlay-selection-item" key={id}>
-            <span>{titles.get(id) ?? id}</span>
-            <button
-              aria-label={"Remove " + (titles.get(id) ?? id)}
-              disabled={editor.busy || draft.selection === "follow-running"}
-              onClick={() => editor.toggle(id)}
-            >
-              ×
-            </button>
-          </div>
-        ))}
-      </div>
-      <div className="overlay-url">
+      <div className="overlay-url-row">
         <input
           aria-label="OBS browser source URL"
           value={url}
           readOnly
           onFocus={(event) => event.currentTarget.select()}
         />
+        <button type="button" onClick={() => void copyUrl()}>
+          {copied ? "Copied" : "Copy"}
+        </button>
         <a href={url} target="_blank" rel="noreferrer">
-          Open output ↗
+          Open ↗
         </a>
       </div>
-      <p>
-        Paste this URL into an OBS browser source. Each output uses its own
-        assignment; visible sessions share their saved visibility choices.
+      <p className="overlay-url-note">
+        Add this URL as an OBS browser source. Each output has its own
+        assignment.
+      </p>
+      <p className="overlay-url-note">
+        {draft.selection === "selected"
+          ? "Tick sessions in the list on the left, then Apply."
+          : draft.selection === "running-snapshot"
+            ? "Apply captures running sessions; they stay selected after finishing."
+            : document.running.length
+              ? "Running managed sessions join and leave automatically."
+              : "Waiting for verified running activity."}
       </p>
       {editor.stale && (
         <p className="overlay-editor-error">
-          Another tab changed overlays. Reload latest before applying.
+          Overlays changed in another tab. Reload latest before applying.
         </p>
       )}
       {!applied && (
         <p className="overlay-editor-error">
-          This overlay was removed in another tab. Reload latest to choose
-          another output.
+          This output was removed. Reload latest to pick another.
         </p>
       )}
       {editor.error && (
@@ -220,14 +263,22 @@ export function OverlayManager({
           {editor.notice}
         </p>
       )}
-      <div className="overlay-editor-actions">
+      <div className="overlay-actions">
+        <button disabled={editor.busy} onClick={editor.reload}>
+          Reload latest
+        </button>
+        <span className="overlay-spacer" />
+        <button
+          disabled={editor.busy || !draft.published}
+          onClick={() => void editor.stop()}
+        >
+          Stop
+        </button>
         <button
           disabled={editor.busy || editor.stale || !draft.name.trim()}
           onClick={() => void editor.apply()}
         >
-          {draft.selection === "follow-running"
-            ? "Apply automatic selection"
-            : "Apply to this overlay"}
+          Apply
         </button>
         <button
           className="primary-button"
@@ -240,25 +291,6 @@ export function OverlayManager({
           onClick={() => void editor.apply(true)}
         >
           {draft.published ? "Update on stream" : "Publish overlay"}
-        </button>
-        <button
-          disabled={editor.busy || !draft.published}
-          onClick={() => void editor.stop()}
-        >
-          Stop this overlay
-        </button>
-        <button
-          disabled={editor.busy || draft.id === "default" || editor.stale}
-          onClick={() => {
-            if (
-              window.confirm(
-                "Delete this overlay and its URL assignment? Coding sessions will keep running.",
-              )
-            )
-              void editor.remove();
-          }}
-        >
-          Delete overlay
         </button>
       </div>
     </section>

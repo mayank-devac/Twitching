@@ -19,7 +19,7 @@ interface OverlaySources {
   publicView(view: SessionView): SessionView;
   running(): Conversation[];
   eligible(id: string): boolean;
-  approve(ids: string[]): Promise<void>;
+  approve(ids: string[], output?: OverlayDefinition): Promise<void>;
 }
 
 // A named output owns its assignment and URL; processes and private previews have separate owners.
@@ -215,7 +215,7 @@ export class Overlays extends EventEmitter {
     this.editing = true;
     try {
       let prepared: (SessionView | undefined)[] | undefined;
-      if (next.published) await this.sources.approve(ids);
+      if (next.published) await this.sources.approve(ids, next);
       // Validate only changed assignments; renames and stopping do not probe a provider.
       if (
         next.published ||

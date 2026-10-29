@@ -72,8 +72,9 @@ export function sessionRoutes(
   sessions: Sessions,
   authorized: (req: express.Request) => boolean,
   openObs: () => Promise<void>,
-  hidden = () => false,
+  hidden = (_overlay = "default") => false,
   rehearsal?: (context: string) => void,
+  presentations?: () => import("../../shared/sessions.js").OverlayHostDocument["presentation"],
 ) {
   app.use("/api/sessions", (req, res, next) => {
     if (!authorized(req)) {
@@ -104,7 +105,7 @@ export function sessionRoutes(
   );
   app.get(
     "/api/sessions/overlays",
-    respond(async () => sessions.overlays.host()),
+    respond(async () => ({ ...sessions.overlays.host(), presentation: presentations?.() })),
   );
   app.post(
     "/api/sessions/overlays",
@@ -116,14 +117,14 @@ export function sessionRoutes(
       }
       switch (input.action) {
         case "create":
-          return sessions.overlays.create(input.revision, input.name);
+          return { ...sessions.overlays.create(input.revision, input.name), presentation: presentations?.() };
         case "save":
-          return sessions.overlays.save(input.revision, input.overlay, input.captureRunning);
+          return { ...await sessions.overlays.save(input.revision, input.overlay, input.captureRunning), presentation: presentations?.() };
         case "delete":
-          return sessions.overlays.remove(input.revision, input.id);
+          return { ...sessions.overlays.remove(input.revision, input.id), presentation: presentations?.() };
         case "stop":
           sessions.overlays.stop(input.id);
-          return sessions.overlays.host();
+          return { ...sessions.overlays.host(), presentation: presentations?.() };
       }
     }),
   );
@@ -198,10 +199,10 @@ export function sessionRoutes(
   app.get(
     "/api/public-session",
     respond(async (req) => {
-      if (hidden()) throw new Error("Back shortly");
       const q = page.parse(req.query);
+      if (hidden(q.overlay)) throw new Error("Back shortly");
       const result = await sessions.publicHistory(q.id, q.before, q.overlay);
-      if (hidden()) throw new Error("Back shortly");
+      if (hidden(q.overlay)) throw new Error("Back shortly");
       return result;
     }),
   );

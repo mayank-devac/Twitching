@@ -23,12 +23,12 @@ export function OverlayScreen({ view }: { view: OverlayView | undefined }) {
         <div className="overlay-grid-notice">
           {view.error}
           {view.omittedRunning > 0 &&
-            ` · ${view.omittedRunning} running session(s) omitted by the eight-session limit or rehearsal requirements.`}
+            ` · ${view.omittedRunning} running sessions omitted (8-session limit or rehearsal rules).`}
         </div>
       )}
       {!view.frames.length ? (
         <div className="overlay-grid-empty">
-          Waiting for selected or verified running sessions
+          Waiting for selected or running sessions
         </div>
       ) : (
         <div

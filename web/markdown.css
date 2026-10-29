@@ -1,0 +1,37 @@
+/* A wide response scrolls inside its message instead of widening an OBS tile. */
+.markdown-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 10px 0;
+  border: 1px solid #343b4c;
+  border-radius: 8px;
+  scrollbar-width: thin;
+}
+.markdown-table-scroll:focus-visible {
+  outline: 2px solid #a99bff;
+  outline-offset: 2px;
+}
+.markdown-table-scroll table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95em;
+  line-height: 1.5;
+}
+.markdown-table-scroll th,
+.markdown-table-scroll td {
+  min-width: 7rem;
+  max-width: 26rem;
+  padding: 8px 10px;
+  border-right: 1px solid #343b4c;
+  border-bottom: 1px solid #343b4c;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.markdown-table-scroll th:last-child,
+.markdown-table-scroll td:last-child { border-right: 0; }
+.markdown-table-scroll tr:last-child td { border-bottom: 0; }
+.markdown-table-scroll th { background: #202537; color: #e8ecf3; font-weight: 650; }
+.markdown-table-scroll tbody tr:nth-child(even) { background: #171c27; }
+.markdown-table-scroll p { margin: 0; }

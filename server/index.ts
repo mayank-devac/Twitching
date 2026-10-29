@@ -125,7 +125,11 @@ const privateValues = [
 const clean = redactor(privateValues, root);
 const presentation = new PresentationControls(store, clean);
 // Persist running elapsed time periodically; a restart restores the last checkpoint paused.
-const presentationCheckpoint = setInterval(() => presentation.checkpoint(), 1000);
+const presentationCheckpoint = setInterval(() => {
+  if (!presentation.hasRunningClock()) return;
+  try { presentation.checkpoint(); }
+  catch { console.error("Stopwatch checkpoint could not be saved; check available disk space."); }
+}, 1000);
 presentationCheckpoint.unref();
 const docker = new Docker(store, { root, image: settings.agentImage });
 const native = new NativeHost(store, root);
@@ -145,7 +149,7 @@ const preview = new Previews(
   credentialGuard(privateValues),
   settings.previewView,
 );
-preview.publicHidden = () => presentation.get().hidden;
+preview.publicHidden = () => presentation.get("default").hidden;
 const previewServer = preview.app().listen(settings.previewPort, settings.host);
 let controller: Controller;
 let sessionService: Sessions | undefined;

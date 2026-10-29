@@ -1,3 +1,4 @@
+import { playExclusive } from "./audio-owner.js";
 import React, { useEffect, useRef, useState } from "react";
 import type { ShowState } from "../shared/types.js";
 
@@ -34,11 +35,12 @@ export function BreakScreen({
     : "/media/break-visual.gif";
   // Track changes replace the previous audio element source without another playback owner.
   useEffect(() => {
-    if (!host)
-      void audio.current
-        ?.play()
+    const element = audio.current;
+    if (!host && element)
+      void playExclusive(element)
         .then(() => setBlocked(false))
         .catch(() => setBlocked(true));
+    return () => { element?.pause(); };
   }, [music, host]);
   const seconds = state.breakUntil
     ? Math.max(0, Math.ceil((state.breakUntil - now) / 1000))
@@ -87,8 +89,7 @@ export function BreakScreen({
         {blocked && !host && (
           <button
             onClick={() =>
-              void audio.current
-                ?.play()
+              audio.current && void playExclusive(audio.current)
                 .then(() => setBlocked(false))
                 .catch(() => setBlocked(true))
             }
@@ -106,7 +107,6 @@ export function BreakScreen({
         <audio
           ref={audio}
           src={music}
-          autoPlay
           loop
           onError={() => {
             setMusicFailed(true);

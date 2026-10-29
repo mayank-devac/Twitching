@@ -249,6 +249,11 @@ Purpose: Route agents to the most relevant source files quickly. Verify details 
 - Contains: `App`, `AgentPanel`, and `CliColumn`; commands fit one line with an ellipsis, other board text wraps, and boards scroll automatically. Live text patches rebuild full messages. The snapshot agent list selects one full-width panel or both panels.
 - Used by: `web/index.html`.
 
+`web/markdown.tsx`, `web/markdown.css`, `web/welcome/Timeline.tsx`
+
+- Work: Share safe React Markdown settings across arena and session replies. The `remark-gfm` plugin recognizes pipe tables; a focusable scroll container keeps wide tables inside the message width. Raw HTML and remote images are skipped.
+- Used by: `web/main.tsx`, `web/overlays/OverlayScreen.tsx` through `Timeline`. Focused source case: `tests/markdown.test.tsx`.
+
 `web/style.css`
 
 - Work: Layout and colour for the overlay and host desk, including the narrow-screen rules.
@@ -459,3 +464,18 @@ Purpose: Route agents to the most relevant source files quickly. Verify details 
 - Useful for: Operator setup.
 - Contains: The local runbook.
 - Used by: People running the show.
+
+
+## Presentation controls and reviewed setup reuse
+
+`shared/presentation.ts`, `server/presentation-controls.ts`, `server/presentation-http.ts`, `web/presentation-controls.tsx`, `web/presentation.css`
+
+- Work: Durable global and per-output publication hiding, independent or shared bottom-left goal/stopwatch badges and server-owned time; authenticated presentation actions; reviewed allowlisted last-setup capture/apply and host-confirmed pre-live checks.
+- Used by: `server/index.ts`, `server/http.ts`, `server/preview.ts`, `server/sessions/http.ts`, `server/sessions/service.ts`, `server/store.ts`, `shared/types.ts`, `shared/settings.ts`, `web/main.tsx`.
+- Limits: Hide cannot retract delivered content or reach a disconnected control page; OBS scene hotkeys and app publication privacy are independent. Stopwatch restores paused, with one-second running checkpoints. Checklist confirmation is process-local and bound to relevant public choices and output assignments.
+
+`web/overlays/OverlayPresentation.tsx`, `web/host-refresh.ts`, `web/audio-owner.ts`, `web/welcome/LastSetup.tsx`, `web/welcome/RehearsalCheck.tsx`
+
+- Work: Single-flight/coalesced host fetches at a 750ms minimum interval, stale-generation rejection, one same-browser audio owner, per-output own/shared goal selection via the existing overlay poll, review-before-apply setup reuse and explicit human rehearsal confirmation.
+- Used by: `web/main.tsx`, `web/welcome/Welcome.tsx`, `web/break-screen.tsx`.
+- Verification: Focused cases in `tests/presentation.test.ts` and `tests/host-refresh.test.ts`; no CLI/OBS invocations in their fixtures. Tests/build/type check were not run for this implementation.

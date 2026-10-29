@@ -13,6 +13,8 @@ import { defaultVisibility } from "../shared/settings.js";
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import ReactMarkdown from "react-markdown";
+import { markdownComponents, markdownPlugins } from "./markdown.js";
+import "./markdown.css";
 import type {
   Activity,
   ActivityLane,
@@ -34,13 +36,9 @@ function MarkdownText({ children }: { children: string }) {
   return (
     <div className="markdown">
       <ReactMarkdown
-        components={{
-          a: ({ children, ...props }) => (
-            <a {...props} target="_blank" rel="noreferrer">
-              {children}
-            </a>
-          ),
-        }}
+        skipHtml
+        remarkPlugins={markdownPlugins}
+        components={markdownComponents}
       >
         {children}
       </ReactMarkdown>
@@ -82,7 +80,7 @@ function App() {
       if (!response.ok) throw new Error("Host refresh failed");
       return response.json() as Promise<ShowState>;
     }, (hostState) => setState((current) => ({ ...hostState,
-      experience: current?.experience ?? hostState.experience,
+      experience: hostState.experience,
       sharedSession: hostState.sharedSession,
       sharedOverlay: hostState.sharedOverlay,
       events: current && !hostState.presentation?.hidden ? [...current.events.filter((event) => !event.lane), ...hostState.events.filter((event) => event.lane)] : hostState.events,
@@ -101,7 +99,7 @@ function App() {
         try {
           const payload = JSON.parse(e.data);
           // An old session/connection must never overwrite a newer private host lane.
-          const nextContext = JSON.stringify([payload.state?.experience, payload.state?.round?.id, payload.state?.sharedOverlay?.frames?.map((f: SessionView) => f.conversation.id), payload.state?.presentation?.hidden]);
+          const nextContext = JSON.stringify([payload.state?.hostContext, payload.state?.experience, payload.state?.round?.id, payload.state?.sharedOverlay?.frames?.map((f: SessionView) => f.conversation.id), payload.state?.presentation?.hidden]);
           const changedContext = nextContext !== context;
           if (changedContext) { context = nextContext; refresh.invalidate(); }
 
@@ -109,7 +107,9 @@ function App() {
             setPreviewOrigin(payload.previewOrigin);
             setState((current) => {
               // Hidden sockets carry no transcript; the authenticated refresh supplies private host content.
-              if (control && payload.state.presentation?.hidden && current) return { ...current, presentation: { ...current.presentation, ...payload.state.presentation, goal: current.presentation?.goal ?? "", showGoal: current.presentation?.showGoal ?? true, elapsedMs: current.presentation?.elapsedMs ?? 0, runningSince: current.presentation?.runningSince, serverNow: current.presentation?.serverNow ?? payload.state.presentation.serverNow } };
+              if (control && payload.state.presentation?.hidden && current) {
+                return { ...current, presentation: current.presentation ? { ...current.presentation, hidden: true } : payload.state.presentation };
+              }
               try {
                 const events = mergeActivityPatches(current?.events ?? [], payload.patches, payload.eventIds);
                 if (payload.state.sharedOverlay) {
@@ -245,10 +245,10 @@ function App() {
       </main>
     );
   // A normal route keeps Quick Settings separate from the broadcast layout.
-  if (settingsPage) return <><PresentationControls state={state} token={csrf} /><QuickSettings state={state} token={csrf} connected={connected}/></>;
-  if (welcomePage || (control && state.experience !== "arena")) return <><PresentationControls state={state} token={csrf} /><Welcome token={csrf} publishedId={state.sharedSession?.conversation.id} /></>;
+  if (settingsPage) return <><RehearsalCheck token={csrf} context={state.sharedSession?.conversation.id ?? "arena"} revision={state.quickSettings?.revision} /><QuickSettings state={state} token={csrf} connected={connected}/></>;
+  if (welcomePage || (control && state.experience !== "arena")) return <Welcome token={csrf} publishedId={state.sharedSession?.conversation.id} hostControls={<PresentationControls state={state} token={csrf} shortcutsOnly />} />;
   if (!control && (state.presentation?.hidden || !connected)) return <main className="privacy-screen">Back shortly</main>;
-  if (!control && (namedOverlay || state.experience && state.experience !== "arena")) return <><GoalStrip value={state.presentation} /><OverlayScreen view={state.sharedOverlay} /></>;
+  if (!control && (namedOverlay || state.experience && state.experience !== "arena")) return <div className="public-surface"><GoalStrip value={state.presentation} /><OverlayScreen view={state.sharedOverlay} /></div>;
   const round = state.round;
   const countdown =
     state.status === "break"
@@ -258,7 +258,7 @@ function App() {
         : state.collectionDeadline;
   return (
     <main className={control ? "host" : "overlay"}>
-      {control ? <><PresentationControls state={state} token={csrf} /><RehearsalCheck token={csrf} context="arena" revision={state.quickSettings?.revision} /></> : <GoalStrip value={state.presentation} />}
+      {control ? <><RehearsalCheck token={csrf} context="arena" revision={state.quickSettings?.revision} /></> : <GoalStrip value={state.presentation} />}
       {control && (
         <section className="prompt-strip" hidden={!round?.task.text}>
           {round?.task.text && <h1>{round.task.text}</h1>}

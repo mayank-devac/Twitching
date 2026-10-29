@@ -72,6 +72,7 @@ export interface OverlayView {
   error?: string;
 }
 export interface OverlayHostDocument extends OverlayDocument {
+  presentation?: Record<string, import("./presentation.js").PresentationSelection>;
   running: Conversation[];
   publishedSessionIds: string[];
 }

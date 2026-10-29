@@ -1,5 +1,5 @@
 import type { PresentationControls } from "./presentation-controls.js";
-import { presentationAction } from "./presentation-controls.js";
+import { presentationAction, PresentationConflict } from "./presentation-controls.js";
 import { presentationRoutes } from "./presentation-http.js";
 import { lstat, realpath } from "node:fs/promises";
 import { settingsRoutes, type SettingsServices } from "./settings-http.js";
@@ -73,9 +73,18 @@ export function makeHttp(
     }
     next();
   });
+  const hostContexts = new Map<string, { identity: string; version: number }>();
+  let contextVersion = 0;
   const publicState = (overlay = "default") => {
     const base = options.sessions?.snapshot(controller.snapshot(), overlay) ?? controller.snapshot();
-    return options.presentation?.publicSnapshot(base) ?? base;
+    // Publish only an opaque generation, never private session identifiers while hidden.
+    const identity = JSON.stringify([base.experience, base.round?.id, base.sharedSession?.conversation.id, base.sharedOverlay?.frames.map((frame) => frame.conversation.id)]);
+    let context = hostContexts.get(overlay);
+    if (!context || context.identity !== identity) {
+      context = { identity, version: ++contextVersion };
+      hostContexts.set(overlay, context);
+    }
+    return { ...(options.presentation?.publicSnapshot(base, overlay) ?? base), hostContext: context.version };
   };
   app.get("/api/state", (_req, res) => res.json(publicState()));
   app.get("/api/boot", (_req, res) => res.json(options.boot ?? {}));
@@ -132,7 +141,7 @@ export function makeHttp(
     const input = presentationAction.safeParse(req.body);
     if (!input.success || !options.presentation) { res.status(400).json({ error: "Invalid presentation action" }); return; }
     try { res.json(options.presentation.act(input.data)); }
-    catch { res.status(409).json({ error: "Presentation was not saved. Retry before relying on privacy." }); }
+    catch (error) { res.status(409).json({ error: error instanceof PresentationConflict ? error.message : "Presentation was not saved. Retry before relying on privacy." }); }
   });
   const rehearsal = options.quick && options.presentation ? presentationRoutes(app, controller, options.quick, options.presentation, options.sessions, hostAuthorized) : undefined;
   if (options.sessions && rehearsal) options.sessions.requirePresentationRehearsal = rehearsal;
@@ -140,7 +149,7 @@ export function makeHttp(
   if (options.quick)
     settingsRoutes(app, controller, options.quick, hostAuthorized);
   if (options.sessions)
-    sessionRoutes(app, options.sessions, hostAuthorized, options.openObs ?? (async () => { throw new Error("Open OBS manually"); }), () => !!options.presentation?.get().hidden, rehearsal);
+    sessionRoutes(app, options.sessions, hostAuthorized, options.openObs ?? (async () => { throw new Error("Open OBS manually"); }), (id) => !!options.presentation?.get(id).hidden, rehearsal, () => options.presentation?.selections());
   app.post("/api/action", express.json({ limit: "2kb" }), async (req, res) => {
     if (!hostAuthorized(req)) {
       res
@@ -157,7 +166,7 @@ export function makeHttp(
     try {
       if (["start", "resume", "rehearsal-task", "suggest"].includes(action) && options.sessions?.experience !== undefined && options.sessions.experience !== "arena")
         throw new Error("Choose Existing prompt arena in the welcome dialog first");
-      if ((action === "start" || action === "resume") && controller.state.mode === "live") rehearsal?.("arena");
+      if ((action === "start" || action === "resume") && controller.state?.mode === "live") rehearsal?.("arena");
       if (action === "confirm-rehearsal") rehearsal?.("arena");
       if (action === "start") await controller.start();
       else if (action === "pause") controller.pause();

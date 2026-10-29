@@ -21,6 +21,7 @@ import { LaunchChoices } from "./LaunchChoices.js";
 import { uniqueConversations } from "../../shared/sessions.js";
 import { useOverlayEditor } from "../overlays/use-overlay-editor.js";
 import { OverlayManager } from "../overlays/OverlayManager.js";
+import { OverlayPresentation } from "../overlays/OverlayPresentation.js";
 import "../settings/settings.css";
 
 interface Readiness {
@@ -55,40 +56,43 @@ function OverlayVisibility({
   change(value: SessionVisibility): void;
 }) {
   const shown = visibilityChoices.filter(([key]) => value[key]).length;
+  // Rendered inside the Overlay output panel as an inner visibility row.
   return (
-    <section className="overlay-visibility">
+    <div className="overlay-visibility">
       <header>
-        <h2>Overlay visibility</h2>
+        <h3>Visibility</h3>
         <span>
           {shown} of {visibilityChoices.length} shown
         </span>
       </header>
-      <div className="visibility-chips">
-        {visibilityChoices.map(([key, label]) => (
-          <button
-            type="button"
-            key={key}
-            className="visibility-chip"
-            aria-pressed={!!value[key]}
+      <div className="visibility-row">
+        <div className="visibility-chips">
+          {visibilityChoices.map(([key, label]) => (
+            <button
+              type="button"
+              key={key}
+              className="visibility-chip"
+              aria-pressed={!!value[key]}
+              disabled={busy}
+              onClick={() => change({ ...value, [key]: !value[key] })}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <label className="hide-runs-choice">
+          <input
+            type="checkbox"
+            checked={!!value.hidePreviousRuns}
             disabled={busy}
-            onClick={() => change({ ...value, [key]: !value[key] })}
-          >
-            {label}
-          </button>
-        ))}
+            onChange={(event) =>
+              change({ ...value, hidePreviousRuns: event.target.checked })
+            }
+          />
+          Hide previous runs <span>(history is kept)</span>
+        </label>
       </div>
-      <label className="hide-runs-choice">
-        <input
-          type="checkbox"
-          checked={!!value.hidePreviousRuns}
-          disabled={busy}
-          onChange={(event) =>
-            change({ ...value, hidePreviousRuns: event.target.checked })
-          }
-        />
-        Hide previous prompt runs <span>(history is kept)</span>
-      </label>
-    </section>
+    </div>
   );
 }
 
@@ -96,9 +100,11 @@ function OverlayVisibility({
 export function Welcome({
   token,
   publishedId,
+  hostControls,
 }: {
   token: string;
   publishedId?: string;
+  hostControls?: React.ReactNode;
 }) {
   const [document, setDocument] = useState<SettingsDocument>();
   const [ready, setReady] = useState<Readiness>();
@@ -218,9 +224,7 @@ export function Welcome({
         if (!closed && ticket === selection.current) setSelected(view);
       } catch {
         if (!closed && ticket === selection.current)
-          setNotice(
-            "Session disconnected. Keeping the last available conversation; retry selection to reconnect.",
-          );
+          setNotice("Session disconnected. Select it again to reconnect.");
       } finally {
         pending = false;
       }
@@ -322,15 +326,11 @@ export function Welcome({
         return;
       }
       if (!choice || !document || !models?.some((m) => m.id === choice.model)) {
-        setNotice(
-          "Load installed models, then choose a model before continuing.",
-        );
+        setNotice("Load models, then choose one before continuing.");
         return;
       }
       if (runner === "native" && nativeConsent !== "NATIVE") {
-        setNotice(
-          "Type NATIVE above to confirm this computer will run the agent directly.",
-        );
+        setNotice("Type NATIVE above to confirm native execution.");
         return;
       }
       const next = {
@@ -383,24 +383,42 @@ export function Welcome({
     );
   const toolStatus = (name: string) =>
     ready?.tools.find((tool) => tool.name === name);
+  const overlayDraft = overlayEditor.draft;
+  const overlayApplied = overlayEditor.document?.overlays.find(
+    (overlay) => overlayDraft && overlay.id === overlayDraft.id,
+  );
   return (
     <main className="welcome-page">
       <header className="welcome-header">
         <div>
           <span className="welcome-eyebrow">TWITCHING</span>
         </div>
-        <a className="quick-settings-link" href="/control/settings">
-          Quick settings ↗
-        </a>
-      </header>
-      <div className="welcome-layout">
-        <aside className="welcome-controls">
+        <div className="welcome-header-tools">
           <LastSetup token={token} revision={document?.revision} applied={({ setup, document: saved, selected: restored }) => {
             ++selection.current;
             setDocument(saved); setSelected(restored); setPath(setup.path); setRunner(setup.runner);
-            setNativeConsent(""); setModels(undefined); setChoice(setup.sessions[0]); setCli(setup.sessions[0].cli);
-            setResultUrl(""); setNotice("Saved choices applied. Review the session and complete any required rehearsal. Nothing has started.");
+            setNativeConsent(""); setModels(undefined); setChoice(restored?.conversation.config ? { ...restored.conversation.config, ...saved.value.managedModels?.[restored.conversation.id] } : setup.sessions[0]); setCli(restored?.conversation.cli ?? setup.sessions[0].cli);
+            setResultUrl(""); setNotice("Choices applied. Review, rehearse, then go live. Nothing started.");
           }} />
+          {hostControls}
+          <RehearsalCheck token={token} context={path === "arena" ? "arena" : selected?.conversation.id ?? "unselected"} revision={document?.revision} />
+          {overlayDraft && overlayEditor.document && (
+            <OverlayPresentation
+              key={overlayDraft.id}
+              token={token}
+              overlayId={overlayDraft.id}
+              name={overlayApplied?.name ?? overlayDraft.name}
+              initial={overlayEditor.document.presentation?.[overlayDraft.id]}
+              published={!!overlayApplied?.published}
+            />
+          )}
+        <a className="quick-settings-link" href="/control/settings">
+          Quick settings ↗
+        </a>
+        </div>
+      </header>
+      <div className="welcome-layout">
+        <aside className="welcome-controls">
           <nav className="welcome-options" aria-label="Experience">
             {(
               [
@@ -485,16 +503,16 @@ export function Welcome({
                 role={models ? "status" : undefined}
               >
                 {!models
-                  ? "Load installed models to choose one and continue."
+                  ? "Load installed models to continue."
                   : models.some((model) => model.id === choice?.model) &&
                       runner === "native" &&
                       nativeConsent !== "NATIVE"
-                    ? "Type NATIVE above to enable Continue."
+                    ? "Type NATIVE to enable Continue."
                     : models.some((model) => model.id === choice?.model)
                       ? "Ready · " + choice?.model
                       : models.length
-                        ? "Choose one of the loaded models to continue."
-                        : "No models were returned. Check the CLI installation and login."}
+                        ? "Choose a loaded model to continue."
+                        : "No models found. Check the CLI install and login."}
               </p>
               {choice && (
                 <SessionCard
@@ -540,10 +558,7 @@ export function Welcome({
           {path === "arena" && (
             <div className="arena-hint">
               <b>Existing prompt arena</b>
-              <span>
-                Continue to open the arena controls. Its existing HTML result
-                rules remain in place.
-              </span>
+              <span>Continue opens the arena controls. Existing result rules stay.</span>
             </div>
           )}
         </aside>
@@ -580,7 +595,7 @@ export function Welcome({
                   })
                 }
               >
-                Stop Main overlay
+                Stop Main
               </button>
             </header>
             {selected ? (
@@ -646,8 +661,7 @@ export function Welcome({
                       />
                       {selected.conversation.runner === "native" && (
                         <label className="native-consent">
-                          Native runs have no Docker isolation. NATIVE is the
-                          opt-in.
+                          Native has no Docker isolation. Type NATIVE to opt in.
                           <input
                             value={nativeConsent}
                             onChange={(event) =>
@@ -673,8 +687,7 @@ export function Welcome({
                   )}
                   {selected.conversation.source !== "managed" && (
                     <p className="read-only-note">
-                      Read-only saved history. Sending prompts and controlling
-                      this external CLI are unavailable.
+                      Read-only history. This external session can't accept prompts.
                     </p>
                   )}
                 </div>
@@ -690,9 +703,7 @@ export function Welcome({
             ) : (
               <div className="preview-empty">
                 <h2>Pick a session to preview</h2>
-                <p>
-                  Nothing reaches the overlay until you choose Show on stream.
-                </p>
+                <p>Choose Show on stream below to publish.</p>
               </div>
             )}
             {selected && (
@@ -709,12 +720,12 @@ export function Welcome({
                             id: selected.conversation.id,
                           });
                           setNotice(
-                            "Private rehearsal confirmed. Start OBS manually before choosing live mode.",
+                            "Rehearsal confirmed. Start OBS, then choose live mode.",
                           );
                         })
                       }
                     >
-                      Confirm private rehearsal
+                      Confirm rehearsal
                     </button>
                   )}
                 <button
@@ -738,21 +749,21 @@ export function Welcome({
                     })
                   }
                 >
-                  Show only this session on Main
+                  Show on stream
                 </button>
               </div>
             )}
           </div>
-          <OverlayVisibility
-            value={visibility}
-            busy={busy}
-            change={updateVisibility}
-          />
-          <RehearsalCheck token={token} context={path === "arena" ? "arena" : selected?.conversation.id ?? "unselected"} revision={document?.revision} />
           <OverlayManager
             editor={overlayEditor}
             conversations={listing.conversations}
-          />
+          >
+            <OverlayVisibility
+              value={visibility}
+              busy={busy}
+              change={updateVisibility}
+            />
+          </OverlayManager>
         </section>
       </div>
       <footer className="welcome-footer">

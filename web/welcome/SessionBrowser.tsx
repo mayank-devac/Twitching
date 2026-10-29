@@ -75,7 +75,6 @@ export function SessionBrowser({
           >
             <option value="codex">Codex saved</option>
             <option value="managed">Managed</option>
-            <option value="cursor">Cursor saved</option>
           </select>
         </label>
       </div>
@@ -113,7 +112,7 @@ export function SessionBrowser({
                       title={
                         checkedIds.length >= MAX_OVERLAY_SESSIONS &&
                         !checkedIds.includes(conversation.id)
-                          ? "Eight sessions are selected. Untick one to add another."
+                          ? "8 selected. Untick one to add another."
                           : "Show on " + (overlayName ?? "selected overlay")
                       }
                     >
@@ -183,17 +182,14 @@ export function SessionBrowser({
                 </div>
               ))}
               {!rows.length && (
-                <p className="session-list-empty">
-                  No saved Codex sessions on this page.
-                </p>
+                <p className="session-list-empty">No saved sessions loaded.</p>
               )}
             </section>
           );
         })}
         {source === "cursor" && (
           <p className="session-list-empty">
-            Existing Cursor sessions cannot be browsed here. Start a managed
-            Cursor session instead.
+            Cursor history isn't browsable here. Start a managed Cursor session.
           </p>
         )}
         {listing.note && <p className="session-list-note">{listing.note}</p>}

@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import { markdownComponents, markdownPlugins } from "../markdown.js";
 import type { SessionView, TimelineItem } from "../../shared/sessions.js";
 import codexLogo from "../../assets/codex/codex.svg";
 import cursorLogo from "../../assets/cursor/Cube/SVG/CUBE_2D_DARK.svg";
@@ -15,14 +16,8 @@ const MessageText = React.memo(function MessageText({
   return (
     <ReactMarkdown
       skipHtml
-      components={{
-        img: () => null,
-        a: ({ children, ...props }) => (
-          <a {...props} target="_blank" rel="noreferrer">
-            {children}
-          </a>
-        ),
-      }}
+      remarkPlugins={markdownPlugins}
+      components={markdownComponents}
     >
       {text}
     </ReactMarkdown>
@@ -145,9 +140,9 @@ export function Timeline({
             {c.status === "running"
               ? "Running"
               : c.status === "idle"
-                ? "Waiting / Idle"
+                ? "Idle"
                 : c.status === "unknown"
-                  ? "Runtime unknown · saved history"
+                  ? "Unknown · saved history"
                   : "Disconnected"}
             {view.published && " · On stream"}
           </p>
@@ -159,8 +154,8 @@ export function Timeline({
           onClick={() => setShowPrevious((v) => !v)}
         >
           {showPrevious
-            ? "Show latest prompt only"
-            : "Show previous prompts (history is kept)"}
+            ? "Show latest run"
+            : "Show earlier runs (history kept)"}
         </button>
       )}
       <div
@@ -184,22 +179,17 @@ export function Timeline({
         </button>
         {before && (!view.hidePreviousRuns || showPrevious) && (
           <button disabled={busy} onClick={() => void loadOlder()}>
-            {busy ? "Loading…" : "Load older messages"}
+            {busy ? "Loading…" : "Load older"}
           </button>
         )}
         {error && <p role="alert">{error}</p>}
         {!visible.length && (
-          <p className="timeline-empty">
-            No visible activity yet. Conversation stays here even when no HTML
-            is generated.
-          </p>
+          <p className="timeline-empty">No visible activity yet.</p>
         )}
         {visible.map((item, index) => (
           <React.Fragment key={item.id}>
             {(index === 0 || visible[index - 1].run !== item.run) && (
-              <div className="run-boundary">
-                Prompt run {item.run.slice(0, 8)}
-              </div>
+              <div className="run-boundary">Run {item.run.slice(0, 8)}</div>
             )}
             <article
               data-item-id={item.id}
