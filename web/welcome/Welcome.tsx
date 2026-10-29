@@ -1,5 +1,6 @@
 import { LastSetup } from "./LastSetup.js";
 import { RehearsalCheck } from "./RehearsalCheck.js";
+import { BreakControl } from "../break-control.js";
 import React, { useEffect, useRef, useState } from "react";
 import type { Agent, SessionConfig } from "../../shared/types.js";
 import type {
@@ -40,8 +41,8 @@ const visibilityChoices: [keyof SessionVisibility, string][] = [
   ["complete", "Completion"],
   ["error", "Errors"],
   ["model", "Model name"],
-  ["cliIcon", "CLI icon"],
-  ["cliName", "CLI name"],
+  ["cliIcon", "Icon"],
+  ["cliName", "Name"],
   ["command", "Commands"],
   ["read", "Read file names"],
 ];
@@ -401,6 +402,7 @@ export function Welcome({
             setResultUrl(""); setNotice("Choices applied. Review, rehearse, then go live. Nothing started.");
           }} />
           {hostControls}
+          <BreakControl token={token} preferredId={overlayDraft?.id} initial={overlayEditor.document} />
           <RehearsalCheck token={token} context={path === "arena" ? "arena" : selected?.conversation.id ?? "unselected"} revision={document?.revision} />
           {overlayDraft && overlayEditor.document && (
             <OverlayPresentation

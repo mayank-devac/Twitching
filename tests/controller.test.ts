@@ -704,6 +704,23 @@ test("untimed manual break stays active until Resume and still enforces quota",a
 });
 
 // Start is also an explicit way to leave a manual break; a pending timer is cleared.
+test("End break in session controls clears a manual arena break without restarting work", async () => {
+  const f = await fixture();
+  try {
+    await f.controller.manualBreak(null, true);
+    const launches = f.runner.launches.length;
+    const recoveries = f.runner.recovered;
+    f.controller.endManualBreak();
+    assert.equal(f.controller.state.status, "paused");
+    assert.equal(f.controller.state.manualBreak, undefined);
+    assert.equal(f.store.state()!.breakKind, undefined);
+    assert.equal(f.runner.launches.length, launches);
+    assert.equal(f.runner.recovered, recoveries);
+    assert.throws(() => f.controller.endManualBreak(), /active manual break/);
+  } finally { await f.cleanup(); }
+});
+
+// Start is also an explicit way to leave a manual break; a pending timer is cleared.
 test("Start ends a timed manual break early without skipping startup checks",async()=>{
   const f=await fixture();
   try {

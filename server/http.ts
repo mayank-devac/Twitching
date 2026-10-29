@@ -84,7 +84,7 @@ export function makeHttp(
       context = { identity, version: ++contextVersion };
       hostContexts.set(overlay, context);
     }
-    return { ...(options.presentation?.publicSnapshot(base, overlay) ?? base), hostContext: context.version };
+    return { ...(options.presentation?.publicSnapshot(base, overlay, options.quick?.preferences.get().value.media) ?? base), hostContext: context.version };
   };
   app.get("/api/state", (_req, res) => res.json(publicState()));
   app.get("/api/boot", (_req, res) => res.json(options.boot ?? {}));
@@ -149,7 +149,7 @@ export function makeHttp(
   if (options.quick)
     settingsRoutes(app, controller, options.quick, hostAuthorized);
   if (options.sessions)
-    sessionRoutes(app, options.sessions, hostAuthorized, options.openObs ?? (async () => { throw new Error("Open OBS manually"); }), (id) => !!options.presentation?.get(id).hidden, rehearsal, () => options.presentation?.selections());
+    sessionRoutes(app, options.sessions, hostAuthorized, options.openObs ?? (async () => { throw new Error("Open OBS manually"); }), (id) => { const p = options.presentation?.get(id); return !!(p?.hidden || p?.breakActive); }, rehearsal, () => options.presentation?.selections());
   app.post("/api/action", express.json({ limit: "2kb" }), async (req, res) => {
     if (!hostAuthorized(req)) {
       res
@@ -289,7 +289,7 @@ export function makeHttp(
       const session = state.sharedOverlay ? undefined : state.sharedSession;
       const previousItems = before?.sharedSession?.conversation.id === session?.conversation.id ? before?.sharedSession?.page.items ?? [] : [];
       // Privacy transitions always send complete snapshots before any further patches.
-      const privacyChanged = before?.presentation?.hidden !== state.presentation?.hidden;
+      const privacyChanged = before?.presentation?.hidden !== state.presentation?.hidden || before?.presentation?.breakActive !== state.presentation?.breakActive;
       const payload = privacyChanged ? JSON.stringify({ type: "snapshot", state: wireState(state), previewOrigin: options.previewOrigin }) : JSON.stringify({
         type: "update", state: { ...wireState(state, true), events: [], sharedSession: session ? { ...session, page: { ...session.page, items: [] } } : undefined },
         overlayPatches: overlayPatches(before?.sharedOverlay, state.sharedOverlay),

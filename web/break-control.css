@@ -1,0 +1,11 @@
+.break-control { display: inline-flex; flex: 0 0 auto; }
+.host-top-tools { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+.break-popover fieldset { margin: 0 0 14px; padding: 0; border: 0; }
+.break-popover legend { color: #8f9bb0; font-size: 12px; margin-bottom: 8px; }
+.break-scope { display: flex; gap: 16px; flex-wrap: wrap; }
+.break-scope label, .break-check { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; }
+.break-popover input[type=checkbox], .break-popover input[type=radio] { width: auto; accent-color: #a99bff; }
+.break-field { display: block; margin: 12px 0; font-size: 12px; }
+.break-field select, .break-field input { display: block; width: 100%; margin-top: 6px; padding: 9px 11px; border: 1px solid #343b4c; border-radius: 8px; background: #10141c; color: #e8ecf3; font: inherit; }
+.break-warning { margin: 14px 0; padding: 10px 12px; border: 1px solid #735a40; border-radius: 8px; background: #2a211b; color: #f1d7af; font-size: 12px; }
+.break-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }

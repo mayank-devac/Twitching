@@ -67,6 +67,27 @@ Run a private native round:
 
 The script asks you to type exactly: `NATIVE`. This confirmation is required for each launched app process and is not stored in `settings.json`. The safest native host is a separate macOS user account without personal files, cloud drives or private accounts.
 
+## Things to know
+
+- Each CLI contains distinct Left/Right session cards, including two sessions of the same CLI. Refresh installed models to discover the actual account model/effort choices; unavailable choices are rejected rather than substituted. Saved model or harness changes apply to the next round; current sessions finish normally. **Run a new harness** configures another slot or an explicit next-round replacement (maximum two).
+
+- Overlay visibility saves immediately per session. Hiding activity does not delete stored history. Read-name visibility exposes only structured reads of the exact arena output filename, never arbitrary file paths, search patterns or file contents. The CLI must report a structured read; commands are not guessed to be file reads. Commands remain redacted.
+
+- Mode changes require paused/stopped coding with no active work. Live startup still requires the normal rehearsal, quota and OBS checks. Platform switches apply on the next Start/Resume with no active work; account identifiers and credentials stay in the existing startup flow. Prompt-list mode does not connect chat until the explicit switch to chat. Explicit guided-startup mode/session/platform selections take precedence over previous web choices for that process. This page does not edit remote stream titles or account metadata.
+
+- Collection/extension timings and Jev criteria apply at the next collection reset. Results timing applies when a round next finishes. Existing deadlines do not move. Criteria supplement mandatory safety/offline-HTML rules and are part of evaluation cache keys, so old cached scores cannot be reused for new criteria. `jevProbe` is used at the next live Start/Resume; saving it does not call Jev.
+
+- The prepared prompt pencil edits only an unlaunched frozen prompt, with **Host edited** attribution. If selection or launch wins the race, Save rejects the stale version. Past prompts are a separate read-only panel, in pages of 20 rounds.
+
+- **Arena break** schedules a manual break after both sessions and their result display. Turn off **Set a timer** for a break that stays on until Start/Resume; otherwise the server-owned deadline pauses the show on expiry. Start/Resume can end a manual break early and still runs the normal startup/quota checks. **Stop work and break now** explicitly cancels active arena work first. Manual controls cannot replace or bypass quota breaks. In session mode, Quick Settings **End break** clears a leftover arena break without launching another round. **Stop stream** asks for confirmation, cancels coding and requests actual OBS StopStream; an unconfirmed OBS stop reports an error. It is disabled in rehearsal.
+
+- The host navbar **Break** button covers the selected overlay or all overlays with the saved break visual and music. Choose a 1–60 minute timer or a break that stays until **End break screen**. This presentation break never pauses coding. The control warns when a managed session is running, explains that external session activity may be unknown, and requires acknowledgement that coding continues. Ending a selected break reveals only that output; an all-overlay break must be ended separately. Hiding an overlay takes priority over its break screen. Timed breaks resume the previous public view when their server deadline expires; active breaks survive reloads and restart until that deadline or explicit end. If several overlays use the same browser profile, one break page owns music playback to avoid doubled audio; check that OBS actually hears that source.
+
+- Break music and GIF/static images can be uploaded, previewed and selected. The file limit is **12 MB**, with **64 files** maximum in `runtime/break-media/`; oversized/unsupported uploads are rejected. Files get opaque IDs and format checks, and explicit media routes reject traversal and symlinks. HTML/SVG uploads are not accepted and no runtime folder is a static root. Removing a selection restores the original music/visual but keeps the uploaded library file. Missing or undecodable selected media falls back to the original media. Only the overlay autoplays music; settings previews need a Play gesture and OBS may need autoplay enabled. The default visual is `assets/break-visual.gif`, served through `/media/break-visual.gif`. The overlay fills its frame (cropping image edges if needed), with a small timer/status bar at the bottom. Settings and host previews also offer a user-triggered Full screen button. Drag-and-drop accepts one file through the same upload validation as the picker.
+
+Safe web preferences are stored separately in SQLite's `quick_settings` row, not in environment/credential files. Every save carries a revision; a stale tab must reload instead of silently overwriting another tab. Unsaved model/media/Jev edits stay local to that tab. The Save button highlights unsaved settings. Control navigation asks before discarding them, and close/back/reload uses the browser's standard unsaved-changes warning; a browser may suppress that warning if the page has never received a user interaction. Overlay visibility is arranged as a single checkbox column and saves immediately. No build, real CLI run, paid Jev request or broadcast operation is performed just by opening settings (model discovery happens only when requested).
+
+
 ## What protection does Docker-agent mode provide?
 
 Each agent receives a separate temporary workspace. The container has a read-only base filesystem, no Docker socket, removed Linux capabilities and an internal allowlist proxy network. Full boundary details: [README Isolation and privacy](README.md#isolation-and-privacy). Generated HTML is rendered as-is; the README explains credential screening and input forwarding. Remaining risks:
@@ -336,3 +357,72 @@ docker compose -f sandbox/compose.yml down
 ```
 
 Generated results are saved under `main/codex/` and `main/cursor/`. Runtime state and temporary native workspaces are under `runtime/`; both locations are ignored by Git.
+
+## Privacy, goals and pre-live review
+
+The Welcome header keeps **Use last setup**, **Shortcuts** and **Quick settings** in one row. In **Multiple overlays**, choose an output to access its **Hide overlay / Show overlay** button and goal/stopwatch popover. **Hide all overlays / Show all overlays** remains a separate emergency action in that panel. All controls match the dark purple UI. Per-output Hide persists in SQLite across reloads and server restart, replaces only that public output with “Back shortly”, blocks that output’s public history requests (and Main’s result preview), and strips coding content and goal text from public snapshots and WebSocket patches. Private host transcripts and coding processes continue; hiding does not create a break, stop OBS or reset time. Reveal sends a complete fresh snapshot before further text patches. Show all removes the global privacy flag; it preserves any output hidden individually. Show overlay never starts an unpublished output—use Publish overlay separately. Previously delivered/broadcast content cannot be recalled, and a disconnected control page cannot send Hide. Public pages replace their content when they detect a disconnected socket; network failure detection is not instantaneous.
+
+With a host page focused, **Alt + Shift + H** hides all outputs and **Alt + Shift + S** removes that global hide. Individual output hides stay in place. These commands ignore repeated keys, typing fields and text composition. They are page shortcuts, not system-wide shortcuts. Choose other OS-level bindings if your desktop already reserves the suggested keys.
+
+For privacy while your editor has focus, create a neutral **Privacy** scene in OBS. In **Settings → Hotkeys**, assign separate unused shortcuts to **Switch to scene: Privacy** and to your normal scene (for example Ctrl + Shift + F9 / F10). In **Settings → Advanced → Hotkeys**, set **Never disable hotkeys**, then Apply. Grant keyboard access if macOS requests it. Test with the editor focused and inspect **Program** output; Studio Mode may require an explicit transition. OBS's native hotkeys do not require a helper or new dependency. This app never changes your scenes/settings automatically. Switching OBS scenes affects the broadcast only; also use this app's Hide action if its browser feed must stop publishing. See the [OBS project hotkey focus reference](https://github.com/obsproject/obs-studio/issues/6624).
+
+**Goal & stopwatch** offers **Own goal + stopwatch** or **Shared goal + stopwatch** for each output. New outputs start with their own empty goal and paused clock; existing outputs retain the shared pair during migration. Shared edits, Pause and Reset affect every output using that pair. Switching sources does not copy or reset time; an already-running inactive clock continues until explicitly paused. The badge shows up to 160 characters of redacted plain text with the stopwatch in a compact bottom-left corner badge. A running or previously started stopwatch can also appear without goal text. The overlay checkbox can hide the strip independently. Start, Pause/Resume and Reset are manual; editing or clearing the goal does not reset time. Hide leaves time running. All tabs derive elapsed duration from the server's start time. A clean restart restores accumulated time **paused**; a crash restores the most recent one-second checkpoint, excluding downtime. Reset requires a separate confirmation and preserves running/paused mode.
+
+**Use last setup** reviews the most recently applied welcome configuration before Apply. It shows the selected session/CLI, model/effort where known, runner, stream mode and visibility/history choices. It stores only allowlisted public choices; credentials, native consent and prompt text are excluded. Apply rechecks installed models and the saved session, rejects stale settings, and preserves unrelated session choices. It never creates a run, publishes an overlay, reveals a hidden feed or starts OBS. A saved native runner still needs the normal explicit native consent. If a saved session/model is gone, use the existing manual path.
+
+The **Short pre-live check** records the host's confirmation of the correct session, readability at target output dimensions, visibility in OBS Program output and audible break music through the intended OBS path. Preview and test audio are deliberate controls and do not start broadcasting. Same-origin tabs in one browser share an audio lock; OBS has a separate browser profile, so stop a local audio test before listening in OBS. A file/source existing does not prove visible or audible output. Changes to relevant model, visibility, goal, media or output assignments require renewed confirmation; collection timing and renaming an overlay do not. Review each intended private layout before switching it live. Existing successful-rehearsal and manual OBS-start gates still apply, including after reuse of last setup. Checklist confirmations are session-memory only and expire on server restart.
+
+Host refreshes use one active request, one coalesced follow-up and a minimum 750ms interval between starts. Live WebSocket text patches remain immediate. Session/experience changes, privacy transitions, disconnects, token replacement and unmount invalidate old host responses.
+
+Focused verification (not run during implementation):
+
+```sh
+npx tsx --test tests/presentation.test.ts tests/host-refresh.test.ts tests/overlays.test.ts tests/session-publication.test.ts
+npm run check
+npm run build
+```
+
+Real OBS hotkeys, keyboard focus, multi-tab playback and target-size readability/audibility still need a private rehearsal in the actual browser and OBS installation.
+
+## Start locally
+
+After installing dependencies, double-click **Start Twitching.command** on macOS, or run `./start_stream.sh` without flags. The launcher builds the local UI when its bundle is missing or older than `web/` source, then opens `/control/welcome` and starts an idle server: no model, chat collection or broadcast is started. Keep its terminal open while using Twitching.
+
+Choose **Share existing session**, **Start new session**, or **Existing prompt arena**. The welcome dialog and Quick Settings share the same saved visibility choices. Each selected conversation can override the defaults. The default keeps previous prompt runs visible; hiding previous runs only filters the view. **Show previous prompts** and **Load older messages** still read saved history. Nothing is deleted by this option.
+
+| Source | Browse/history | Live activity | What it can control |
+| --- | --- | --- | --- |
+| Managed Codex/Cursor | SQLite history, 60 items per page | Structured events from this app's own process | Send the next prompt in a managed workspace |
+| Existing Codex | Documented app-server list/read/item pagination, when supported by the installed CLI/history store | Saved history refreshed every 5 seconds; unsaved output may be absent, runtime status is unknown | Read-only; never starts or resumes an external turn |
+| Existing Cursor | Unavailable: documented CLI selection/resume is interactive; passive history/attachment is unverified | Unavailable | Use a managed Cursor session instead |
+
+Installed CLI compatibility checked during development: Codex `0.164.0` (its generated schemas include the history endpoints); Cursor was absent from this shell's PATH. History API runtime calls have **not** been exercised. See the [Codex app-server reference](https://learn.chatgpt.com/docs/app-server), [Cursor parameters](https://cursor.com/docs/cli/reference/parameters), and [Cursor output format](https://cursor.com/docs/cli/reference/output-format).
+
+Selecting a session opens a **private preview**. **Show only this session on Main** replaces the Main output with that session; **Stop Main overlay** stops that output. Named outputs have their own selection and Stop control. Switching a private preview never changes publication, and stopping an output never kills an external CLI. Live publication requires confirming each session's private rehearsal in the current server process, then starting OBS manually. OBS disconnection removes live publication without stopping coding. **Open OBS** only opens the app.
+
+The welcome dialog defaults to Native with the requested **NATIVE** opt-in prefilled; Docker remains available for isolated execution. Native commands run directly on this computer. Each prompt starts a fresh CLI process in the same session workspace, with up to 24,000 characters of recent redacted conversation as context; it is not a resumed provider thread. Older messages remain in SQLite and workspace files remain on disk. This flow does not import arbitrary local repositories. Model and effort changes apply to future prompts, never an active process.
+
+General sessions can explain code, debug or edit files without generating HTML. A successful CLI completion stays successful when HTML is missing. Process, authentication, quota and cleanup errors remain visible failures. **Result** is a separate private option for the latest supported `prompt_<run>.html`, rendered through the existing isolated preview; it requires Docker even for native agents. Missing/unsafe HTML leaves Conversation available and never replaces it with a failed preview. Only conversation is published by this flow. Arbitrary apps and project directories are never served.
+
+The timeline uses a normal scrollbar. Older pages retain the reader's position; new events follow the bottom only while the reader is already there. At most 600 display fragments are retained in the browser, and older history can be paged indefinitely through a bounded window. Managed messages longer than 16,000 characters are saved as fragments, preserving their text; external Codex items show a labelled 16,000-character excerpt while full text remains in the original CLI. Read names require structured, validated workspace paths; shell commands are not parsed to guess filenames. Command arguments and read contents stay private.
+
+The existing arena still requires one valid HTML result. Pass startup flags to retain the terminal arena workflow, for example `./start_stream.sh --mode rehearsal --runner docker --codex --no-prompts`.
+
+Copy `.env.example` to `.env.local` and fill in your own credentials privately. 
+Add your own `assets/break.mp3` for break music. 
+The blocked-word filter starts empty. For example, add `"blockedWords": ["example-word"]` to `settings.json` to reject that word. Replace it with your own list before accepting public chat.
+Jev safety checks remain enabled.
+
+### Multiple session overlays
+
+The **Multiple overlays** panel sits below Overlay visibility. Choose or create a named output, then tick up to **eight sessions** in the session browser. **Apply to this overlay** changes its assignment, including during a stream; **Publish overlay** enables it. Paste that output's URL into its own OBS browser source. Main uses `/overlay`; named outputs use `/overlay/<id>`. Changes keep the same URL and do not require replacing the OBS source.
+
+Agent replies in the prompt arena and session overlays render GitHub-style Markdown tables. Wide tables scroll inside the message, including narrow multi-session tiles. Raw HTML and remote images from replies are not rendered.
+
+Choose **Selected sessions**, **Running now — fixed selection**, or **Follow managed running — automatic**. A fixed capture keeps its sessions after they finish, until you capture again or change the assignment. Automatic mode adds and removes managed sessions with verified running activity, taking the first eight when more are running. External Codex history remains Unknown and must be selected manually. Live automatic additions must also satisfy the existing rehearsal checks.
+
+Each output divides its area into independent conversation tiles. History, reconnect patches and public history requests are scoped to that output and conversation. The latest page is bounded to 20 text fragments per tile; older pages remain accessible. Visibility choices belong to the session and apply wherever it appears. Different outputs can show different session sets, including the same session on multiple outputs.
+
+Assignments and names survive restarts, with publication disabled until the streamer explicitly enables it again. Up to 32 output definitions are supported, each capped at eight unique sessions on both client and server. Overlapping session-list pages deduplicate by ID; different sessions with similar titles remain separate and display their short IDs.
+
+Session overlays require the prompt arena to be stopped. The arena retains its original one/two-CLI round behavior. Source tests in `tests/overlays.test.ts` cover identity deduplication, independent outputs, limits, running modes, restart behavior, cancellation and text patches; running them requires authorization.

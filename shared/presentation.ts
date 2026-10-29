@@ -6,6 +6,8 @@ export interface Presentation {
   elapsedMs: number;
   runningSince?: number;
   serverNow: number;
+  breakActive?: boolean;
+  breakUntil?: number;
 }
 export interface OutputPresentation extends Presentation {
   source: "own" | "shared";
@@ -19,6 +21,7 @@ export interface PresentationSelection {
   revision: number;
   source: "own" | "shared";
   globalHidden: boolean;
+  globalBreakActive: boolean;
   own: Presentation;
   value: Presentation;
 }

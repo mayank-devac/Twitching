@@ -63,6 +63,7 @@ const action = z.discriminatedUnion("action", [
     nativeConsent: z.literal("NATIVE").optional(),
   }),
   z.object({ action: z.literal("arena") }),
+  z.object({ action: z.literal("session-mode"), choice: z.enum(["wait", "cancel"]).optional() }),
   z.object({ action: z.literal("open-obs") }),
 ]);
 
@@ -188,6 +189,8 @@ export function sessionRoutes(
         case "arena":
           sessions.arena();
           break;
+        case "session-mode":
+          return sessions.sessionMode(input.choice);
         case "open-obs":
           await openObs();
           break;

@@ -149,7 +149,7 @@ const preview = new Previews(
   credentialGuard(privateValues),
   settings.previewView,
 );
-preview.publicHidden = () => presentation.get("default").hidden;
+preview.publicHidden = () => { const p = presentation.get("default"); return p.hidden || !!p.breakActive; };
 const previewServer = preview.app().listen(settings.previewPort, settings.host);
 let controller: Controller;
 let sessionService: Sessions | undefined;
@@ -347,8 +347,10 @@ controller.configureQuick({
 });
 // Welcome startup stays idle; provider discovery and model runs require explicit host actions.
 const sessions = new Sessions(store, preferences, { docker, native }, clean, settings.experience,
-  () => obs.streaming(), () => ["stopped", "paused"].includes(controller.state.status) && !Object.values(controller.state.round?.attempts ?? {}).some((a) => ["running", "validating"].includes(a.status)),
-  async (agent, round) => { await preview.ready(); return preview.validate(agent, round, 1); });
+  () => obs.streaming(), () => controller.sessionReady,
+  async (agent, round) => { await preview.ready(); return preview.validate(agent, round, 1); },
+  (choice) => controller.leaveArena(choice));
+controller.arenaEnabled = () => sessions.experience === "arena";
 sessionService = sessions;
 controller.on("state", () => sessions.settingsChanged());
 const http = makeHttp(controller, {
@@ -432,6 +434,7 @@ const close = async () => {
   clearInterval(timer);
   clearInterval(presentationCheckpoint);
   presentation.checkpoint();
+  presentation.close();
   await sessions.close();
   await controller.stop("Controller shut down", false);
   await http.close();

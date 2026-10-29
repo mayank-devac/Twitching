@@ -236,7 +236,7 @@ export function OverlayManager({
       </p>
       <p className="overlay-url-note">
         {draft.selection === "selected"
-          ? "Tick sessions in the list on the left, then Apply."
+          ? ""
           : draft.selection === "running-snapshot"
             ? "Apply captures running sessions; they stay selected after finishing."
             : document.running.length

@@ -71,6 +71,7 @@ export class Sessions extends EventEmitter {
     private liveReady: () => Promise<boolean>,
     private arenaIdle: () => boolean,
     private renderResult?: (agent: string, round: number) => Promise<string>,
+    private leaveArena?: (choice?: "wait" | "cancel") => Promise<"choice" | "waiting" | "ready">,
   ) {
     super();
     this.experience = experience;
@@ -366,6 +367,15 @@ export class Sessions extends EventEmitter {
       sharedSession:
         overlay.frames.length === 1 ? overlay.frames[0] : undefined,
     };
+  }
+  // Keep mode ownership on the server; navigating a tab alone never starts work.
+  async sessionMode(choice?: "wait" | "cancel") {
+    const status = this.leaveArena ? await this.leaveArena(choice) : this.arenaIdle() ? "ready" : "choice";
+    if (status === "ready") {
+      this.experience = "session";
+      this.emit("state");
+    }
+    return { status };
   }
   arena() {
     if (this.active.size)

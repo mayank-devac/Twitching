@@ -66,6 +66,38 @@ export class Controller extends EventEmitter {
   private lastQuota = 0;
   private checkingQuota = false;
   private ending = false;
+  private switchingToSession = false;
+  // The session owner prevents stale arena controls from restarting a different mode.
+  arenaEnabled: () => boolean = () => true;
+
+  get sessionReady() {
+    return !this.switchingToSession && !this.busy && !this.ending &&
+      !this.launching && !this.handles && !this.breaks.transitioning &&
+      ["paused", "stopped"].includes(this.state.status) &&
+      !Object.values(this.state.round?.attempts ?? {}).some((a) =>
+        ["running", "validating"].includes(a.status));
+  }
+
+  // Pause scheduling first; only explicit cancellation may interrupt an active run.
+  async leaveArena(choice?: "wait" | "cancel") {
+    const active = !!(this.handles || this.launching || this.busy ||
+      Object.values(this.state.round?.attempts ?? {}).some((a) =>
+        ["running", "validating"].includes(a.status)));
+    if (active && !choice && !this.switchingToSession)
+      return "choice" as const;
+    this.switchingToSession = true;
+    this.pause("Switching to coding sessions; no new arena rounds will start");
+    if (this.ending || this.breaks.transitioning || this.busy)
+      return "waiting" as const;
+    if (active && choice !== "cancel") return "waiting" as const;
+    try {
+      const stopped = await this.stop("Prompt arena stopped for coding sessions", false);
+      if (!stopped) throw new Error("Arena cleanup failed. Retry switching before starting a session.");
+      return "ready" as const;
+    } finally {
+      this.switchingToSession = false;
+    }
+  }
   private generation = 0;
   private launchSettled?: Promise<void>;
   private resumeAfterBreak = true;
@@ -390,6 +422,8 @@ export class Controller extends EventEmitter {
     this.persist();
   }
   async start() {
+    if (this.switchingToSession || !this.arenaEnabled())
+      throw new Error("Open Prompt arena before starting arena rounds");
     // Only manual breaks can be ended by the host; quota recovery remains mandatory.
     if (
       this.breaks.transitioning ||
@@ -473,6 +507,8 @@ export class Controller extends EventEmitter {
     this.persist();
   }
   async resume() {
+    if (this.switchingToSession || !this.arenaEnabled())
+      throw new Error("Open Prompt arena before resuming arena rounds");
     if (this.breaks.transitioning)
       throw new Error("Work is stopping for a break");
     if (this.state.status === "break") {
@@ -484,6 +520,17 @@ export class Controller extends EventEmitter {
       this.state.reason = "Current round running; next rounds enabled";
       this.persist();
     } else await this.start();
+  }
+  // Session controls can clear a leftover arena break without starting a new arena round.
+  endManualBreak() {
+    if (this.breaks.transitioning || this.state.status !== "break" || this.state.breakKind !== "manual")
+      throw new Error("Only an active manual break can be ended here");
+    this.state.manualBreak = undefined;
+    this.state.breakKind = undefined;
+    this.state.breakUntil = undefined;
+    this.state.status = "paused";
+    this.state.reason = "Manual break ended. Start the prompt arena when ready.";
+    this.persist();
   }
   reject(id: string) {
     this.collection.reject(id);
@@ -534,7 +581,7 @@ export class Controller extends EventEmitter {
     }
   }
   async tick() {
-    if (this.busy || this.ending || this.breaks.transitioning) return;
+    if (this.busy || this.ending || this.breaks.transitioning || this.switchingToSession || !this.arenaEnabled()) return;
     this.busy = true;
     try {
       if (!["stopped", "break"].includes(this.state.status))
@@ -907,7 +954,7 @@ export class Controller extends EventEmitter {
     this.persist();
   }
   async stop(reason = "Host ended the show", stopBroadcast = true) {
-    if (this.ending) return;
+    if (this.ending) return false;
     this.ending = true;
     this.generation++;
     this.state.status = "stopped";
@@ -929,8 +976,10 @@ export class Controller extends EventEmitter {
       await this.runner.recover();
       if (stopBroadcast && this.state.mode === "live")
         await this.integrations.stopBroadcast();
+      return true;
     } catch {
       this.state.reason = `${reason}. Could not confirm runner or OBS shutdown; check the host.`;
+      return false;
     } finally {
       this.ending = false;
       this.persist();

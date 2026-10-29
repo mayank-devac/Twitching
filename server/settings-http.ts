@@ -247,6 +247,7 @@ export function settingsRoutes(
       text: z.string().trim().min(10).max(600),
     }),
     z.object({ action: z.literal("stop-stream"), confirm: z.literal(true) }),
+    z.object({ action: z.literal("end-break") }),
   ]);
   app.post(
     "/api/quick-action",
@@ -261,6 +262,8 @@ export function settingsRoutes(
         const value = parsed.data;
         if (value.action === "break")
           await controller.manualBreak(value.durationMs, value.immediate);
+        else if (value.action === "end-break")
+          controller.endManualBreak();
         else if (value.action === "edit-prompt")
           controller.editPrepared(value.version, value.text);
         else await controller.stopStream();

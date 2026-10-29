@@ -254,6 +254,11 @@ Purpose: Route agents to the most relevant source files quickly. Verify details 
 - Work: Share safe React Markdown settings across arena and session replies. The `remark-gfm` plugin recognizes pipe tables; a focusable scroll container keeps wide tables inside the message width. Raw HTML and remote images are skipped.
 - Used by: `web/main.tsx`, `web/overlays/OverlayScreen.tsx` through `Timeline`. Focused source case: `tests/markdown.test.tsx`.
 
+`web/break-control.tsx`, `web/break-control.css`, `server/presentation-controls.ts`, `server/settings-http.ts`
+
+- Work: Host navbar break for the selected output or all outputs, with a bounded timer or explicit end and a warning that coding continues. Public break snapshots withhold agent text and reuse the saved break media. Quick Settings can clear a leftover arena manual break in session mode without resuming the arena.
+- Used by: `web/welcome/Welcome.tsx`, `web/settings/QuickSettings.tsx`, `web/main.tsx`, `server/http.ts`, `server/controller.ts`.
+
 `web/style.css`
 
 - Work: Layout and colour for the overlay and host desk, including the narrow-screen rules.

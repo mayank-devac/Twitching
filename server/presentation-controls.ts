@@ -10,6 +10,8 @@ export const presentationAction = z.discriminatedUnion("action", [
   z.object({ action: z.literal("goal"), text: z.string().trim().max(160), show: z.boolean(), overlay: outputId.optional(), source: z.enum(["own", "shared"]).optional() }).strict(),
   z.object({ action: z.enum(["start", "pause", "reset"]), overlay: outputId.optional(), source: z.enum(["own", "shared"]).optional() }).strict(),
   z.object({ action: z.literal("goal-source"), overlay: outputId, source: z.enum(["own", "shared"]) }).strict(),
+  z.object({ action: z.literal("break-start"), overlay: outputId.optional(), durationMs: z.number().int().min(10000).max(3600000).nullable() }).strict(),
+  z.object({ action: z.literal("break-end"), overlay: outputId.optional() }).strict(),
 ]);
 type Action = z.infer<typeof presentationAction>;
 const empty = (): Presentation => ({ hidden: false, goal: "", showGoal: true, elapsedMs: 0, serverNow: 0 });
@@ -18,6 +20,7 @@ export class PresentationConflict extends Error {}
 // Shared time and independent output records live in the existing atomic SQLite row.
 export class PresentationControls extends EventEmitter {
   private value: SavedPresentation;
+  private breakTimer?: ReturnType<typeof setTimeout>;
   constructor(private store: Store, private clean: (text: string, limit?: number) => string, private now = Date.now) {
     super();
     const saved = store.presentation();
@@ -28,6 +31,7 @@ export class PresentationControls extends EventEmitter {
     }
     this.value = { ...empty(), ...saved, outputs, revision: saved?.revision ?? 0, runningSince: undefined, serverNow: now() };
     this.checkpoint();
+    this.scheduleBreakExpiry();
   }
   private assertOutput(id: string) {
     if (id !== "default" && !this.store.overlays()?.overlays.some((output) => output.id === id))
@@ -38,17 +42,25 @@ export class PresentationControls extends EventEmitter {
     return this.value.outputs[id] ?? { ...empty(), source: "own" };
   }
   private clock(value: Presentation): Presentation {
-    return { hidden: value.hidden, goal: value.goal, showGoal: value.showGoal, elapsedMs: value.elapsedMs, runningSince: value.runningSince, serverNow: this.now() };
+    const at = this.now();
+    const breakActive = !!value.breakActive && (value.breakUntil === undefined || value.breakUntil > at);
+    return { hidden: value.hidden, goal: value.goal, showGoal: value.showGoal, elapsedMs: value.elapsedMs, runningSince: value.runningSince, serverNow: at,
+      breakActive, breakUntil: breakActive ? value.breakUntil : undefined };
   }
   get(overlay?: string): Presentation {
     if (!overlay) return this.clock(this.value);
     const own = this.own(overlay);
     const active = own.source === "shared" ? this.value : own;
-    return { ...this.clock(active), hidden: this.value.hidden || own.hidden };
+    const globalBreak = this.clock(this.value);
+    const ownBreak = this.clock(own);
+    return { ...this.clock(active), hidden: this.value.hidden || own.hidden,
+      breakActive: globalBreak.breakActive || ownBreak.breakActive,
+      breakUntil: globalBreak.breakActive ? globalBreak.breakUntil : ownBreak.breakUntil };
   }
   selection(id: string): PresentationSelection {
     const own = this.own(id);
-    return { revision: this.value.revision, source: own.source, globalHidden: this.value.hidden, own: this.clock(own), value: this.get(id) };
+    return { revision: this.value.revision, source: own.source, globalHidden: this.value.hidden, globalBreakActive: !!this.clock(this.value).breakActive,
+      own: this.clock(own), value: this.get(id) };
   }
   selections() {
     return Object.fromEntries(["default", ...(this.store.overlays()?.overlays.map((output) => output.id) ?? [])].map((id) => [id, this.selection(id)]));
@@ -77,9 +89,18 @@ export class PresentationControls extends EventEmitter {
     if (input.action === "start" && active.runningSince === undefined) active.runningSince = at;
     if (input.action === "pause") { active.elapsedMs = elapsed(active, at); active.runningSince = undefined; }
     if (input.action === "reset") { active.elapsedMs = 0; if (active.runningSince !== undefined) active.runningSince = at; }
+    if (input.action === "break-start") {
+      const target = own ?? next;
+      if (target.breakActive && (target.breakUntil === undefined || target.breakUntil > at))
+        throw new PresentationConflict("This overlay already has a break. End it before starting another.");
+      target.breakActive = true;
+      target.breakUntil = input.durationMs === null ? undefined : at + input.durationMs;
+    }
+    if (input.action === "break-end") { (own ?? next).breakActive = false; (own ?? next).breakUntil = undefined; }
     next.revision++;
     this.persist(next, at);
     this.value = next;
+    this.scheduleBreakExpiry();
     this.emit("state");
     return input.overlay ? this.selection(input.overlay) : this.get();
   }
@@ -91,13 +112,55 @@ export class PresentationControls extends EventEmitter {
     this.store.savePresentation({ ...checkpoint(value), revision: value.revision, outputs });
   }
   checkpoint() { this.persist(this.value, this.now()); }
-  publicSnapshot(base: ShowState, overlay = "default"): ShowState {
+  close() { clearTimeout(this.breakTimer); }
+  private scheduleBreakExpiry() {
+    clearTimeout(this.breakTimer);
+    const deadlines = [this.value, ...Object.values(this.value.outputs)]
+      .filter((value) => value.breakActive && value.breakUntil !== undefined)
+      .map((value) => value.breakUntil!);
+    if (!deadlines.length) return;
+    const deadline = Math.min(...deadlines);
+    this.breakTimer = setTimeout(() => {
+      const at = this.now();
+      const next = structuredClone(this.value);
+      let changed = false;
+      for (const value of [next, ...Object.values(next.outputs)]) {
+        if (value.breakActive && value.breakUntil !== undefined && value.breakUntil <= at) {
+          value.breakActive = false;
+          value.breakUntil = undefined;
+          changed = true;
+        }
+      }
+      if (changed) {
+        next.revision++;
+        try { this.persist(next, at); }
+        catch {
+          // Storage failure must not crash the controller or spin on an expired deadline.
+          this.breakTimer = setTimeout(() => this.scheduleBreakExpiry(), 1000);
+          this.breakTimer.unref?.();
+          return;
+        }
+        this.value = next;
+        this.emit("state");
+      }
+      this.scheduleBreakExpiry();
+    }, Math.max(0, Math.min(deadline - this.now(), 2_147_483_647)));
+    this.breakTimer.unref?.();
+  }
+  publicSnapshot(base: ShowState, overlay = "default", media?: import("../shared/settings.js").QuickPreferences["media"]): ShowState {
     let presentation: Presentation;
     try { presentation = this.get(overlay); }
     catch (error) {
       if (!(error instanceof PresentationConflict)) throw error;
       // A deleted output may still have an open browser source; leave it neutral.
       presentation = { ...empty(), hidden: true, serverNow: this.now() };
+    }
+    if (!presentation.hidden && presentation.breakActive) {
+      // A presentation break covers the public feed; coding and its private host view continue.
+      return { status: "break", mode: base.mode, reason: "Break on this overlay", candidates: [], candidateCount: 0,
+        events: [], connections: {}, checks: [], rehearsalComplete: false, breakKind: "manual", breakUntil: presentation.breakUntil,
+        quickSettings: { revision: base.quickSettings?.revision ?? 0, visibility: {}, media: media ?? base.quickSettings?.media ?? {} },
+        presentation: { ...presentation, goal: "", showGoal: false } };
     }
     if (!presentation.hidden) return { ...base, presentation };
     // Only the effective goal/clock reaches an output; private maps never enter public payloads.

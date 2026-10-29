@@ -68,6 +68,58 @@ test("privacy shortcuts ignore editing, composition and key repeat", () => {
   assert.equal(privacyCommand(key, true), undefined);
 });
 
+test("selected and all-output breaks cover public text while coding data stays private", () => {
+  const store = new Store(":memory:");
+  const named = "44444444-4444-4444-8444-444444444444";
+  store.saveOverlays({ revision: 1, overlays: [
+    { id: "default", name: "Main", selection: "selected", sessionIds: [], published: false },
+    { id: named, name: "Named", selection: "selected", sessionIds: [], published: false },
+  ] });
+  let now = 1000;
+  const controls = new PresentationControls(store, (text) => text, () => now);
+  try {
+    controls.act({ action: "break-start", overlay: named, durationMs: 20000 });
+    const cover = controls.publicSnapshot(base(), named, { audio: undefined });
+    assert.equal(cover.status, "break");
+    assert.equal(cover.events.length, 0);
+    assert.equal(JSON.stringify(cover).includes("Private answer"), false);
+    assert.equal(controls.publicSnapshot(base(), "default").events[0].text, "Private answer");
+    assert.throws(() => controls.act({ action: "break-start", overlay: named, durationMs: null }), /already has a break/);
+    controls.act({ action: "break-start", durationMs: null });
+    assert.equal(controls.publicSnapshot(base(), "default").status, "break");
+    controls.act({ action: "break-end" });
+    assert.equal(controls.publicSnapshot(base(), "default").status, "running");
+    assert.equal(controls.publicSnapshot(base(), named).status, "break");
+    controls.checkpoint();
+    const restored = new PresentationControls(store, (text) => text, () => now);
+    assert.equal(restored.get(named).breakActive, true);
+    now += 20000;
+    assert.equal(restored.get(named).breakActive, false);
+    restored.close();
+    controls.act({ action: "break-end", overlay: named });
+    assert.equal(controls.publicSnapshot(base(), named).events[0].text, "Private answer");
+  } finally { controls.close(); store.close(); }
+});
+
+test("a timed presentation break emits a fresh public view when its deadline expires", (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: 1000 });
+  const store = new Store(":memory:");
+  const controls = new PresentationControls(store, (text) => text);
+  let updates = 0;
+  controls.on("state", () => updates++);
+  try {
+    controls.act({ action: "break-start", durationMs: 10000 });
+    assert.equal(controls.publicSnapshot(base()).status, "break");
+    t.mock.timers.tick(9999);
+    assert.equal(controls.publicSnapshot(base()).status, "break");
+    t.mock.timers.tick(1);
+    assert.equal(controls.publicSnapshot(base()).status, "running");
+    assert.equal(controls.publicSnapshot(base()).events[0].text, "Private answer");
+    assert.equal(updates, 2);
+    assert.equal(store.presentation()!.breakActive, false);
+  } finally { controls.close(); store.close(); }
+});
+
 test("outputs retain independent privacy, goals and clocks, or explicitly use the shared pair", () => {
   const store = new Store(":memory:");
   const first = "11111111-1111-4111-8111-111111111111";

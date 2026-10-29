@@ -9,6 +9,7 @@ import { OverlayScreen } from "./overlays/OverlayScreen.js";
 import { applyOverlayPatches } from "../shared/overlay-stream.js";
 import type { SessionView } from "../shared/sessions.js";
 import { BreakScreen } from "./break-screen.js";
+import { BreakControl } from "./break-control.js";
 import { defaultVisibility } from "../shared/settings.js";
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -245,9 +246,10 @@ function App() {
       </main>
     );
   // A normal route keeps Quick Settings separate from the broadcast layout.
-  if (settingsPage) return <><RehearsalCheck token={csrf} context={state.sharedSession?.conversation.id ?? "arena"} revision={state.quickSettings?.revision} /><QuickSettings state={state} token={csrf} connected={connected}/></>;
+  if (settingsPage) return <QuickSettings state={state} token={csrf} connected={connected}/>;
   if (welcomePage || (control && state.experience !== "arena")) return <Welcome token={csrf} publishedId={state.sharedSession?.conversation.id} hostControls={<PresentationControls state={state} token={csrf} shortcutsOnly />} />;
   if (!control && (state.presentation?.hidden || !connected)) return <main className="privacy-screen">Back shortly</main>;
+  if (!control && state.presentation?.breakActive) return <BreakScreen state={state} now={now} host={false} />;
   if (!control && (namedOverlay || state.experience && state.experience !== "arena")) return <div className="public-surface"><GoalStrip value={state.presentation} /><OverlayScreen view={state.sharedOverlay} /></div>;
   const round = state.round;
   const countdown =
@@ -258,7 +260,8 @@ function App() {
         : state.collectionDeadline;
   return (
     <main className={control ? "host" : "overlay"}>
-      {control ? <><RehearsalCheck token={csrf} context="arena" revision={state.quickSettings?.revision} /></> : <GoalStrip value={state.presentation} />}
+      {control ? <nav className="host-top-tools" aria-label="Show controls"><BreakControl token={csrf} /></nav> : <GoalStrip value={state.presentation} />}
+      {control && <RehearsalCheck token={csrf} context="arena" revision={state.quickSettings?.revision} />}
       {control && (
         <section className="prompt-strip" hidden={!round?.task.text}>
           {round?.task.text && <h1>{round.task.text}</h1>}

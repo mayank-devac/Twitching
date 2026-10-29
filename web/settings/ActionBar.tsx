@@ -44,7 +44,7 @@ export function ActionBar({
     : 0;
   return (
     <footer className="qs-actions">
-      {breakOpen && (
+      {breakOpen && state.experience === "arena" && (
         <div className="qs-break-form">
           {/* A null duration is explicit host-ended mode, never a quota override. */}
           <label className="qs-break-toggle">
@@ -131,6 +131,7 @@ export function ActionBar({
         <button
           disabled={
             locked ||
+            state.experience !== "arena" ||
             state.status === "stopped" ||
             state.status === "break" ||
             !!state.manualBreak
@@ -159,9 +160,11 @@ export function ActionBar({
             {state.breakKind === "manual" && (
               <button
                 disabled={locked}
-                onClick={() => void action("/api/action", { action: "resume" })}
+                onClick={() => void (state.experience === "arena"
+                  ? action("/api/action", { action: "resume" })
+                  : action("/api/quick-action", { action: "end-break" }))}
               >
-                End break &amp; resume
+                {state.experience === "arena" ? "End break & resume" : "End break"}
               </button>
             )}
           </>
