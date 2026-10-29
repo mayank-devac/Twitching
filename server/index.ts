@@ -1,3 +1,4 @@
+import { PresentationControls } from "./presentation-controls.js";
 import { startupConfigurationId } from "./startup-config.js";
 import { QuickSettings, defaultCriteria } from "./quick-settings.js";
 import { BreakMedia } from "./break-media.js";
@@ -122,6 +123,10 @@ const privateValues = [
   secrets.obs,
 ];
 const clean = redactor(privateValues, root);
+const presentation = new PresentationControls(store, clean);
+// Persist running elapsed time periodically; a restart restores the last checkpoint paused.
+const presentationCheckpoint = setInterval(() => presentation.checkpoint(), 1000);
+presentationCheckpoint.unref();
 const docker = new Docker(store, { root, image: settings.agentImage });
 const native = new NativeHost(store, root);
 const runnerHost = settings.runnerMode === "native" ? native : docker;
@@ -140,6 +145,7 @@ const preview = new Previews(
   credentialGuard(privateValues),
   settings.previewView,
 );
+preview.publicHidden = () => presentation.get().hidden;
 const previewServer = preview.app().listen(settings.previewPort, settings.host);
 let controller: Controller;
 let sessionService: Sessions | undefined;
@@ -342,12 +348,14 @@ const sessions = new Sessions(store, preferences, { docker, native }, clean, set
 sessionService = sessions;
 controller.on("state", () => sessions.settingsChanged());
 const http = makeHttp(controller, {
+  presentation,
   sessions,
   openObs: async () => {
     if (process.platform !== "darwin") throw new Error("Open OBS from your computer's app menu, then retry publication");
     await promisify(execFile)("open", ["-a", "OBS"], { timeout: 5000 });
   },
   quick: {
+    runner: settings.runnerMode,
     preferences,
     media,
     store,
@@ -418,6 +426,8 @@ const close = async () => {
   if (closing) return;
   closing = true;
   clearInterval(timer);
+  clearInterval(presentationCheckpoint);
+  presentation.checkpoint();
   await sessions.close();
   await controller.stop("Controller shut down", false);
   await http.close();

@@ -4,6 +4,13 @@ Purpose: Route agents to the most relevant source files quickly. Verify details 
 
 ## Quick Settings
 
+`server/sessions/overlays.ts`, `shared/overlay-stream.ts`, `web/overlays/OverlayManager.tsx`, `web/overlays/use-overlay-editor.ts`, `web/overlays/OverlayScreen.tsx`, `web/overlays/overlays.css`, `tests/overlays.test.ts`
+
+- Work: Own durable named output assignments, private checkbox drafts, server-enforced eight-session limits, fixed or automatic running selections, per-output OBS URLs and independent grid/history transport.
+- Contains: `Overlays`, revision/epoch checks, `overlayPatches`, and `applyOverlayPatches`; providers are read through `Sessions.view`, then projected through the existing public visibility/redaction policy.
+- Used by: `server/sessions/service.ts`, `server/sessions/http.ts`, `server/http.ts`, `server/store.ts`, `web/main.tsx` and the welcome session browser. Default output is `default`; named outputs use UUIDs. Selection is capped at eight IDs; up to 32 output definitions persist, with publication reset on startup.
+- Limits: Automatic mode includes verified app-managed running conversations only; external Codex runtime stays unknown. The legacy single-session publish action replaces Main only. Session visibility is shared across outputs; assignments are independent. Never delete sessions to deduplicate repeated page rows.
+
 `shared/sessions.ts`, `shared/timeline.ts`, `shared/safe-file-name.ts`, `server/sessions/service.ts`, `server/sessions/codex-history.ts`, `server/sessions/http.ts`
 
 - Work: Separate provider history identity, managed workspaces, private preview and explicit filtered publication from HTML arena rounds. Codex history uses list/read/item APIs only; arbitrary passive live attachment and external Cursor history are explicitly unavailable.

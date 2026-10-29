@@ -1,3 +1,5 @@
+import { LastSetup } from "./LastSetup.js";
+import { RehearsalCheck } from "./RehearsalCheck.js";
 import React, { useEffect, useRef, useState } from "react";
 import type { Agent, SessionConfig } from "../../shared/types.js";
 import type {
@@ -16,6 +18,9 @@ import {
   type SessionListing as Listing,
 } from "./SessionBrowser.js";
 import { LaunchChoices } from "./LaunchChoices.js";
+import { uniqueConversations } from "../../shared/sessions.js";
+import { useOverlayEditor } from "../overlays/use-overlay-editor.js";
+import { OverlayManager } from "../overlays/OverlayManager.js";
 import "../settings/settings.css";
 
 interface Readiness {
@@ -99,8 +104,8 @@ export function Welcome({
   const [ready, setReady] = useState<Readiness>();
   const [path, setPath] = useState<"existing" | "new" | "arena">("existing");
   const [cli, setCli] = useState<Agent>("codex");
-  const [runner, setRunner] = useState<"docker" | "native">("docker");
-  const [nativeConsent, setNativeConsent] = useState("");
+  const [runner, setRunner] = useState<"docker" | "native">("native");
+  const [nativeConsent, setNativeConsent] = useState("NATIVE");
   const [models, setModels] = useState<ModelChoice[]>();
   const [choice, setChoice] = useState<SessionConfig>();
   const [source, setSource] = useState<"managed" | Agent>("codex");
@@ -112,15 +117,21 @@ export function Welcome({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [resultUrl, setResultUrl] = useState("");
+  const overlayEditor = useOverlayEditor(token);
+  const publishedKeys = (
+    overlayEditor.document?.publishedSessionIds ??
+    (publishedId ? [publishedId] : [])
+  ).join("|");
   const selection = useRef(0);
   const listingVersion = useRef(0);
   useEffect(() => {
-    setListing((value) => ({ ...value, publishedId }));
+    const ids = publishedKeys ? publishedKeys.split("|") : [];
+    setListing((value) => ({ ...value, publishedId, publishedIds: ids }));
     setSelected(
       (value) =>
-        value && { ...value, published: value.conversation.id === publishedId },
+        value && { ...value, published: ids.includes(value.conversation.id) },
     );
-  }, [publishedId]);
+  }, [publishedId, publishedKeys]);
   const request = <T,>(url: string, body?: unknown, method?: string) =>
     hostRequest<T>(token, url, body, method);
   async function perform<T>(fn: () => Promise<T>): Promise<T | undefined> {
@@ -151,6 +162,8 @@ export function Welcome({
             ...doc.value.sessions[0],
             id: "session-1",
             cli: "codex",
+            model: "",
+            effort: undefined,
           });
         }
       })
@@ -169,9 +182,11 @@ export function Welcome({
     if (version === listingVersion.current)
       setListing((old) => ({
         ...data,
-        conversations: before
-          ? [...old.conversations, ...data.conversations].slice(-120)
-          : data.conversations,
+        conversations: uniqueConversations(
+          before
+            ? [...old.conversations, ...data.conversations]
+            : data.conversations,
+        ).slice(-120),
       }));
   }
   useEffect(() => {
@@ -268,6 +283,7 @@ export function Welcome({
     return saved;
   }
   async function discover() {
+    setModels(undefined);
     await perform(async () => {
       const current = path === "existing" ? selected?.conversation : undefined;
       const selectedCli = current?.cli ?? cli;
@@ -276,37 +292,47 @@ export function Welcome({
         `/api/sessions/models?cli=${selectedCli}&runner=${selectedRunner}`,
       );
       setModels(data.models);
-      const model =
-        data.models.find((m) => m.id === choice?.model) ?? data.models[0];
-      if (model)
-        setChoice({
-          id: current?.config?.id ?? "session-1",
-          cli: selectedCli,
-          model: model.id,
-          effort:
-            choice?.effort && model.efforts.includes(choice.effort)
-              ? choice.effort
-              : undefined,
-        });
+      const model = data.models.find((m) => m.id === choice?.model);
+      setChoice({
+        ...choice,
+        id: current?.config?.id ?? "session-1",
+        cli: selectedCli,
+        model: model?.id ?? "",
+        effort:
+          model && choice?.effort && model.efforts.includes(choice.effort)
+            ? choice.effort
+            : undefined,
+      });
     });
   }
+  // Remember only choices that successfully reached an applied boundary.
+  const remember = (nextPath: "arena" | "existing" | "new", id?: string, boundary = runner) => request("/api/last-setup", { path: nextPath, runner: boundary, ...(id ? { sessionId: id } : {}) });
   async function continueFlow() {
     await perform(async () => {
       if (path === "arena") {
         await save();
         await request("/api/sessions/action", { action: "arena" });
+        await remember("arena");
         location.assign("/control");
         return;
       }
       if (path === "existing") {
         await save();
+        if (selected) await remember("existing", selected.conversation.id, selected.conversation.runner ?? "docker");
+        return;
+      }
+      if (!choice || !document || !models?.some((m) => m.id === choice.model)) {
         setNotice(
-          "Choose a session below to open its private preview. Nothing is published until Show on stream.",
+          "Load installed models, then choose a model before continuing.",
         );
         return;
       }
-      if (!choice || !document || !models?.some((m) => m.id === choice.model))
-        throw new Error("Load installed models and choose one first");
+      if (runner === "native" && nativeConsent !== "NATIVE") {
+        setNotice(
+          "Type NATIVE above to confirm this computer will run the agent directly.",
+        );
+        return;
+      }
       const next = {
         ...document,
         value: { ...document.value, sessions: [{ ...choice, cli }] },
@@ -318,6 +344,7 @@ export function Welcome({
         runner,
         ...(runner === "native" ? { nativeConsent } : {}),
       });
+      await remember("existing", c.id, runner);
       ++selection.current;
       setSelected(
         await request<SessionView>(
@@ -361,7 +388,6 @@ export function Welcome({
       <header className="welcome-header">
         <div>
           <span className="welcome-eyebrow">TWITCHING</span>
-          <h1>Share the work. Keep your screen private.</h1>
         </div>
         <a className="quick-settings-link" href="/control/settings">
           Quick settings ↗
@@ -369,6 +395,12 @@ export function Welcome({
       </header>
       <div className="welcome-layout">
         <aside className="welcome-controls">
+          <LastSetup token={token} revision={document?.revision} applied={({ setup, document: saved, selected: restored }) => {
+            ++selection.current;
+            setDocument(saved); setSelected(restored); setPath(setup.path); setRunner(setup.runner);
+            setNativeConsent(""); setModels(undefined); setChoice(setup.sessions[0]); setCli(setup.sessions[0].cli);
+            setResultUrl(""); setNotice("Saved choices applied. Review the session and complete any required rehearsal. Nothing has started.");
+          }} />
           <nav className="welcome-options" aria-label="Experience">
             {(
               [
@@ -407,6 +439,18 @@ export function Welcome({
               listing={listing}
               selectedId={selected?.conversation.id}
               publishedId={listing.publishedId}
+              publishedIds={
+                overlayEditor.document?.publishedSessionIds ??
+                listing.publishedIds
+              }
+              checkedIds={overlayEditor.draft?.sessionIds ?? []}
+              overlayName={overlayEditor.draft?.name}
+              selectionDisabled={
+                !overlayEditor.draft ||
+                overlayEditor.busy ||
+                overlayEditor.draft.selection === "follow-running"
+              }
+              toggleOverlay={overlayEditor.toggle}
               busy={busy}
               changeSource={setSource}
               changeSearch={setSearch}
@@ -431,11 +475,27 @@ export function Welcome({
                 changeRunner={(next) => {
                   setRunner(next);
                   setModels(undefined);
-                  setNativeConsent("");
+                  setNativeConsent(next === "native" ? "NATIVE" : "");
                 }}
                 changeConsent={setNativeConsent}
                 discover={() => void discover()}
               />
+              <p
+                className="model-readiness"
+                role={models ? "status" : undefined}
+              >
+                {!models
+                  ? "Load installed models to choose one and continue."
+                  : models.some((model) => model.id === choice?.model) &&
+                      runner === "native" &&
+                      nativeConsent !== "NATIVE"
+                    ? "Type NATIVE above to enable Continue."
+                    : models.some((model) => model.id === choice?.model)
+                      ? "Ready · " + choice?.model
+                      : models.length
+                        ? "Choose one of the loaded models to continue."
+                        : "No models were returned. Check the CLI installation and login."}
+              </p>
               {choice && (
                 <SessionCard
                   hideVisibility
@@ -486,23 +546,6 @@ export function Welcome({
               </span>
             </div>
           )}
-          <details className="welcome-readiness">
-            <summary>Readiness and connector limits</summary>
-            {ready?.tools.map((tool) => (
-              <p key={tool.name}>
-                {tool.name}: {tool.available ? "Ready" : "Needs attention"} ·{" "}
-                {tool.message}
-              </p>
-            ))}
-            <p>{ready?.login}</p>
-            <p>{ready?.obs}</p>
-            {ready &&
-              Object.entries(ready.connectors).map(([name, connector]) => (
-                <p key={name}>
-                  <b>{name}:</b> {connector.note}
-                </p>
-              ))}
-          </details>
         </aside>
         <section className="welcome-content">
           <div className="preview-card">
@@ -521,7 +564,7 @@ export function Welcome({
               </span>
               <button
                 className="ghost-button"
-                disabled={busy || !listing.publishedId}
+                disabled={busy || !(overlayEditor.document?.overlays.find((overlay) => overlay.id === "default")?.published ?? !!listing.publishedId)}
                 onClick={() =>
                   void perform(async () => {
                     await request("/api/sessions/action", {
@@ -537,7 +580,7 @@ export function Welcome({
                   })
                 }
               >
-                Stop publication
+                Stop Main overlay
               </button>
             </header>
             {selected ? (
@@ -603,7 +646,8 @@ export function Welcome({
                       />
                       {selected.conversation.runner === "native" && (
                         <label className="native-consent">
-                          Type NATIVE to approve this server’s native runs
+                          Native runs have no Docker isolation. NATIVE is the
+                          opt-in.
                           <input
                             value={nativeConsent}
                             onChange={(event) =>
@@ -683,6 +727,7 @@ export function Welcome({
                         action: "publish",
                         id: selected.conversation.id,
                       });
+                      await remember("existing", selected.conversation.id, selected.conversation.runner ?? "docker");
                       setSelected(
                         (current) => current && { ...current, published: true },
                       );
@@ -693,7 +738,7 @@ export function Welcome({
                     })
                   }
                 >
-                  {selected.published ? "On stream" : "Show on stream"}
+                  Show only this session on Main
                 </button>
               </div>
             )}
@@ -702,6 +747,11 @@ export function Welcome({
             value={visibility}
             busy={busy}
             change={updateVisibility}
+          />
+          <RehearsalCheck token={token} context={path === "arena" ? "arena" : selected?.conversation.id ?? "unselected"} revision={document?.revision} />
+          <OverlayManager
+            editor={overlayEditor}
+            conversations={listing.conversations}
           />
         </section>
       </div>
@@ -742,6 +792,33 @@ export function Welcome({
               </span>
             );
           })}
+          <details className="footer-info">
+            <summary
+              aria-label="Readiness and connector limits"
+              title="Readiness and connector limits"
+            >
+              <span aria-hidden="true">i</span>
+            </summary>
+            <div className="footer-info-popover">
+              <h2>Readiness and connector limits</h2>
+              {ready?.tools.map((tool) => (
+                <p key={tool.name}>
+                  <b>
+                    {tool.name}: {tool.available ? "Ready" : "Needs attention"}
+                  </b>{" "}
+                  · {tool.message}
+                </p>
+              ))}
+              <p>{ready?.login}</p>
+              <p>{ready?.obs}</p>
+              {ready &&
+                Object.entries(ready.connectors).map(([name, connector]) => (
+                  <p key={name}>
+                    <b>{name}:</b> {connector.note}
+                  </p>
+                ))}
+            </div>
+          </details>
         </div>
         <div className="footer-actions">
           <button
@@ -765,7 +842,13 @@ export function Welcome({
           </a>
           <button
             className="primary-button"
-            disabled={busy || !document}
+            disabled={
+              busy ||
+              !document ||
+              (path === "new" &&
+                (!models?.some((model) => model.id === choice?.model) ||
+                  (runner === "native" && nativeConsent !== "NATIVE")))
+            }
             onClick={() => void continueFlow()}
           >
             Continue

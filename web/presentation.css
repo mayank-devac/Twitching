@@ -1,0 +1,125 @@
+.presentation-controls {
+  background: #14191d;
+  color: #edf0ed;
+  padding: 12px 20px;
+  border-bottom: 1px solid #354039;
+  font:
+    14px/1.5 system-ui,
+    sans-serif;
+}
+.presentation-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.presentation-controls button,
+.presentation-controls input {
+  font: inherit;
+  border: 1px solid #4c5850;
+  border-radius: 6px;
+  padding: 7px 10px;
+  background: #202923;
+  color: inherit;
+}
+.presentation-controls button {
+  cursor: pointer;
+}
+.presentation-controls button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.presentation-controls .privacy-action {
+  background: #eddfc6;
+  color: #25231f;
+  font-weight: 700;
+  min-width: 135px;
+}
+.presentation-controls details {
+  margin-top: 8px;
+  max-width: 1050px;
+}
+.presentation-controls summary {
+  cursor: pointer;
+  color: #cbd5ca;
+}
+.presentation-controls small {
+  color: #b5c0b5;
+}
+.presentation-controls input[type="checkbox"] {
+  accent-color: #b9ef85;
+}
+.presentation-controls input:not([type="checkbox"]) {
+  width: min(300px, 70vw);
+}
+.presentation-controls label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.presentation-controls a {
+  color: #b9ef85;
+}
+.privacy-screen {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #111715;
+  color: #e8eee8;
+  font:
+    600 clamp(32px, 5vw, 90px)/1.2 system-ui,
+    sans-serif;
+}
+.goal-strip {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 24px;
+  color: #eff6ec;
+  background: #18221b;
+  font:
+    24px/1.4 system-ui,
+    sans-serif;
+}
+.goal-strip strong {
+  overflow-wrap: anywhere;
+}
+.goal-strip time {
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+body:has(.goal-strip) .overlay-grid-screen {
+  height: calc(100vh - 54px);
+}
+.rehearsal-check,
+.last-setup {
+  padding: 14px;
+  border: 1px solid #354039;
+  border-radius: 8px;
+  margin: 12px 0;
+  color: #dce6dc;
+  background: #141c18;
+  font:
+    14px/1.5 system-ui,
+    sans-serif;
+}
+.rehearsal-check label {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  margin: 8px 0;
+}
+.rehearsal-check a {
+  color: #b9ef85;
+}
+.rehearsal-check button,
+.last-setup button {
+  padding: 8px 12px;
+  margin: 6px 6px 0 0;
+}
+.rehearsal-check audio {
+  width: 100%;
+  max-width: 320px;
+}

@@ -33,6 +33,9 @@ export class Store {
       mkdirSync(resolve(path, ".."), { recursive: true, mode: 0o700 });
     this.db = new DatabaseSync(path);
     this.db.exec(`PRAGMA journal_mode=WAL;
+      CREATE TABLE IF NOT EXISTS presentation (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS last_setup (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS overlay_settings (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS conversations (id TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS conversation_items (seq INTEGER PRIMARY KEY AUTOINCREMENT, conversation TEXT NOT NULL, id TEXT NOT NULL, value TEXT NOT NULL, UNIQUE(conversation,id));
       CREATE INDEX IF NOT EXISTS conversation_page ON conversation_items(conversation,seq);
@@ -49,6 +52,27 @@ export class Store {
       CREATE TABLE IF NOT EXISTS gifts (viewer TEXT PRIMARY KEY, at INTEGER NOT NULL, evidence TEXT NOT NULL);`);
   }
   // Session-scoped keyset pages retain old prompts without loading a whole transcript.
+  presentation(): import("../shared/presentation.js").Presentation | undefined {
+    const row = this.db.prepare("SELECT value FROM presentation WHERE id=1").get() as { value: string } | undefined;
+    return row ? JSON.parse(row.value) : undefined;
+  }
+  savePresentation(value: import("../shared/presentation.js").Presentation) {
+    this.db.prepare("INSERT OR REPLACE INTO presentation VALUES (1,?)").run(JSON.stringify(value));
+  }
+  lastSetup(): import("../shared/settings.js").LastSetup | undefined {
+    const row = this.db.prepare("SELECT value FROM last_setup WHERE id=1").get() as { value: string } | undefined;
+    return row ? JSON.parse(row.value) : undefined;
+  }
+  saveLastSetup(value: import("../shared/settings.js").LastSetup) {
+    this.db.prepare("INSERT OR REPLACE INTO last_setup VALUES (1,?)").run(JSON.stringify(value));
+  }
+  overlays(): import("../shared/sessions.js").OverlayDocument | undefined {
+    const row = this.db.prepare("SELECT value FROM overlay_settings WHERE id=1").get() as { value: string } | undefined;
+    return row ? JSON.parse(row.value) : undefined;
+  }
+  saveOverlays(document: import("../shared/sessions.js").OverlayDocument) {
+    this.db.prepare("INSERT OR REPLACE INTO overlay_settings VALUES (1,?)").run(JSON.stringify(document));
+  }
   conversation(id: string): import("../shared/sessions.js").Conversation | undefined {
     const row = this.db.prepare("SELECT value FROM conversations WHERE id=?").get(id) as { value: string } | undefined;
     return row ? JSON.parse(row.value) : undefined;
@@ -78,10 +102,11 @@ export class Store {
     for (const row of old) if (Number(row.id.slice(prefix.length)) >= part)
       this.db.prepare("DELETE FROM conversation_items WHERE conversation=? AND id=?").run(conversation, row.id);
   }
-  conversationPage(conversation: string, before = Number.MAX_SAFE_INTEGER): import("../shared/sessions.js").TimelinePage {
-    const rows = this.db.prepare("SELECT seq,value FROM conversation_items WHERE conversation=? AND seq<? ORDER BY seq DESC LIMIT 61")
-      .all(conversation, before) as { seq: number; value: string }[];
-    return { items: rows.slice(0,60).reverse().map((r) => JSON.parse(r.value)), before: rows.length > 60 ? String(rows[59].seq) : undefined };
+  conversationPage(conversation: string, before = Number.MAX_SAFE_INTEGER, limit = 60): import("../shared/sessions.js").TimelinePage {
+    const size = Math.max(1, Math.min(60, limit));
+    const rows = this.db.prepare("SELECT seq,value FROM conversation_items WHERE conversation=? AND seq<? ORDER BY seq DESC LIMIT ?")
+      .all(conversation, before, size + 1) as { seq: number; value: string }[];
+    return { items: rows.slice(0,size).reverse().map((r) => JSON.parse(r.value)), before: rows.length > size ? String(rows[size - 1].seq) : undefined };
   }
   disconnectConversations() {
     const runners = new Set<"docker" | "native">();

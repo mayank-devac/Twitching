@@ -44,3 +44,46 @@ export interface SessionView {
   hidePreviousRuns: boolean;
   published: boolean;
 }
+
+export const MAX_OVERLAY_SESSIONS = 8;
+export const MAX_OVERLAYS = 32;
+export type OverlaySelection =
+  "selected" | "running-snapshot" | "follow-running";
+export interface OverlayDefinition {
+  id: string;
+  name: string;
+  selection: OverlaySelection;
+  sessionIds: string[];
+  published: boolean;
+  capturedAt?: number;
+  capturedTotal?: number;
+}
+export interface OverlayDocument {
+  revision: number;
+  overlays: OverlayDefinition[];
+}
+export interface OverlayView {
+  id: string;
+  name: string;
+  revision: number;
+  published: boolean;
+  frames: SessionView[];
+  omittedRunning: number;
+  error?: string;
+}
+export interface OverlayHostDocument extends OverlayDocument {
+  running: Conversation[];
+  publishedSessionIds: string[];
+}
+
+// Provider pages can overlap when activity changes their order; identity, never title, deduplicates rows.
+export function uniqueConversations(rows: Conversation[]): Conversation[] {
+  const unique = new Map<string, Conversation>();
+  for (const row of rows) {
+    if (!row.id || row.id === "codex:") continue;
+    const previous = unique.get(row.id);
+    if (!previous || row.updatedAt >= previous.updatedAt)
+      unique.set(row.id, row);
+  }
+  return [...unique.values()];
+}

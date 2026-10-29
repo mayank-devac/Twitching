@@ -101,6 +101,8 @@ export class Previews {
     private assertSafeHtml: (html: string) => void = credentialGuard([]),
     private viewMode: "jpeg" | "live" = "live",
   ) {}
+  // Existing result URLs must stop serving content while publication is hidden.
+  publicHidden = () => false;
   app() {
     const app = express();
     app.disable("x-powered-by");
@@ -118,6 +120,7 @@ export class Previews {
         "Permissions-Policy":
           "camera=(), microphone=(), geolocation=(), usb=(), payment=()",
       });
+      if (this.publicHidden()) { res.status(423).type("html").send("<h1>Back shortly</h1>"); return; }
       next();
     });
     app.get("/page/:agent/:round", (req, res) => {
@@ -174,7 +177,9 @@ export class Previews {
         return;
       }
       try {
-        res.type("jpeg").send(await this.capture(view));
+        const frame = await this.capture(view);
+        if (this.publicHidden()) { res.status(423).end(); return; }
+        res.type("jpeg").send(frame);
       } catch {
         res.status(410).end();
       }

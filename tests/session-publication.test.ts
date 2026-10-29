@@ -117,7 +117,7 @@ test("preview is private; publication and history never mix two same-CLI session
     );
     await assert.rejects(
       () => sessions.publicHistory(second.id),
-      /not on stream/,
+      /not on this overlay/,
     );
     sessions.stopPublication();
     assert.equal(sessions.snapshot(base).sharedSession, undefined);
@@ -134,7 +134,7 @@ test("preview is private; publication and history never mix two same-CLI session
       text: "Prompt completed",
     });
     await sessions.publish(first.id);
-    sessions.confirmRehearsal(first.id);
+    await sessions.confirmRehearsal(first.id);
     const doc = preferences.get();
     doc.value.stream.mode = "live";
     preferences.save(doc.revision, doc.value);

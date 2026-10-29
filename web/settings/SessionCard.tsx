@@ -87,14 +87,20 @@ export function SessionCard({
                   })
                 }
               >
-                {!models?.some((m) => m.id === session.model) && (
-                  <option value={session.model}>
-                    {session.model}
-                    {models
-                      ? " (unavailable — choose another)"
-                      : " (refresh to change)"}
+                {!session.model && (
+                  <option value="">
+                    {models?.length ? "Choose a model…" : "Load models first"}
                   </option>
                 )}
+                {session.model &&
+                  !models?.some((m) => m.id === session.model) && (
+                    <option value={session.model}>
+                      {session.model}
+                      {models
+                        ? " (unavailable — choose another)"
+                        : " (refresh to change)"}
+                    </option>
+                  )}
                 {models?.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.id}

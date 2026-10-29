@@ -153,8 +153,10 @@ export interface Round {
   attempts: Record<SessionId, Attempt>;
 }
 export interface ShowState {
+  presentation?: import("./presentation.js").Presentation;
   experience?: import("./sessions.js").Experience;
   sharedSession?: import("./sessions.js").SessionView;
+  sharedOverlay?: import("./sessions.js").OverlayView;
   status: "stopped" | "paused" | "collecting" | "running" | "results" | "break";
   mode: "live" | "rehearsal";
   sessions?: SessionConfig[];

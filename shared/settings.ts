@@ -19,10 +19,10 @@ export interface SessionVisibility {
 export const defaultVisibility: SessionVisibility = {
   tool: true,
   command: false,
-  read: false,
-  edit: true,
+  read: true,
+  edit: false,
   message: true,
-  summary: true,
+  summary: false,
   output: true,
   complete: true,
   error: true,
@@ -51,6 +51,18 @@ export interface QuickPreferences {
 export interface SettingsDocument {
   revision: number;
   value: QuickPreferences;
+}
+// Only public choices are copied; credentials, prompts and native consent are excluded.
+export interface LastSetup {
+  savedAt: number;
+  path: "existing" | "new" | "arena";
+  sessionId?: string;
+  session?: { cli: string; model?: string; effort?: string; title: string };
+  runner: "docker" | "native";
+  sessions: SessionConfig[];
+  visibility: QuickPreferences["visibility"];
+  stream: QuickPreferences["stream"];
+  managedModels?: QuickPreferences["managedModels"];
 }
 export interface ModelChoice {
   id: string;

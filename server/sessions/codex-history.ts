@@ -180,12 +180,12 @@ export class CodexHistory {
       throw new Error("Codex returned an unexpected session identity");
     return this.metadata(record(result.thread));
   }
-  async page(id: string, cursor?: string): Promise<TimelinePage> {
+  async page(id: string, cursor?: string, limit = 60): Promise<TimelinePage> {
     await this.connect();
     const page = await this.call("thread/items/list", {
       threadId: id,
       cursor,
-      limit: 60,
+      limit: Math.max(1, Math.min(60, limit)),
       sortDirection: "desc",
     });
     return {

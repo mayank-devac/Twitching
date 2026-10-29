@@ -46,7 +46,7 @@ export function LaunchChoices({
                 changeRunner(e.target.value as "docker" | "native")
               }
             >
-              <option value="docker">Docker (recommended)</option>
+              <option value="docker">Docker — isolated</option>
               <option value="native">
                 Native — runs directly on this computer
               </option>
@@ -54,7 +54,8 @@ export function LaunchChoices({
           </label>
           {runner === "native" && (
             <label>
-              Native agents run without Docker isolation. Type NATIVE to opt in.
+              Native agents run without Docker isolation. The NATIVE opt-in is
+              filled.
               <input
                 value={consent}
                 onChange={(e) => changeConsent(e.target.value)}

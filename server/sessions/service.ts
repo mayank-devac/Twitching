@@ -22,6 +22,8 @@ import type { Store } from "../store.js";
 import { CliRunner, type RunHandle } from "../runner.js";
 import type { Docker } from "../docker.js";
 import { CodexHistory } from "./codex-history.js";
+import { Overlays } from "./overlays.js";
+import { uniqueConversations } from "../../shared/sessions.js";
 
 export const connectors: Record<Agent, ConnectorCapabilities> = {
   codex: {
@@ -43,22 +45,19 @@ export const connectors: Record<Agent, ConnectorCapabilities> = {
 // One service owns selection/publication, separate from arena rounds and external CLI lifetimes.
 export class Sessions extends EventEmitter {
   experience: Experience;
-  private published?: string;
-  private publicPage?: SessionView;
+  readonly overlays: Overlays;
   private history: CodexHistory;
   private active = new Map<
     string,
     { handle?: RunHandle; settled: Promise<void> }
   >();
-  private refreshing = false;
-  private refreshAgain = false;
   private closing = false;
   private rehearsals = new Set<string>();
+  // HTTP supplies the host-confirmed checklist without coupling it to provider connectors.
+  requirePresentationRehearsal: (context: string) => void = () => {};
+  get mode() { return this.preferences.get().value.stream.mode; }
   private publicationMode?: "live" | "rehearsal";
-  private updateTimer?: ReturnType<typeof setTimeout>;
   readonly recoveryRunners: Set<"docker" | "native">;
-  private publicationVersion = 0;
-  private timer: ReturnType<typeof setInterval>;
   constructor(
     private store: Store,
     private preferences: QuickSettings,
@@ -77,13 +76,49 @@ export class Sessions extends EventEmitter {
     this.experience = experience;
     this.history = new CodexHistory(clean);
     this.recoveryRunners = store.disconnectConversations();
-    // Poll persisted history, never resume a thread or subscribe to another agent's stdin.
-    this.timer = setInterval(() => {
-      if (this.published?.startsWith("codex:") && !this.refreshing)
-        void this.refreshPublished();
-    }, 5000);
-    this.timer.unref();
+    this.publicationMode = preferences.get().value.stream.mode;
+    this.overlays = new Overlays(store, {
+      name: (text) => this.clean(text, 80),
+      view: (id, before) => this.view(id, before, 20),
+      publicView: (view) => this.safePublic(view),
+      running: () =>
+        [...this.active.keys()].flatMap((id) => {
+          const conversation = this.store.conversation(id);
+          return conversation?.status === "running" ? [conversation] : [];
+        }),
+      eligible: (id) => {
+        if (preferences.get().value.stream.mode === "rehearsal") return true;
+        if (!this.rehearsals.has(id)) return false;
+        try { this.requirePresentationRehearsal(id); return true; } catch { return false; }
+      },
+      approve: async (ids) => {
+        if (!this.arenaIdle())
+          throw new Error("Stop the prompt arena before publishing sessions");
+        if (preferences.get().value.stream.mode === "live") {
+          for (const id of ids) this.requirePresentationRehearsal(id);
+          if (ids.some((id) => !this.rehearsals.has(id)))
+            throw new Error(
+              "Confirm a private rehearsal for every selected session before publishing live",
+            );
+          let ready = false;
+          try {
+            ready = await this.liveReady();
+          } catch {
+            /* OBS errors stay private. */
+          }
+          if (!ready)
+            throw new Error(
+              "Start the OBS broadcast manually first. Opening OBS does not start streaming.",
+            );
+        }
+      },
+    });
+    this.overlays.on("state", () => {
+      if (this.overlays.hasPublished()) this.experience = "session";
+      this.emit("state");
+    });
   }
+
   async readiness() {
     const exec = promisify(execFile);
     const result = await Promise.allSettled([
@@ -110,21 +145,31 @@ export class Sessions extends EventEmitter {
     };
   }
   async list(source: "managed" | Agent, search = "", before?: string) {
+    const publishedIds = this.overlays.host().publishedSessionIds;
+    const main = this.overlays.snapshot();
+    const publication = {
+      publishedId:
+        main.frames.length === 1 ? main.frames[0].conversation.id : undefined,
+      publishedIds,
+    };
     if (source === "cursor")
       return {
         conversations: [],
         note: connectors.cursor.note,
-        publishedId: this.published,
+        ...publication,
       };
-    if (source === "codex")
+    if (source === "codex") {
+      const page = await this.history.list(search, before);
       return {
-        ...(await this.history.list(search, before)),
+        ...page,
+        conversations: uniqueConversations(page.conversations),
         note: connectors.codex.note,
-        publishedId: this.published,
+        ...publication,
       };
+    }
     return {
       ...this.store.conversations(search, before ? Number(before) : undefined),
-      publishedId: this.published,
+      ...publication,
     };
   }
   async get(id: string): Promise<Conversation> {
@@ -203,7 +248,7 @@ export class Sessions extends EventEmitter {
       ),
     };
   }
-  private async rawPage(c: Conversation, before?: string) {
+  private async rawPage(c: Conversation, before?: string, limit = 60) {
     if (
       c.source === "managed" &&
       before &&
@@ -211,22 +256,32 @@ export class Sessions extends EventEmitter {
     )
       throw new Error("Invalid history cursor");
     return c.source === "codex"
-      ? this.history.page(c.providerId!, before)
-      : this.store.conversationPage(c.id, before ? Number(before) : undefined);
+      ? this.history.page(c.providerId!, before, limit)
+      : this.store.conversationPage(
+          c.id,
+          before ? Number(before) : undefined,
+          limit,
+        );
   }
-  async view(id: string, before?: string): Promise<SessionView> {
+  async view(id: string, before?: string, limit = 60): Promise<SessionView> {
     const c = await this.get(id),
-      page = await this.rawPage(c, before),
+      page = await this.rawPage(c, before, limit),
       visibility = this.visibility(c);
     return {
       conversation: c,
       page: this.filtered(c, page),
       visibility,
       hidePreviousRuns: !!visibility.hidePreviousRuns,
-      published: this.published === id,
+      published: this.overlays.isPublished(id),
     };
   }
   private safePublic(view: SessionView): SessionView {
+    view = {
+      ...view,
+      visibility: this.visibility(view.conversation),
+      page: this.filtered(view.conversation, view.page),
+      hidePreviousRuns: !!this.visibility(view.conversation).hidePreviousRuns,
+    };
     const {
       config: _config,
       providerId: _provider,
@@ -244,131 +299,62 @@ export class Sessions extends EventEmitter {
     };
   }
   async publish(id: string) {
-    if (!this.arenaIdle())
-      throw new Error("Stop the prompt arena before publishing a session");
-    const version = ++this.publicationVersion;
-    const mode = this.preferences.get().value.stream.mode;
-    if (mode === "live") {
-      if (!this.rehearsals.has(id))
-        throw new Error(
-          "Preview this session in rehearsal mode and confirm the private rehearsal before publishing live",
-        );
-      let ready = false;
-      try {
-        ready = await this.liveReady();
-      } catch {
-        /* OBS errors remain private. */
-      }
-      if (!ready)
-        throw new Error(
-          "Start the OBS broadcast manually first. Opening OBS does not start streaming.",
-        );
-    }
-    const view = await this.view(id);
-    if (mode !== this.preferences.get().value.stream.mode)
-      throw new Error(
-        "Stream mode changed while preparing publication; preview and retry",
-      );
-    if (version !== this.publicationVersion)
-      throw new Error("Publication changed in another tab; preview and retry");
-    this.published = id;
-    this.publicationMode = mode;
-    this.publicPage = { ...view, published: true };
-    this.experience = "session";
-    this.emit("state");
+    return this.overlays.publishSingle(id);
   }
   stopPublication() {
-    ++this.publicationVersion;
-    this.published = undefined;
-    this.publicPage = undefined;
-    this.emit("state");
+    this.overlays.stop();
   }
-  confirmRehearsal(id: string) {
+  async confirmRehearsal(id: string) {
     if (
       this.preferences.get().value.stream.mode !== "rehearsal" ||
-      this.published !== id ||
-      !this.publicPage?.page.items.length
+      !this.overlays.isPublished(id)
     )
       throw new Error(
-        "Publish this session to the private rehearsal overlay and inspect it first",
+        "Publish this session to a private rehearsal overlay and inspect it first",
       );
     if (this.active.has(id))
       throw new Error(
         "Wait for the current managed prompt to finish before confirming rehearsal",
       );
+    const view = await this.view(id);
+    if (!view.page.items.length)
+      throw new Error("Preview available conversation activity first");
     if (
-      this.publicPage.conversation.source === "managed" &&
+      view.conversation.source === "managed" &&
       this.store.conversationPage(id).items.at(-1)?.kind !== "complete"
     )
       throw new Error(
         "Complete a successful private prompt before confirming rehearsal",
       );
     this.rehearsals.add(id);
+    this.overlays.schedule();
   }
   obsDisconnected() {
     if (this.preferences.get().value.stream.mode === "live")
-      this.stopPublication();
+      this.overlays.stopAll();
   }
-  async publicHistory(id: string, before?: string) {
-    const version = this.publicationVersion;
-    if (!this.published || id !== this.published)
-      throw new Error("This session is not on stream");
-    const page = await this.view(id, before);
-    if (version !== this.publicationVersion || id !== this.published)
-      throw new Error("Publication changed");
-    return this.safePublic(page);
-  }
-  private async refreshPublished() {
-    if (!this.published) return;
-    if (this.refreshing) {
-      this.refreshAgain = true;
-      return;
-    }
-    this.refreshing = true;
-    const id = this.published,
-      version = this.publicationVersion;
-    try {
-      const view = await this.view(id);
-      if (version === this.publicationVersion) {
-        this.publicPage = { ...view, published: true };
-        this.emit("state");
-      }
-    } catch {
-      if (this.publicPage && version === this.publicationVersion) {
-        this.publicPage.conversation.status = "disconnected";
-        this.emit("state");
-      }
-    } finally {
-      this.refreshing = false;
-      if (this.refreshAgain) {
-        this.refreshAgain = false;
-        void this.refreshPublished();
-      }
-    }
-  }
-  private scheduleRefresh() {
-    this.updateTimer ??= setTimeout(() => {
-      this.updateTimer = undefined;
-      void this.refreshPublished();
-    }, 250);
+  publicHistory(id: string, before?: string, overlay = "default") {
+    return this.overlays.history(overlay, id, before);
   }
   settingsChanged() {
-    if (
-      this.published &&
-      this.publicationMode !== this.preferences.get().value.stream.mode
-    )
-      this.stopPublication();
-    else void this.refreshPublished();
+    const mode = this.preferences.get().value.stream.mode;
+    if (this.publicationMode !== mode) {
+      this.publicationMode = mode;
+      this.overlays.stopAll();
+    } else this.overlays.schedule();
   }
-  snapshot(base: ShowState): ShowState {
-    if (this.experience === "arena") return { ...base, experience: "arena" };
-    // No private preview, arena task or inactive session enters the public snapshot.
+  snapshot(base: ShowState, overlayId = "default"): ShowState {
+    if (this.experience === "arena" && overlayId === "default")
+      return { ...base, experience: "arena" };
+    const overlay = this.overlays.snapshot(overlayId);
     return {
       status: "paused",
       mode: this.preferences.get().value.stream.mode,
       experience: this.experience,
-      reason: this.published
-        ? "Selected session on stream"
+      reason: overlay.published
+        ? overlay.frames.length === 1
+          ? "Selected session on stream"
+          : "Selected sessions on stream"
         : "No session on stream",
       candidates: [],
       candidateCount: 0,
@@ -376,18 +362,9 @@ export class Sessions extends EventEmitter {
       connections: {},
       checks: [],
       rehearsalComplete: base.rehearsalComplete,
-      sharedSession: this.publicPage
-        ? this.safePublic({
-            ...this.publicPage,
-            visibility: this.visibility(this.publicPage.conversation),
-            hidePreviousRuns: !!this.visibility(this.publicPage.conversation)
-              .hidePreviousRuns,
-            page: this.filtered(
-              this.publicPage.conversation,
-              this.publicPage.page,
-            ),
-          })
-        : undefined,
+      sharedOverlay: overlay,
+      sharedSession:
+        overlay.frames.length === 1 ? overlay.frames[0] : undefined,
     };
   }
   arena() {
@@ -395,7 +372,7 @@ export class Sessions extends EventEmitter {
       throw new Error(
         "Wait for managed prompts to finish before opening the prompt arena",
       );
-    this.stopPublication();
+    this.overlays.stopAll();
     this.experience = "arena";
     this.emit("state");
   }
@@ -454,7 +431,7 @@ export class Sessions extends EventEmitter {
       }),
     };
     this.active.set(id, active);
-    if (this.published === id) this.scheduleRefresh();
+    if (this.overlays.hasPublished()) this.overlays.schedule();
     this.experience = "session";
     this.emit("state");
     const execute = async () => {
@@ -499,7 +476,7 @@ export class Sessions extends EventEmitter {
             c.status = "running";
             c.updatedAt = Date.now();
             this.store.saveConversation(c);
-            if (this.published === id) this.scheduleRefresh();
+            if (this.overlays.hasPublished()) this.overlays.schedule();
           },
         );
         active.handle = handles[config.id];
@@ -535,7 +512,7 @@ export class Sessions extends EventEmitter {
         this.store.saveConversation(c);
         this.active.delete(id);
         finish();
-        if (this.published === id) await this.refreshPublished();
+        if (this.overlays.hasPublished()) this.overlays.schedule();
         this.emit("state");
       }
     };
@@ -544,10 +521,8 @@ export class Sessions extends EventEmitter {
   }
   async close() {
     this.closing = true;
-    clearTimeout(this.updateTimer);
-    clearInterval(this.timer);
+    this.overlays.close();
     this.history.close();
-    this.stopPublication();
     for (const active of this.active.values()) {
       if (active.handle) await active.handle.stop("cancelled");
       else await active.settled;

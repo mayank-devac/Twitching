@@ -1,3 +1,6 @@
+import type { PresentationControls } from "./presentation-controls.js";
+import { presentationAction } from "./presentation-controls.js";
+import { presentationRoutes } from "./presentation-http.js";
 import { lstat, realpath } from "node:fs/promises";
 import { settingsRoutes, type SettingsServices } from "./settings-http.js";
 import { createServer } from "node:http";
@@ -8,6 +11,8 @@ import { WebSocketServer, WebSocket } from "ws";
 import { z } from "zod";
 import type { Controller } from "./controller.js";
 import { activityPatches } from "../shared/activity-stream.js";
+import { overlayPatches } from "../shared/overlay-stream.js";
+import type { ShowState } from "../shared/types.js";
 import { sessionRoutes } from "./sessions/http.js";
 import type { Sessions } from "./sessions/service.js";
 const requestSchema = z.object({
@@ -41,6 +46,7 @@ export function makeHttp(
     root: string;
     musicPath: string;
     quick?: SettingsServices;
+    presentation?: PresentationControls;
     sessions?: Sessions;
     openObs?: () => Promise<void>;
     boot?: { rootId: string; configurationId: string; startedAt: number };
@@ -67,7 +73,10 @@ export function makeHttp(
     }
     next();
   });
-  const publicState = () => options.sessions?.snapshot(controller.snapshot()) ?? controller.snapshot();
+  const publicState = (overlay = "default") => {
+    const base = options.sessions?.snapshot(controller.snapshot(), overlay) ?? controller.snapshot();
+    return options.presentation?.publicSnapshot(base) ?? base;
+  };
   app.get("/api/state", (_req, res) => res.json(publicState()));
   app.get("/api/boot", (_req, res) => res.json(options.boot ?? {}));
   const hostAuthorized = (req: express.Request) => {
@@ -112,14 +121,26 @@ export function makeHttp(
         .json({ error: "Use the local control panel to operate the show" });
       return;
     }
-    res.json({ ...controller.hostSnapshot(), experience: options.sessions?.experience,
-      sharedSession: options.sessions?.snapshot(controller.snapshot()).sharedSession });
+    res.json({ ...controller.hostSnapshot(), presentation: options.presentation?.get(), experience: options.sessions?.experience,
+      sharedSession: options.sessions?.snapshot(controller.snapshot()).sharedSession, sharedOverlay: options.sessions?.snapshot(controller.snapshot()).sharedOverlay });
   });
+  // Privacy actions authenticate before parsing, and never touch the running controller.
+  app.post("/api/presentation", (req, res, next) => {
+    if (!hostAuthorized(req)) { res.status(403).json({ error: "Use local host controls" }); return; }
+    next();
+  }, express.json({ limit: "2kb" }), (req, res) => {
+    const input = presentationAction.safeParse(req.body);
+    if (!input.success || !options.presentation) { res.status(400).json({ error: "Invalid presentation action" }); return; }
+    try { res.json(options.presentation.act(input.data)); }
+    catch { res.status(409).json({ error: "Presentation was not saved. Retry before relying on privacy." }); }
+  });
+  const rehearsal = options.quick && options.presentation ? presentationRoutes(app, controller, options.quick, options.presentation, options.sessions, hostAuthorized) : undefined;
+  if (options.sessions && rehearsal) options.sessions.requirePresentationRehearsal = rehearsal;
   // Settings routes share the existing host cookie and CSRF token checks.
   if (options.quick)
     settingsRoutes(app, controller, options.quick, hostAuthorized);
   if (options.sessions)
-    sessionRoutes(app, options.sessions, hostAuthorized, options.openObs ?? (async () => { throw new Error("Open OBS manually"); }));
+    sessionRoutes(app, options.sessions, hostAuthorized, options.openObs ?? (async () => { throw new Error("Open OBS manually"); }), () => !!options.presentation?.get().hidden, rehearsal);
   app.post("/api/action", express.json({ limit: "2kb" }), async (req, res) => {
     if (!hostAuthorized(req)) {
       res
@@ -136,6 +157,8 @@ export function makeHttp(
     try {
       if (["start", "resume", "rehearsal-task", "suggest"].includes(action) && options.sessions?.experience !== undefined && options.sessions.experience !== "arena")
         throw new Error("Choose Existing prompt arena in the welcome dialog first");
+      if ((action === "start" || action === "resume") && controller.state.mode === "live") rehearsal?.("arena");
+      if (action === "confirm-rehearsal") rehearsal?.("arena");
       if (action === "start") await controller.start();
       else if (action === "pause") controller.pause();
       else if (action === "resume") await controller.resume();
@@ -204,6 +227,10 @@ export function makeHttp(
   app.get(["/", "/overlay", "/control", "/control/welcome", "/control/settings"], (_req, res) =>
     res.sendFile(resolve(options.root, "dist/index.html")),
   );
+  app.get("/overlay/:overlayId", (req, res) => {
+    if (!/^[a-f0-9-]{36}$/.test(String(req.params.overlayId))) { res.status(404).end(); return; }
+    res.sendFile(resolve(options.root, "dist/index.html"));
+  });
   app.use((_req, res) => res.status(404).json({ error: "Not found" }));
   app.use(
     (
@@ -217,54 +244,59 @@ export function makeHttp(
   );
   const server = createServer(app);
   const sockets = new WebSocketServer({ noServer: true, maxPayload: 1024 });
-  server.on("upgrade", (req, socket, head) => {
-    if (
-      req.url !== "/events" ||
-      req.headers.host !== new URL(origin).host ||
-      req.headers.origin !== origin
-    ) {
-      socket.destroy();
-      return;
-    }
-    sockets.handleUpgrade(req, socket, head, (ws) =>
-      sockets.emit("connection", ws, req),
-    );
+  const channels = new WeakMap<WebSocket, string>();
+  const previous = new Map<string, ShowState>();
+  // A browser source receives only its named output, never the assignments of another output.
+  const wireState = (state: ShowState, patch = false) => ({
+    ...state,
+    sharedSession: state.sharedOverlay ? undefined : state.sharedSession,
+    sharedOverlay: state.sharedOverlay ? { ...state.sharedOverlay, frames: state.sharedOverlay.frames.map((frame) => ({ ...frame, page: { ...frame.page, items: patch ? [] : frame.page.items } })) } : undefined,
   });
-  const snapshot = () =>
-    JSON.stringify({
-      type: "snapshot",
-      state: publicState(),
-      previewOrigin: options.previewOrigin,
+  server.on("upgrade", (req, socket, head) => {
+    let request: URL;
+    try { request = new URL(req.url ?? "", origin); } catch { socket.destroy(); return; }
+    const overlay = request.searchParams.get("overlay") ?? "default";
+    if (request.pathname !== "/events" || !/^(default|[a-f0-9-]{36})$/.test(overlay) ||
+      req.headers.host !== new URL(origin).host || req.headers.origin !== origin) {
+      socket.destroy(); return;
+    }
+    sockets.handleUpgrade(req, socket, head, (ws) => {
+      channels.set(ws, overlay); sockets.emit("connection", ws, req);
     });
+  });
   sockets.on("connection", (socket) => {
-    socket.send(snapshot());
+    const channel = channels.get(socket) ?? "default";
+    const state = publicState(channel);
+    if (!previous.has(channel)) previous.set(channel, state);
+    socket.send(JSON.stringify({ type: "snapshot", state: wireState(state), previewOrigin: options.previewOrigin }));
     socket.on("error", () => socket.terminate());
     socket.on("message", () => socket.close(1008, "Read-only overlay socket"));
   });
-  let previousEvents = publicState().events;
-  let previousSession = publicState().sharedSession;
   const broadcast = () => {
-    const state = publicState();
-    const session = state.sharedSession;
-    // General conversations reuse text patches; only reconnects send a full current page.
-    const previousItems = previousSession?.conversation.id === session?.conversation.id ? previousSession?.page.items ?? [] : [];
-    const payload = JSON.stringify({
-      type: "update",
-      state: { ...state, events: [], sharedSession: session ? { ...session, page: { ...session.page, items: [] } } : undefined },
-      sessionPatches: activityPatches(previousItems, session?.page.items ?? []),
-      sessionItemIds: session?.page.items.map((item) => item.id) ?? [],
-      patches: activityPatches(previousEvents, state.events),
-      eventIds: state.events.map((event) => event.id),
-      previewOrigin: options.previewOrigin,
-    });
-    previousEvents = state.events;
-    previousSession = session;
-    for (const socket of sockets.clients)
-      if (socket.readyState === WebSocket.OPEN) {
-        if (socket.bufferedAmount > 1_000_000) socket.terminate();
+    const active = new Set([...sockets.clients].map((socket) => channels.get(socket) ?? "default"));
+    for (const id of previous.keys()) if (!active.has(id)) previous.delete(id);
+    for (const channel of active) {
+      const state = publicState(channel), before = previous.get(channel);
+      const session = state.sharedOverlay ? undefined : state.sharedSession;
+      const previousItems = before?.sharedSession?.conversation.id === session?.conversation.id ? before?.sharedSession?.page.items ?? [] : [];
+      // Privacy transitions always send complete snapshots before any further patches.
+      const privacyChanged = before?.presentation?.hidden !== state.presentation?.hidden;
+      const payload = privacyChanged ? JSON.stringify({ type: "snapshot", state: wireState(state), previewOrigin: options.previewOrigin }) : JSON.stringify({
+        type: "update", state: { ...wireState(state, true), events: [], sharedSession: session ? { ...session, page: { ...session.page, items: [] } } : undefined },
+        overlayPatches: overlayPatches(before?.sharedOverlay, state.sharedOverlay),
+        sessionPatches: activityPatches(previousItems, session?.page.items ?? []),
+        sessionItemIds: session?.page.items.map((item) => item.id) ?? [],
+        patches: activityPatches(before?.events ?? [], state.events), eventIds: state.events.map((event) => event.id),
+        previewOrigin: options.previewOrigin,
+      });
+      previous.set(channel, state);
+      for (const socket of sockets.clients) if ((channels.get(socket) ?? "default") === channel && socket.readyState === WebSocket.OPEN) {
+        if (socket.bufferedAmount > 8_000_000) socket.terminate();
         else socket.send(payload);
       }
+    }
   };
+  options.presentation?.on("state", broadcast);
   controller.on("state", broadcast);
   options.sessions?.on("state", broadcast);
   const heartbeat = setInterval(() => {
@@ -276,6 +308,7 @@ export function makeHttp(
     server,
     close: () => {
       clearInterval(heartbeat);
+      options.presentation?.off("state", broadcast);
       controller.off("state", broadcast);
       options.sessions?.off("state", broadcast);
       for (const socket of sockets.clients) socket.terminate();

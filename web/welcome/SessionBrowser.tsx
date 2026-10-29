@@ -1,9 +1,14 @@
 import React from "react";
 import type { Agent } from "../../shared/types.js";
 import type { Conversation } from "../../shared/sessions.js";
+import {
+  MAX_OVERLAY_SESSIONS,
+  uniqueConversations,
+} from "../../shared/sessions.js";
 
 export interface SessionListing {
   publishedId?: string;
+  publishedIds?: string[];
   conversations: Conversation[];
   before?: string;
   note?: string;
@@ -16,6 +21,11 @@ export function SessionBrowser({
   listing,
   selectedId,
   publishedId,
+  publishedIds,
+  checkedIds = [],
+  overlayName,
+  selectionDisabled,
+  toggleOverlay,
   busy,
   changeSource,
   changeSearch,
@@ -28,6 +38,11 @@ export function SessionBrowser({
   listing: SessionListing;
   selectedId?: string;
   publishedId?: string;
+  publishedIds?: string[];
+  checkedIds?: string[];
+  overlayName?: string;
+  selectionDisabled?: boolean;
+  toggleOverlay?(id: string): void;
   busy: boolean;
   changeSource(source: "managed" | Agent): void;
   changeSearch(search: string): void;
@@ -35,6 +50,7 @@ export function SessionBrowser({
   more(before: string): void;
   select(id: string): void;
 }) {
+  const conversations = uniqueConversations(listing.conversations);
   return (
     <section className="session-browser">
       <div className="session-toolbar">
@@ -63,9 +79,15 @@ export function SessionBrowser({
           </select>
         </label>
       </div>
+      {toggleOverlay && (
+        <p className="session-selection-target">
+          Tick sessions for <b>{overlayName ?? "selected output"}</b> ·{" "}
+          {checkedIds.length}/{MAX_OVERLAY_SESSIONS}
+        </p>
+      )}
       <div className="session-list-card">
         {(["codex", "cursor"] as const).map((cli) => {
-          const rows = listing.conversations.filter((c) => c.cli === cli);
+          const rows = conversations.filter((c) => c.cli === cli);
           if (source === "managed" && !rows.length) return null;
           if (source !== "managed" && source !== cli) return null;
           return (
@@ -84,41 +106,81 @@ export function SessionBrowser({
                 </button>
               </header>
               {rows.map((conversation) => (
-                <button
-                  className="session-choice"
-                  key={conversation.id}
-                  disabled={busy}
-                  aria-pressed={conversation.id === selectedId}
-                  onClick={() => select(conversation.id)}
-                >
-                  <span className="session-choice-copy">
-                    <b>{conversation.title}</b>
-                    <small>
-                      {conversation.project}
-                      {conversation.model && ` · ${conversation.model}`}
-                    </small>
-                  </span>
-                  <span className="session-choice-meta">
-                    <time>
-                      {conversation.updatedAt
-                        ? new Date(conversation.updatedAt).toLocaleTimeString(
-                            [],
-                            { hour: "numeric", minute: "2-digit" },
-                          )
-                        : "Unknown"}
-                    </time>
-                    <small>
-                      {conversation.status === "running"
-                        ? "Running"
-                        : conversation.status === "idle"
-                          ? "Waiting"
-                          : conversation.status === "unknown"
-                            ? "Unknown"
-                            : "Disconnected"}
-                      {conversation.id === publishedId && " · On stream"}
-                    </small>
-                  </span>
-                </button>
+                <div className="session-choice-row" key={conversation.id}>
+                  {toggleOverlay && (
+                    <label
+                      className="session-overlay-check"
+                      title={
+                        checkedIds.length >= MAX_OVERLAY_SESSIONS &&
+                        !checkedIds.includes(conversation.id)
+                          ? "Eight sessions are selected. Untick one to add another."
+                          : "Show on " + (overlayName ?? "selected overlay")
+                      }
+                    >
+                      <input
+                        type="checkbox"
+                        aria-label={
+                          "Select " +
+                          conversation.title +
+                          " (" +
+                          conversation.id.slice(-8) +
+                          ")" +
+                          " for " +
+                          (overlayName ?? "overlay")
+                        }
+                        checked={checkedIds.includes(conversation.id)}
+                        disabled={
+                          busy ||
+                          selectionDisabled ||
+                          (checkedIds.length >= MAX_OVERLAY_SESSIONS &&
+                            !checkedIds.includes(conversation.id))
+                        }
+                        onChange={() => toggleOverlay(conversation.id)}
+                      />
+                    </label>
+                  )}
+                  <button
+                    className="session-choice"
+                    key={conversation.id}
+                    disabled={busy}
+                    aria-pressed={conversation.id === selectedId}
+                    onClick={() => select(conversation.id)}
+                    title={conversation.title + " · " + conversation.id}
+                  >
+                    <span className="session-choice-copy">
+                      <b>{conversation.title}</b>
+                      <small>
+                        {conversation.project}
+                        {conversation.model && ` · ${conversation.model}`}
+                      </small>
+                      <small className="session-identity">
+                        {conversation.id.slice(-8)}
+                      </small>
+                    </span>
+                    <span className="session-choice-meta">
+                      <time>
+                        {conversation.updatedAt
+                          ? new Date(conversation.updatedAt).toLocaleTimeString(
+                              [],
+                              { hour: "numeric", minute: "2-digit" },
+                            )
+                          : "Unknown"}
+                      </time>
+                      <small>
+                        {conversation.status === "running"
+                          ? "Running"
+                          : conversation.status === "idle"
+                            ? "Waiting"
+                            : conversation.status === "unknown"
+                              ? "Unknown"
+                              : "Disconnected"}
+                        {(conversation.id === publishedId ||
+                          publishedIds?.includes(conversation.id)) &&
+                          " · On stream"}
+                      </small>
+                    </span>
+                  </button>
+                </div>
               ))}
               {!rows.length && (
                 <p className="session-list-empty">

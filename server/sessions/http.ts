@@ -13,7 +13,39 @@ const listing = z.object({
   search: z.string().max(160).default(""),
   before: cursor,
 });
-const page = z.object({ id: identifier, before: cursor });
+const overlayId = z.string().regex(/^(default|[a-f0-9-]{36})$/);
+const page = z.object({
+  id: identifier,
+  before: cursor,
+  overlay: overlayId.default("default"),
+});
+const overlayAction = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("create"),
+    revision: z.number().int().nonnegative(),
+    name: z.string().trim().min(1).max(80),
+  }),
+  z.object({
+    action: z.literal("save"),
+    captureRunning: z.boolean().optional(),
+    revision: z.number().int().nonnegative(),
+    overlay: z
+      .object({
+        id: overlayId,
+        name: z.string().trim().min(1).max(80),
+        selection: z.enum(["selected", "running-snapshot", "follow-running"]),
+        sessionIds: z.array(identifier).max(8),
+        published: z.boolean(),
+      })
+      .strict(),
+  }),
+  z.object({
+    action: z.literal("delete"),
+    revision: z.number().int().nonnegative(),
+    id: overlayId,
+  }),
+  z.object({ action: z.literal("stop"), id: overlayId }),
+]);
 const action = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("create"),
@@ -40,6 +72,8 @@ export function sessionRoutes(
   sessions: Sessions,
   authorized: (req: express.Request) => boolean,
   openObs: () => Promise<void>,
+  hidden = () => false,
+  rehearsal?: (context: string) => void,
 ) {
   app.use("/api/sessions", (req, res, next) => {
     if (!authorized(req)) {
@@ -67,6 +101,31 @@ export function sessionRoutes(
   app.get(
     "/api/sessions/readiness",
     respond(() => sessions.readiness()),
+  );
+  app.get(
+    "/api/sessions/overlays",
+    respond(async () => sessions.overlays.host()),
+  );
+  app.post(
+    "/api/sessions/overlays",
+    express.json({ limit: "8kb" }),
+    respond(async (req) => {
+      const input = overlayAction.parse(req.body);
+      if (input.action === "save" && input.overlay.published && sessions.mode === "live") {
+        for (const id of input.overlay.sessionIds) rehearsal?.(id);
+      }
+      switch (input.action) {
+        case "create":
+          return sessions.overlays.create(input.revision, input.name);
+        case "save":
+          return sessions.overlays.save(input.revision, input.overlay, input.captureRunning);
+        case "delete":
+          return sessions.overlays.remove(input.revision, input.id);
+        case "stop":
+          sessions.overlays.stop(input.id);
+          return sessions.overlays.host();
+      }
+    }),
   );
   app.get(
     "/api/sessions/models",
@@ -113,10 +172,12 @@ export function sessionRoutes(
         case "create":
           return sessions.create(input.cli, input.runner, input.nativeConsent);
         case "publish":
+          if (sessions.mode === "live") rehearsal?.(input.id);
           await sessions.publish(input.id);
           break;
         case "confirm-rehearsal":
-          sessions.confirmRehearsal(input.id);
+          rehearsal?.(input.id);
+          await sessions.confirmRehearsal(input.id);
           break;
         case "unpublish":
           sessions.stopPublication();
@@ -136,9 +197,12 @@ export function sessionRoutes(
   // The overlay can page only the currently published conversation, with visibility filtering.
   app.get(
     "/api/public-session",
-    respond((req) => {
+    respond(async (req) => {
+      if (hidden()) throw new Error("Back shortly");
       const q = page.parse(req.query);
-      return sessions.publicHistory(q.id, q.before);
+      const result = await sessions.publicHistory(q.id, q.before, q.overlay);
+      if (hidden()) throw new Error("Back shortly");
+      return result;
     }),
   );
 }

@@ -1,7 +1,12 @@
+import { hostRefresh } from "./host-refresh.js";
+import { PresentationControls, GoalStrip, usePrivacyShortcuts } from "./presentation-controls.js";
+import { RehearsalCheck } from "./welcome/RehearsalCheck.js";
 import { sessionCli, sessionLabel } from "../shared/types.js";
 import { QuickSettings } from "./settings/QuickSettings.js";
 import { Welcome } from "./welcome/Welcome.js";
 import { Timeline } from "./welcome/Timeline.js";
+import { OverlayScreen } from "./overlays/OverlayScreen.js";
+import { applyOverlayPatches } from "../shared/overlay-stream.js";
 import type { SessionView } from "../shared/sessions.js";
 import { BreakScreen } from "./break-screen.js";
 import { defaultVisibility } from "../shared/settings.js";
@@ -22,6 +27,8 @@ import { mergeActivityPatches } from "../shared/activity-stream.js";
 // The settings tab shares host authentication but renders its own focused page.
 const settingsPage = location.pathname === "/control/settings";
 const welcomePage = location.pathname === "/control/welcome";
+const namedOverlay = location.pathname.startsWith("/overlay/");
+const outputId = namedOverlay ? location.pathname.slice("/overlay/".length) : "default";
 const control = location.pathname === "/control" || settingsPage || welcomePage;
 function MarkdownText({ children }: { children: string }) {
   return (
@@ -69,26 +76,22 @@ function App() {
     let ws: WebSocket;
     let retry: ReturnType<typeof setTimeout>;
     let delay = 1000;
-    let hostTicket = 0;
-    const loadHostState = (token: string, fallback?: ShowState) => {
-      const ticket = ++hostTicket;
-      return fetch("/api/host-state", {
-        headers: { "X-Host-Token": token },
-      })
-        .then((response) => {
-          if (!response.ok) throw new Error("host");
-          return response.json() as Promise<ShowState>;
-        })
-        .then((hostState) => {
-          if (!closed && ticket === hostTicket) setState((current) => ({ ...hostState, experience: current?.experience ?? hostState.experience, sharedSession: current?.sharedSession ?? hostState.sharedSession }));
-        })
-        .catch(() => {
-          if (!closed && ticket === hostTicket && fallback) setState(fallback);
-        });
-    };
+    let context = "";
+    const refresh = hostRefresh(async (signal) => {
+      const response = await fetch("/api/host-state", { signal, headers: { "X-Host-Token": csrfRef.current } });
+      if (!response.ok) throw new Error("Host refresh failed");
+      return response.json() as Promise<ShowState>;
+    }, (hostState) => setState((current) => ({ ...hostState,
+      experience: current?.experience ?? hostState.experience,
+      sharedSession: hostState.sharedSession,
+      sharedOverlay: hostState.sharedOverlay,
+      events: current && !hostState.presentation?.hidden ? [...current.events.filter((event) => !event.lane), ...hostState.events.filter((event) => event.lane)] : hostState.events,
+      presentation: hostState.presentation,
+    })));
+    const loadHostState = (_token: string, _fallback?: ShowState) => refresh.request();
     const connect = () => {
       ws = new WebSocket(
-        `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/events`,
+        `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/events${namedOverlay ? `?overlay=${encodeURIComponent(outputId)}` : ""}`,
       );
       ws.onopen = () => {
         setConnected(true);
@@ -97,34 +100,50 @@ function App() {
       ws.onmessage = (e) => {
         try {
           const payload = JSON.parse(e.data);
+          // An old session/connection must never overwrite a newer private host lane.
+          const nextContext = JSON.stringify([payload.state?.experience, payload.state?.round?.id, payload.state?.sharedOverlay?.frames?.map((f: SessionView) => f.conversation.id), payload.state?.presentation?.hidden]);
+          const changedContext = nextContext !== context;
+          if (changedContext) { context = nextContext; refresh.invalidate(); }
+
           if (payload.type === "update") {
             setPreviewOrigin(payload.previewOrigin);
             setState((current) => {
+              // Hidden sockets carry no transcript; the authenticated refresh supplies private host content.
+              if (control && payload.state.presentation?.hidden && current) return { ...current, presentation: { ...current.presentation, ...payload.state.presentation, goal: current.presentation?.goal ?? "", showGoal: current.presentation?.showGoal ?? true, elapsedMs: current.presentation?.elapsedMs ?? 0, runningSince: current.presentation?.runningSince, serverNow: current.presentation?.serverNow ?? payload.state.presentation.serverNow } };
               try {
                 const events = mergeActivityPatches(current?.events ?? [], payload.patches, payload.eventIds);
-                const session = payload.state.sharedSession as SessionView | undefined;
-                if (session) session.page.items = mergeActivityPatches(
-                  current?.sharedSession?.conversation.id === session.conversation.id ? current.sharedSession.page.items : [],
-                  payload.sessionPatches ?? [], payload.sessionItemIds ?? [],
-                );
-                return { ...payload.state, events: [
+                if (payload.state.sharedOverlay) {
+                  payload.state.sharedOverlay = applyOverlayPatches(current?.sharedOverlay, payload.state.sharedOverlay, payload.overlayPatches ?? []);
+                  payload.state.sharedSession = payload.state.sharedOverlay.frames.length === 1 ? payload.state.sharedOverlay.frames[0] : undefined;
+                } else {
+                  const session = payload.state.sharedSession as SessionView | undefined;
+                  if (session) session.page.items = mergeActivityPatches(
+                    current?.sharedSession?.conversation.id === session.conversation.id ? current.sharedSession.page.items : [],
+                    payload.sessionPatches ?? [], payload.sessionItemIds ?? [],
+                  );
+                }
+                return { ...payload.state,
+                  presentation: control && payload.state.presentation?.hidden && current?.presentation ? { ...current.presentation, hidden: true } : payload.state.presentation,
+                  events: [
                   ...events,
-                  ...(control ? current?.events.filter((event) => event.lane) ?? [] : []),
+                  ...(control && !changedContext ? current?.events.filter((event) => event.lane) ?? [] : []),
                 ] };
               } catch {
                 ws.close();
                 return current;
               }
             });
-            if (control && csrfRef.current && (settingsPage || payload.state.experience === "arena")) void loadHostState(csrfRef.current);
+            if (control && csrfRef.current) void loadHostState(csrfRef.current);
           } else if (payload.type === "snapshot") {
+            if (payload.state.sharedOverlay) payload.state.sharedSession = payload.state.sharedOverlay.frames.length === 1 ? payload.state.sharedOverlay.frames[0] : undefined;
             setPreviewOrigin(payload.previewOrigin);
             if (control && csrfRef.current) {
-              setState((current) => ({
+              setState((current) => control && payload.state.presentation?.hidden && current ? { ...current, presentation: current.presentation ? { ...current.presentation, hidden: true } : payload.state.presentation } : ({
                 ...payload.state,
+                presentation: control && payload.state.presentation?.hidden && current?.presentation ? { ...current.presentation, hidden: true } : payload.state.presentation,
                 events: [
                   ...payload.state.events,
-                  ...(current?.events.filter((event) => event.lane) ?? []),
+                  ...(!changedContext ? current?.events.filter((event) => event.lane) ?? [] : []),
                 ],
               }));
               void loadHostState(csrfRef.current, payload.state);
@@ -135,6 +154,7 @@ function App() {
         }
       };
       ws.onclose = () => {
+        refresh.invalidate();
         setConnected(false);
         if (!closed) {
           retry = setTimeout(connect, delay);
@@ -149,6 +169,8 @@ function App() {
       fetch("/api/host")
         .then((r) => r.json())
         .then((data) => {
+          if (closed) return;
+          refresh.invalidate();
           csrfRef.current = data.csrf;
           setCsrf(data.csrf);
           return loadHostState(data.csrf);
@@ -156,6 +178,7 @@ function App() {
         .catch(() => setError("Host controls unavailable"));
     return () => {
       closed = true;
+      refresh.close();
       clearTimeout(retry);
       clearInterval(timer);
       ws?.close();
@@ -171,6 +194,7 @@ function App() {
       setEndOpen(false);
     }
   }, [stopMenu]);
+  usePrivacyShortcuts(control ? csrf : "", setError);
   const roundId = state?.round?.id;
   const roundTask = state?.round?.task.text;
   const [pop, setPop] = useState(false);
@@ -221,18 +245,10 @@ function App() {
       </main>
     );
   // A normal route keeps Quick Settings separate from the broadcast layout.
-  if (settingsPage) return <QuickSettings state={state} token={csrf} connected={connected}/>;
-  if (welcomePage || (control && state.experience !== "arena")) return <Welcome token={csrf} publishedId={state.sharedSession?.conversation.id} />;
-  if (!control && state.experience && state.experience !== "arena") {
-    const view = state.sharedSession;
-    if (!view) return <main className="session-overlay-empty">No session on stream</main>;
-    return <main className="session-overlay"><Timeline key={view.conversation.id} view={view} older={async (before) => {
-      const response = await fetch(`/api/public-session?${new URLSearchParams({ id: view.conversation.id, before })}`);
-      const page = await response.json();
-      if (!response.ok) throw new Error(page.error ?? "History unavailable");
-      return page as SessionView;
-    }} /></main>;
-  }
+  if (settingsPage) return <><PresentationControls state={state} token={csrf} /><QuickSettings state={state} token={csrf} connected={connected}/></>;
+  if (welcomePage || (control && state.experience !== "arena")) return <><PresentationControls state={state} token={csrf} /><Welcome token={csrf} publishedId={state.sharedSession?.conversation.id} /></>;
+  if (!control && (state.presentation?.hidden || !connected)) return <main className="privacy-screen">Back shortly</main>;
+  if (!control && (namedOverlay || state.experience && state.experience !== "arena")) return <><GoalStrip value={state.presentation} /><OverlayScreen view={state.sharedOverlay} /></>;
   const round = state.round;
   const countdown =
     state.status === "break"
@@ -242,6 +258,7 @@ function App() {
         : state.collectionDeadline;
   return (
     <main className={control ? "host" : "overlay"}>
+      {control ? <><PresentationControls state={state} token={csrf} /><RehearsalCheck token={csrf} context="arena" revision={state.quickSettings?.revision} /></> : <GoalStrip value={state.presentation} />}
       {control && (
         <section className="prompt-strip" hidden={!round?.task.text}>
           {round?.task.text && <h1>{round.task.text}</h1>}

@@ -15,6 +15,7 @@ export interface SettingsServices {
   media: BreakMedia;
   store: Store;
   discover(cli: Agent, runner?: "docker" | "native"): Promise<CliModel[]>;
+  runner?: "docker" | "native";
   defaults?: { audio: string; visual: string; visualUrl: string };
 }
 // Every host route authenticates before parsing a body or doing expensive discovery.

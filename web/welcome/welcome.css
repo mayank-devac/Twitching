@@ -155,6 +155,8 @@ body:has(.welcome-page) {
 }
 .welcome-error,
 .welcome-notice {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   padding: 10px 12px;
   border: 1px solid #4b303a;
   border-radius: 9px;
@@ -534,6 +536,70 @@ body:has(.welcome-page) {
   flex-wrap: wrap;
   gap: 15px;
 }
+.footer-status {
+  position: relative;
+}
+.footer-info {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.footer-info > summary {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid var(--welcome-border-strong);
+  border-radius: 50%;
+  color: var(--welcome-muted);
+  cursor: help;
+  font-size: 13px;
+  font-weight: 700;
+  list-style: none;
+}
+.footer-info > summary::-webkit-details-marker {
+  display: none;
+}
+.footer-info:hover > summary,
+.footer-info:focus-within > summary,
+.footer-info[open] > summary {
+  border-color: var(--welcome-accent);
+  color: var(--welcome-text);
+}
+.footer-info-popover {
+  display: none;
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  bottom: calc(100% + 12px);
+  width: min(440px, 86vw);
+  max-height: min(56vh, 430px);
+  overflow-y: auto;
+  padding: 16px;
+  border: 1px solid var(--welcome-border-strong);
+  border-radius: 12px;
+  background: #171c27;
+  box-shadow: 0 14px 38px #0009;
+  color: #c4cbd8;
+  font-size: 12px;
+}
+.footer-info:hover .footer-info-popover,
+.footer-info:focus-within .footer-info-popover,
+.footer-info[open] .footer-info-popover {
+  display: block;
+}
+.footer-info-popover h2 {
+  margin: 0 0 11px;
+  color: var(--welcome-text);
+  font-size: 14px;
+}
+.footer-info-popover p + p {
+  margin-top: 8px;
+}
+.footer-info-popover b {
+  color: var(--welcome-text);
+  font-weight: 600;
+}
 .footer-mode {
   display: inline-flex;
   align-items: center;
@@ -598,8 +664,7 @@ body:has(.welcome-page) {
 }
 .new-session-settings,
 .session-model-settings,
-.arena-hint,
-.welcome-readiness {
+.arena-hint {
   flex: 0 0 auto;
   padding: 15px;
   border: 1px solid var(--welcome-border);
@@ -623,6 +688,17 @@ body:has(.welcome-page) {
   border-radius: 12px;
   background: var(--welcome-panel);
   color: var(--welcome-text);
+}
+.model-readiness {
+  padding: 10px 12px;
+  border: 1px solid var(--welcome-border);
+  border-radius: 9px;
+  background: #10141c;
+  color: var(--welcome-muted);
+  font-size: 12px;
+}
+.model-readiness[role="status"] {
+  color: #b9d6c4;
 }
 .new-session-settings fieldset.welcome-card {
   min-inline-size: 0;
@@ -724,8 +800,7 @@ body:has(.welcome-page) {
 .new-session-settings .qs-session .qs-row > small {
   display: none;
 }
-.session-model-settings summary,
-.welcome-readiness summary {
+.session-model-settings summary {
   color: var(--welcome-text);
   font-weight: 600;
   cursor: pointer;
@@ -754,19 +829,6 @@ body:has(.welcome-page) {
 }
 .arena-hint b {
   color: var(--welcome-text);
-}
-.welcome-readiness {
-  max-height: 260px;
-  overflow: auto;
-  color: var(--welcome-muted);
-  font-size: 12px;
-}
-.welcome-readiness summary {
-  margin-bottom: 10px;
-  font-size: 13px;
-}
-.welcome-readiness p + p {
-  margin-top: 7px;
 }
 .welcome-prompt {
   display: flex;
@@ -943,6 +1005,17 @@ body:has(.welcome-page) {
   background: var(--welcome-bg);
   color: var(--welcome-muted);
   font: 20px system-ui;
+}
+
+/* Keep scrolling while hiding scrollbar tracks throughout the site. */
+* {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 @media (max-width: 1050px) {
