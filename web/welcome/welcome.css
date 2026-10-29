@@ -1123,6 +1123,9 @@ body:has(.welcome-page) {
   scrollbar-width: thin;
   overflow-anchor: none;
 }
+.timeline-sentinel {
+  height: 1px;
+}
 .timeline-item {
   padding: 7px 0;
   overflow-wrap: anywhere;

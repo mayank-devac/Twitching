@@ -38,8 +38,11 @@ export function Timeline({
   const [error, setError] = useState("");
   const [showPrevious, setShowPrevious] = useState(false);
   const container = useRef<HTMLDivElement>(null);
+  const sentinel = useRef<HTMLDivElement>(null);
   const follow = useRef(true);
   const loadedOlder = useRef(false);
+  const busyRef = useRef(false);
+  const autoState = useRef({ before: view.page.before, hidden: false, showPrevious: false });
   const restore = useRef<
     | { height: number; top: number; anchor?: string; anchorTop?: number }
     | undefined
@@ -82,7 +85,8 @@ export function Timeline({
     } else if (follow.current) el.scrollTop = el.scrollHeight;
   }, [items, showPrevious]);
   async function loadOlder() {
-    if (!before || busy) return;
+    if (!before || busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setError("");
     try {
@@ -113,9 +117,26 @@ export function Timeline({
     } catch (e) {
       setError(e instanceof Error ? e.message : "History unavailable");
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }
+  // A sentinel at the top loads older history whenever it scrolls into view.
+  const loadOlderRef = useRef(loadOlder);
+  loadOlderRef.current = loadOlder;
+  autoState.current = { before, hidden: view.hidePreviousRuns, showPrevious };
+  useEffect(() => {
+    const node = sentinel.current;
+    if (!node) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      const state = autoState.current;
+      if (!state.before || (state.hidden && !state.showPrevious)) return;
+      void loadOlderRef.current();
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
   const visible = visibleTimeline(
     items,
     view.visibility,
@@ -167,6 +188,7 @@ export function Timeline({
             el.scrollHeight - el.scrollTop - el.clientHeight < 80;
         }}
       >
+        <div ref={sentinel} aria-hidden="true" className="timeline-sentinel" />
         <button
           onClick={() => {
             follow.current = true;
