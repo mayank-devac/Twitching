@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import type { Agent, SessionConfig, ShowState } from "../../shared/types.js";
+import { CLIS, type Agent, type SessionConfig, type ShowState } from "../../shared/types.js";
 import type {
   ModelChoice,
   QuickPreferences,
@@ -270,7 +270,7 @@ export function QuickSettings({
                 {draft.sessions.length} / 2 slots
               </span>
             </div>
-            {(["codex", "cursor"] as const)
+            {CLIS
               .filter((cli) => draft.sessions.some((s) => s.cli === cli))
               .map((cli) => (
                 <section key={cli} className="qs-cli">

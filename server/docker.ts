@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { z } from "zod";
 import { resolve } from "node:path";
 import { randomUUID, createHash } from "node:crypto";
-import type { Agent, SessionId } from "../shared/types.js";
+import { CLIS, type Agent, type SessionId } from "../shared/types.js";
 import { writeFileAtomic } from "./atomic-file.js";
 import { CodexAppServerClient } from "./codex-app-server.js";
 import { enforceDiskBudget } from "./disk-budget.js";
@@ -262,7 +262,7 @@ export class Docker {
       await this.stop(name);
     await enforceDiskBudget(this.options.root).catch(() => {});
   }
-  async inspect(_agents: Agent[] = ["codex", "cursor"]) {
+  async inspect(_agents: readonly Agent[] = CLIS) {
     await this.command(["info", "--format", "{{.ServerVersion}}"]);
     await this.command(["image", "inspect", this.options.image]);
     const internal = (

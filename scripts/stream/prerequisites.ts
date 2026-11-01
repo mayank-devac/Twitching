@@ -12,7 +12,7 @@ import {
   failedLoginAgent,
 } from "../../server/cli-startup-repair.js";
 import { credentialGuard } from "../../server/redact.js";
-import { configuredSessions, sessionCount } from "../../shared/types.js";
+import { configuredSessions, sessionCount, type Agent } from "../../shared/types.js";
 import { newestSource } from "../boot-client.js";
 import {
   fix,
@@ -90,7 +90,7 @@ export interface ServiceCheck {
   settings: Settings;
   secrets: Secrets;
   runnerMode: "docker" | "native";
-  singleAgent?: "codex" | "cursor";
+  singleAgent?: Agent;
   runner: CliRunner;
   docker: Docker;
   obs: Obs;

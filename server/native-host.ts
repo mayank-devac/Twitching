@@ -26,7 +26,7 @@ import { enforceDiskBudget } from "./disk-budget.js";
 import { removeProbeWorkspace } from "./probe-workspace-cleanup.js";
 import { prepareCodexHome, retainCodexLogin } from "./codex-profile.js";
 import type { Store } from "./store.js";
-import { SESSION_IDS, type Agent, type SessionId } from "../shared/types.js";
+import { CLIS, SESSION_IDS, type Agent, type SessionId } from "../shared/types.js";
 
 const exec = promisify(execFile);
 // lstart+pgid identify one process group launch; a reused pid gets a new start.
@@ -155,7 +155,7 @@ export class NativeHost extends Docker {
       throw error;
     }
   }
-  override async inspect(agents: Agent[] = ["codex", "cursor"]) {
+  override async inspect(agents: readonly Agent[] = CLIS) {
     if (process.platform === "win32")
       throw new Error(
         "Native runners require macOS/Linux; use Docker mode on Windows",

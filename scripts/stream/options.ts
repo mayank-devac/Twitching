@@ -1,7 +1,7 @@
 // Owns the guided launcher's command line: help text, flag parsing and the env it hands the server.
 import { parseSessionSpec } from "../session-selection.js";
 import { parseSkipPlatform } from "../../server/chat-skips.js";
-import type { SessionConfig } from "../../shared/types.js";
+import { CLIS, isCli, type Agent, type SessionConfig } from "../../shared/types.js";
 
 export const help = `Prompt Arena guided startup
 
@@ -33,7 +33,7 @@ export interface StreamOptions {
   skipKick: boolean;
   forcePrompts: boolean;
   ignorePrompts: boolean;
-  singleAgent?: "codex" | "cursor";
+  singleAgent?: Agent;
   requestedSessions: SessionConfig[];
 }
 
@@ -81,10 +81,10 @@ export function parseStreamOptions(
         );
         process.exit(2);
       }
-    } else if (["--codex", "--cursor", "--cli"].includes(args[i])) {
+    } else if (args[i] === "--cli" || CLIS.some((cli) => args[i] === `--${cli}`)) {
       const agent = args[i] === "--cli" ? args[++i] : args[i].slice(2);
       if (
-        (agent !== "codex" && agent !== "cursor") ||
+        !isCli(agent) ||
         (options.singleAgent && options.singleAgent !== agent)
       ) {
         console.error(

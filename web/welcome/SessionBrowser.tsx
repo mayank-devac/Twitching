@@ -1,5 +1,5 @@
 import React from "react";
-import type { Agent } from "../../shared/types.js";
+import { CLIS, type Agent } from "../../shared/types.js";
 import type { Conversation } from "../../shared/sessions.js";
 import {
   MAX_OVERLAY_SESSIONS,
@@ -88,7 +88,7 @@ export function SessionBrowser({
         </p>
       )}
       <div className="session-list-card">
-        {(["codex", "cursor"] as const).map((cli) => {
+        {CLIS.map((cli) => {
           const rows = conversations.filter((c) => c.cli === cli);
           if (source === "managed" && !rows.length) return null;
           if (source !== "managed" && source !== cli) return null;

@@ -1,5 +1,10 @@
 export type Platform = "youtube" | "twitch" | "kick" | "fallback";
-export type Agent = "codex" | "cursor";
+// The one list of supported coding-agent CLIs; every CLI union and loop derives from it.
+export const CLIS = ["codex", "cursor"] as const;
+export type Agent = (typeof CLIS)[number];
+export function isCli(value: unknown): value is Agent {
+  return CLIS.some((cli) => cli === value);
+}
 // CLI identity selects a protocol; session identity owns files and results.
 export const SESSION_IDS = [
   "codex",
@@ -46,7 +51,7 @@ export function validSessionId(id: string) {
   return SESSION_IDS.some((value) => value === id);
 }
 export function legacyCli(id: string): Agent | undefined {
-  return id === "codex" || id === "cursor" ? id : undefined;
+  return isCli(id) ? id : undefined;
 }
 export function sessionCli(
   state: Pick<ShowState, "round" | "sessions">,
