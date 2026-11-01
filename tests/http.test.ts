@@ -8,7 +8,7 @@ import { resolve } from "node:path";
 import { createServer, request as httpRequest } from "node:http";
 import type { AddressInfo } from "node:net";
 import WebSocket from "ws";
-import { makeHttp } from "../server/http.js";
+import { makeHttp, urlHost } from "../server/http.js";
 import type { Controller } from "../server/controller.js";
 // makeHttp fixes its allowed Origin from options.port before listening, so it
 // cannot bind port 0 directly; ask the OS for a free port (port 0) and reuse it.
@@ -204,4 +204,10 @@ test("event socket heartbeat terminates clients that miss a pong", async () => {
     await http.close();
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("urlHost brackets IPv6 loopback only", () => {
+  assert.equal(urlHost("::1"), "[::1]");
+  assert.equal(urlHost("127.0.0.1"), "127.0.0.1");
+  assert.equal(urlHost("localhost"), "localhost");
 });

@@ -38,6 +38,8 @@ const requestSchema = z.object({
   twitch: z.boolean().optional(),
   kick: z.boolean().optional(),
 });
+// IPv6 literals such as ::1 must be bracketed inside URLs and Host headers.
+export const urlHost = (host: string) => (host.includes(":") ? `[${host}]` : host);
 export function makeHttp(
   controller: Controller,
   options: {
@@ -53,7 +55,7 @@ export function makeHttp(
     boot?: { rootId: string; configurationId: string; startedAt: number };
   },
 ) {
-  const origin = `http://${options.host}:${options.port}`;
+  const origin = `http://${urlHost(options.host)}:${options.port}`;
   const csrf = randomBytes(32).toString("hex");
   const app = express();
   app.disable("x-powered-by");
@@ -63,7 +65,7 @@ export function makeHttp(
       return;
     }
     res.set({
-      "Content-Security-Policy": `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://${options.host}:${options.port}; frame-src ${options.previewOrigin}; img-src 'self' data:; media-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`,
+      "Content-Security-Policy": `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://${urlHost(options.host)}:${options.port}; frame-src ${options.previewOrigin}; img-src 'self' data:; media-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`,
       "Referrer-Policy": "no-referrer",
       "X-Content-Type-Options": "nosniff",
       "Cache-Control": "no-store",

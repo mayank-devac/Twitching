@@ -375,7 +375,7 @@ try {
     );
   }
   let twitchPending = true;
-  if (!["127.0.0.1", "localhost"].includes(settings.host)) {
+  if (!["127.0.0.1", "::1", "localhost"].includes(settings.host)) {
     fix(
       `The control server host is ${settings.host}`,
       "Set host to 127.0.0.1 in settings.json. The control panel and credentials must stay local.",
@@ -384,7 +384,8 @@ try {
   console.log(
     `\nPrompt Arena — ${mode.toUpperCase()} / ${runnerMode.toUpperCase()} AGENTS\nPreviews always use isolated Docker. No coding jobs have started.`,
   );
-  const origin = `http://${settings.host}:${settings.port}`;
+  // IPv6 loopback (::1) must be bracketed in a URL.
+  const origin = `http://${settings.host.includes(":") ? `[${settings.host}]` : settings.host}:${settings.port}`;
   const { Store } = await import("../server/store.js");
   const { Docker } = await import("../server/docker.js");
   const { NativeHost } = await import("../server/native-host.js");

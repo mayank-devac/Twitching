@@ -20,7 +20,7 @@ import { Jev } from "./jev.js";
 import { Controller, type ChatPlatforms } from "./controller.js";
 import { YouTubeChat, TwitchChat, KickChat, KickToken } from "./chat.js";
 import { Obs } from "./obs.js";
-import { makeHttp } from "./http.js";
+import { makeHttp, urlHost } from "./http.js";
 import { BrowserSandbox } from "./browser-sandbox.js";
 import { NativeHost } from "./native-host.js";
 import { Sessions } from "./sessions/service.js";
@@ -174,7 +174,7 @@ const browserSandbox = new BrowserSandbox(
 );
 const preview = new Previews(
   root,
-  `http://${settings.host}:${settings.previewPort}`,
+  `http://${urlHost(settings.host)}:${settings.previewPort}`,
   settings.visualPath,
   () => browserSandbox.start(),
   credentialGuard(privateValues),
@@ -464,7 +464,7 @@ if (settings.experience === "arena" && controller.state.round)
   }
 http.server.listen(settings.port, settings.host, () =>
   console.log(
-    `Prompt Arena: http://${settings.host}:${settings.port}/control · OBS: http://${settings.host}:${settings.port}/overlay`,
+    `Prompt Arena: http://${urlHost(settings.host)}:${settings.port}/control · OBS: http://${urlHost(settings.host)}:${settings.port}/overlay`,
   ),
 );
 const timer = setInterval(() => {
