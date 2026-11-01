@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter, once } from "node:events";
 import WebSocket from "ws";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { Store } from "../server/store.js";
 import { PresentationControls, presentationAction } from "../server/presentation-controls.js";
 import { elapsed, stopwatch, privacyCommand } from "../shared/presentation.js";
@@ -180,6 +182,15 @@ test("outputs retain independent privacy, goals and clocks, or explicitly use th
   } finally { store.close(); }
 });
 
+// makeHttp fixes its allowed Origin from options.port before listening, so it
+// cannot bind port 0 directly; ask the OS for a free port (port 0) and reuse it.
+async function freePort() {
+  const probe = createServer();
+  await new Promise<void>((r) => probe.listen(0, "127.0.0.1", r));
+  const { port } = probe.address() as AddressInfo;
+  await new Promise<void>((r) => probe.close(() => r()));
+  return port;
+}
 // Exercise the real HTTP/WebSocket boundary; these fixtures never run a CLI or OBS.
 test("hide clears public snapshots, reconnect stays hidden, reveal sends a full current snapshot", async () => {
   const store = new Store(":memory:");
@@ -196,13 +207,14 @@ test("hide clears public snapshots, reconnect stays hidden, reveal sends a full 
     stream: { mode: "rehearsal", youtube: false, twitch: false, kick: false, collectionMs: 1000, extensionMs: 1000, resultMs: 1000 },
     jevCriteria: defaultCriteria, jevProbe: "Explain this function safely", media: {},
   });
-  const origin = "http://127.0.0.1:39233";
+  const port = await freePort();
+  const origin = `http://127.0.0.1:${port}`;
   const http = makeHttp(controller, {
-    presentation, host: "127.0.0.1", port: 39233, root: "/unused-presentation-fixture",
+    presentation, host: "127.0.0.1", port, root: "/unused-presentation-fixture",
     previewOrigin: "http://127.0.0.1:39234", musicPath: "/unused.mp3",
     quick: { store, preferences, media: {} as BreakMedia, runner: "docker", discover: async () => [{ id: "fixture", efforts: [] }] },
   });
-  await new Promise<void>((resolve) => http.server.listen(39233, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => http.server.listen(port, "127.0.0.1", resolve));
   const socket = new WebSocket(origin.replace("http", "ws") + "/events", { origin });
   try {
     await once(socket, "message");

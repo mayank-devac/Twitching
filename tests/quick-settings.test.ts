@@ -9,6 +9,8 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { resolve } from "node:path";
 import { Store } from "../server/store.js";
 import {
@@ -223,6 +225,15 @@ test("read metadata cannot turn a private path or search pattern into a public f
   assert.equal(reads[2].publicFile, undefined);
 });
 
+// makeHttp fixes its allowed Origin from options.port before listening, so it
+// cannot bind port 0 directly; ask the OS for a free port (port 0) and reuse it.
+async function freePort() {
+  const probe = createServer();
+  await new Promise<void>((r) => probe.listen(0, "127.0.0.1", r));
+  const { port } = probe.address() as AddressInfo;
+  await new Promise<void>((r) => probe.close(() => r()));
+  return port;
+}
 // HTTP tests exercise the real protection/validation routes, with discovery replaced by a fixture.
 test("settings routes require host protection, reject unavailable models and reject stale writes", async () => {
   const { EventEmitter } = await import("node:events");
@@ -242,10 +253,11 @@ test("settings routes require host protection, reject unavailable models and rej
     settingsChanged: () => {},
     safeHistory: (page: unknown) => page,
   }) as unknown as import("../server/controller.js").Controller;
-  const origin = "http://127.0.0.1:39232";
+  const port = await freePort();
+  const origin = `http://127.0.0.1:${port}`;
   const http = makeHttp(controller, {
     host: "127.0.0.1",
-    port: 39232,
+    port,
     root,
     previewOrigin: "http://127.0.0.1:39233",
     musicPath: resolve(root, "missing.mp3"),
@@ -262,7 +274,7 @@ test("settings routes require host protection, reject unavailable models and rej
     },
   });
   await new Promise<void>((resolve) =>
-    http.server.listen(39232, "127.0.0.1", resolve),
+    http.server.listen(port, "127.0.0.1", resolve),
   );
   try {
     assert.equal((await fetch(origin + "/api/settings")).status, 403);

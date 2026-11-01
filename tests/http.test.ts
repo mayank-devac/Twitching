@@ -5,12 +5,24 @@ import { once } from "node:events";
 import { tmpdir } from "node:os";
 import { mkdtemp, rm } from "node:fs/promises";
 import { resolve } from "node:path";
-import { request as httpRequest } from "node:http";
+import { createServer, request as httpRequest } from "node:http";
+import type { AddressInfo } from "node:net";
 import WebSocket from "ws";
 import { makeHttp } from "../server/http.js";
 import type { Controller } from "../server/controller.js";
+// makeHttp fixes its allowed Origin from options.port before listening, so it
+// cannot bind port 0 directly; ask the OS for a free port (port 0) and reuse it.
+async function freePort() {
+  const probe = createServer();
+  await new Promise<void>((r) => probe.listen(0, "127.0.0.1", r));
+  const { port } = probe.address() as AddressInfo;
+  await new Promise<void>((r) => probe.close(() => r()));
+  return port;
+}
 test("overlay reconnect returns current state/events without launching a job, and controls reject cross-origin requests", async () => {
   const root = await mkdtemp(resolve(tmpdir(), "stram-http-"));
+  const port = await freePort();
+  const origin = `http://127.0.0.1:${port}`;
   let starts = 0;
   let activityText = "Existing activity";
   const controller = Object.assign(new EventEmitter(), {
@@ -33,16 +45,16 @@ test("overlay reconnect returns current state/events without launching a job, an
   }) as unknown as Controller;
   const http = makeHttp(controller, {
     host: "127.0.0.1",
-    port: 39212,
+    port,
     previewOrigin: "http://127.0.0.1:39211",
     root,
     musicPath: resolve(root, "missing.mp3"),
   });
-  await new Promise<void>((r) => http.server.listen(39212, "127.0.0.1", r));
+  await new Promise<void>((r) => http.server.listen(port, "127.0.0.1", r));
   try {
     for (let i = 0; i < 2; i++) {
-      const socket = new WebSocket("ws://127.0.0.1:39212/events", {
-        origin: "http://127.0.0.1:39212",
+      const socket = new WebSocket(`ws://127.0.0.1:${port}/events`, {
+        origin,
       });
       const [bytes] = await once(socket, "message");
       const data = JSON.parse(bytes.toString());
@@ -64,7 +76,7 @@ test("overlay reconnect returns current state/events without launching a job, an
       await once(socket, "close");
     }
     assert.equal(starts, 0);
-    const cross = await fetch("http://127.0.0.1:39212/api/action", {
+    const cross = await fetch(`${origin}/api/action`, {
       method: "POST",
       headers: {
         Origin: "https://example.com",
@@ -73,13 +85,13 @@ test("overlay reconnect returns current state/events without launching a job, an
       body: JSON.stringify({ action: "start" }),
     });
     assert.equal(cross.status, 403);
-    const host = await fetch("http://127.0.0.1:39212/api/host");
+    const host = await fetch(`${origin}/api/host`);
     const { csrf } = (await host.json()) as any;
     const cookie = host.headers.get("set-cookie")!.split(";")[0];
-    const accepted = await fetch("http://127.0.0.1:39212/api/action", {
+    const accepted = await fetch(`${origin}/api/action`, {
       method: "POST",
       headers: {
-        Origin: "http://127.0.0.1:39212",
+        Origin: origin,
         "Content-Type": "application/json",
         "X-Host-Token": csrf,
         Cookie: cookie,
@@ -93,7 +105,7 @@ test("overlay reconnect returns current state/events without launching a job, an
         const req = httpRequest(
           {
             hostname: "127.0.0.1",
-            port: 39212,
+            port,
             path: "/api/host-state",
             method: "GET",
             headers: { "X-Host-Token": csrf, Cookie: cookie },
@@ -119,7 +131,7 @@ test("overlay reconnect returns current state/events without launching a job, an
       const req = httpRequest(
         {
           hostname: "127.0.0.1",
-          port: 39212,
+          port,
           path: "/api/host-state",
           method: "GET",
           headers: {
@@ -137,14 +149,14 @@ test("overlay reconnect returns current state/events without launching a job, an
       req.end();
     });
     assert.equal(crossSite, 403);
-    const publicLanes = await fetch("http://127.0.0.1:39212/api/host-state");
+    const publicLanes = await fetch(`${origin}/api/host-state`);
     assert.equal(publicLanes.status, 403);
     assert.equal(
-      (await fetch("http://127.0.0.1:39212/.env.local")).status,
+      (await fetch(`${origin}/.env.local`)).status,
       404,
     );
     assert.equal(
-      (await fetch("http://127.0.0.1:39212/runtime/show.sqlite")).status,
+      (await fetch(`${origin}/runtime/show.sqlite`)).status,
       404,
     );
   } finally {

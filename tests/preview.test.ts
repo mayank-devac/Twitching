@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { createServer } from "node:http";
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import { chromium, type Browser } from "playwright";
 import { Previews, sanitizeHtml } from "../server/preview.js";
 import { credentialGuard } from "../server/redact.js";
@@ -15,8 +16,9 @@ import { homedir } from "node:os";
 function testBrowserPath() {
   if (process.env.ARENA_TEST_BROWSER_PATH)
     return process.env.ARENA_TEST_BROWSER_PATH;
-  const bundled = chromium.executablePath();
-  if (existsSync(bundled)) return bundled;
+  let bundled = "";
+  try { bundled = chromium.executablePath(); } catch { /* not installed */ }
+  if (bundled && existsSync(bundled)) return bundled;
   if (process.platform !== "darwin") return undefined;
   const cache = resolve(homedir(), ".omp/puppeteer/chrome");
   if (!existsSync(cache)) return undefined;
@@ -29,6 +31,15 @@ function testBrowserPath() {
   )).find((path) => existsSync(path));
 }
 const browserPath = testBrowserPath();
+// Machines without a browser skip the real-browser tests instead of failing.
+const browserSkip = browserPath
+  ? false
+  : "no supported browser found; run `npx playwright install chromium` or set ARENA_TEST_BROWSER_PATH";
+// Port 0 lets the OS pick a free port, so parallel runs and local services never collide.
+async function listenFree(server: Server) {
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  return (server.address() as AddressInfo).port;
+}
 const launchBrowser = () => chromium.launch({
   headless: true,
   executablePath: browserPath,
@@ -41,27 +52,12 @@ test("removes frames, refresh redirects, external attributes and form destinatio
   assert.ok(!result.includes("iframe"));
   assert.ok(!result.includes("http-equiv"));
 });
-test("real browser validates isolated HTML, serves it live with CSP, and blocks web requests", async () => {
+test("real browser validates isolated HTML, serves it live with CSP, and blocks web requests", { skip: browserSkip }, async () => {
   const root = await mkdtemp(resolve(tmpdir(), "stram-preview-"));
   await mkdir(resolve(root, "main/codex"), { recursive: true });
-  const html = `<!doctype html><html><body style="background:#eee"><h1>Private generated code</h1><button style="width:200px;height:80px" onclick="location.hash='clicked';this.innerText=secret">Play</button><script>const secret='blue';const password='rainbow';const authorization='demo';fetch('http://127.0.0.1:39210/control').catch(()=>{});fetch('https://example.com/steal').catch(()=>{});new Image().src='https://example.com/tracker';</script></body></html>`;
-  await writeFile(resolve(root, "main/codex/prompt_1.html"), html);
-  let renderingBrowser: Browser | undefined;
-  let viewerBrowser: Browser | undefined;
-  const renderingPages = () => {
-    if (!renderingBrowser) throw new Error("Renderer was not started");
-    return renderingBrowser.contexts().flatMap((context) => context.pages());
-  };
-  const previews = new Previews(
-    root,
-    "http://127.0.0.1:39211",
-    resolve(root, "missing.html"),
-    async () =>
-      (renderingBrowser ??= await launchBrowser()),
-    credentialGuard(["private-test-credential-value"]),
-    "live",
-  );
-  const previewServer = previews.app().listen(39211, "127.0.0.1");
+  // Previews reads its origin per request, so bind first and build it with the real port.
+  const previewServer = createServer();
+  const previewOrigin = `http://127.0.0.1:${await listenFree(previewServer)}`;
   let controlReads = 0;
   const server = createServer((req, res) => {
     if (req.url === "/control") {
@@ -71,13 +67,31 @@ test("real browser validates isolated HTML, serves it live with CSP, and blocks 
     }
     res.setHeader(
       "Content-Security-Policy",
-      "default-src 'none'; frame-src http://127.0.0.1:39211",
+      `default-src 'none'; frame-src ${previewOrigin}`,
     );
     res.end(
-      '<h1 id="host">Host safe</h1><iframe sandbox="allow-scripts" src="http://127.0.0.1:39211/page/codex/1"></iframe>',
+      `<h1 id="host">Host safe</h1><iframe sandbox="allow-scripts" src="${previewOrigin}/page/codex/1"></iframe>`,
     );
   });
-  await new Promise<void>((r) => server.listen(39210, "127.0.0.1", r));
+  const controlOrigin = `http://127.0.0.1:${await listenFree(server)}`;
+  const html = `<!doctype html><html><body style="background:#eee"><h1>Private generated code</h1><button style="width:200px;height:80px" onclick="location.hash='clicked';this.innerText=secret">Play</button><script>const secret='blue';const password='rainbow';const authorization='demo';fetch('${controlOrigin}/control').catch(()=>{});fetch('https://example.com/steal').catch(()=>{});new Image().src='https://example.com/tracker';</script></body></html>`;
+  await writeFile(resolve(root, "main/codex/prompt_1.html"), html);
+  let renderingBrowser: Browser | undefined;
+  let viewerBrowser: Browser | undefined;
+  const renderingPages = () => {
+    if (!renderingBrowser) throw new Error("Renderer was not started");
+    return renderingBrowser.contexts().flatMap((context) => context.pages());
+  };
+  const previews = new Previews(
+    root,
+    previewOrigin,
+    resolve(root, "missing.html"),
+    async () =>
+      (renderingBrowser ??= await launchBrowser()),
+    credentialGuard(["private-test-credential-value"]),
+    "live",
+  );
+  previewServer.on("request", previews.app());
   try {
     await previews.ready();
     const url = await previews.validate("codex", 1, 2);
@@ -100,15 +114,15 @@ test("real browser validates isolated HTML, serves it live with CSP, and blocks 
     await page.route("**/*", (route) => {
       const u = route.request().url();
       if (
-        !u.startsWith("http://127.0.0.1:39210/") &&
-        !u.startsWith("http://127.0.0.1:39211/")
+        !u.startsWith(`${controlOrigin}/`) &&
+        !u.startsWith(`${previewOrigin}/`)
       ) {
         outgoing.push(u);
         return route.abort();
       }
       return route.continue();
     });
-    await page.goto("http://127.0.0.1:39210/");
+    await page.goto(`${controlOrigin}/`);
     await page.waitForTimeout(400);
     assert.equal(await page.locator("#host").innerText(), "Host safe");
     assert.equal(controlReads, 0);
@@ -140,7 +154,7 @@ test("real browser validates isolated HTML, serves it live with CSP, and blocks 
       unsafe,
     );
     assert.equal(
-      (await fetch("http://127.0.0.1:39211/page/codex/5")).status,
+      (await fetch(`${previewOrigin}/page/codex/5`)).status,
       404,
     );
   } finally {
@@ -151,22 +165,24 @@ test("real browser validates isolated HTML, serves it live with CSP, and blocks 
     await rm(root, { recursive: true, force: true });
   }
 });
-test("jpeg preview serves only trusted pixels and accepts forwarded input", async () => {
+test("jpeg preview serves only trusted pixels and accepts forwarded input", { skip: browserSkip }, async () => {
   const root = await mkdtemp(resolve(tmpdir(), "stram-preview-jpeg-"));
+  const previewServer = createServer();
+  const previewOrigin = `http://127.0.0.1:${await listenFree(previewServer)}`;
   await mkdir(resolve(root, "main/codex"), { recursive: true });
   const html = `<!doctype html><html><body style="background:#eee"><h1>Private generated code</h1><button style="width:200px;height:80px" onclick="location.hash='clicked';this.innerText=secret">Play</button><script>const secret='blue';const password='rainbow';const authorization='demo';fetch('http://127.0.0.1:39220/control').catch(()=>{});</script></body></html>`;
   await writeFile(resolve(root, "main/codex/prompt_1.html"), html);
   let renderingBrowser: Browser | undefined;
   const previews = new Previews(
     root,
-    "http://127.0.0.1:39221",
+    previewOrigin,
     resolve(root, "missing.html"),
     async () =>
       (renderingBrowser ??= await launchBrowser()),
     credentialGuard(["private-test-credential-value"]),
     "jpeg",
   );
-  const previewServer = previews.app().listen(39221, "127.0.0.1");
+  previewServer.on("request", previews.app());
   try {
     await previews.ready();
     const url = await previews.validate("codex", 1, 2);
@@ -175,11 +191,11 @@ test("jpeg preview serves only trusted pixels and accepts forwarded input", asyn
     const token = viewer.match(/token="([a-f0-9]+)"/)?.[1];
     assert.ok(token);
     const before = Buffer.from(
-      await (await fetch(`http://127.0.0.1:39221/frame/${token}`)).arrayBuffer(),
+      await (await fetch(`${previewOrigin}/frame/${token}`)).arrayBuffer(),
     );
     assert.equal(before[0], 255);
     assert.equal(before[1], 216);
-    const input = await fetch(`http://127.0.0.1:39221/input/${token}`, {
+    const input = await fetch(`${previewOrigin}/input/${token}`, {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ type: "click", x: 100, y: 100 }),
