@@ -50,7 +50,7 @@ export function StreamSettings({
             }
             onClick={() => action(name)}
           >
-            {name[0].toUpperCase() + name.slice(1)}
+            {name.charAt(0).toUpperCase() + name.slice(1)}
           </button>
         ))}
       </div>

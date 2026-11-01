@@ -182,7 +182,7 @@ export function Timeline({
         )}
         {groupRows(visible).map(({ item, count }, index, rows) => (
           <React.Fragment key={item.id}>
-            {(index === 0 || rows[index - 1].item.run !== item.run) && (
+            {(index === 0 || rows[index - 1]!.item.run !== item.run) && (
               <div className="run-boundary">Run {item.run.slice(0, 8)}</div>
             )}
             <article
