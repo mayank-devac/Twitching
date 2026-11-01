@@ -11,7 +11,7 @@ import { assertProviderProxy } from "../server/provider-proxy.js";
 const agent = process.argv[2];
 if (agent !== "codex" && agent !== "cursor")
   throw new Error("Choose codex or cursor");
-assertProviderProxy(root);
+await assertProviderProxy(root);
 const dir = resolve(root, "runtime/auth", agent);
 await mkdir(resolve(dir, ".codex"), { recursive: true, mode: 0o700 });
 if (agent === "codex")

@@ -1,5 +1,8 @@
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { AGENT_NETWORK } from "./constants.js";
+
+const execute = promisify(execFile);
 
 export type ProviderProxyState = "ready" | "down" | "open";
 
@@ -18,16 +21,27 @@ export function providerProxyInstruction(state: ProviderProxyState) {
   return "The HTTPS provider proxy is not running. Run docker compose -f sandbox/compose.yml up -d. Codex login and Docker agents use this proxy. Never replace the internal network with an unrestricted network.";
 }
 
-export function assertProviderProxy(cwd: string) {
-  const run = (args: string[]) =>
-    execFileSync("docker", args, {
-      cwd,
-      encoding: "utf8",
-      timeout: 15000,
-    }).trim();
+export type DockerCommand = (args: string[]) => Promise<string>;
+
+// Async so the launcher's prompts and signal handlers stay responsive while Docker answers.
+const dockerIn =
+  (cwd: string): DockerCommand =>
+  async (args) =>
+    (
+      await execute("docker", args, {
+        cwd,
+        encoding: "utf8",
+        timeout: 15000,
+      })
+    ).stdout.trim();
+
+export async function assertProviderProxy(
+  cwd: string,
+  run: DockerCommand = dockerIn(cwd),
+) {
   let internal: string | undefined;
   try {
-    internal = run([
+    internal = await run([
       "network",
       "inspect",
       AGENT_NETWORK,
@@ -40,11 +54,22 @@ export function assertProviderProxy(cwd: string) {
   let egressRunning = false;
   if (internal === "true") {
     try {
-      const id = run(["compose", "-f", "sandbox/compose.yml", "ps", "-q", "egress"]);
+      const id = await run([
+        "compose",
+        "-f",
+        "sandbox/compose.yml",
+        "ps",
+        "-q",
+        "egress",
+      ]);
       egressRunning =
         id.length > 0 &&
-        run(["inspect", "--format", "{{.State.Running}}", id.split("\n")[0]]) ===
-          "true";
+        (await run([
+          "inspect",
+          "--format",
+          "{{.State.Running}}",
+          id.split("\n")[0],
+        ])) === "true";
     } catch {
       egressRunning = false;
     }
