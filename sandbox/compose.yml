@@ -1,6 +1,8 @@
 services:
   egress:
-    image: ubuntu/squid:latest
+    # Pinned tag + digest (the same image "latest" pointed to). Update with:
+    # curl -s https://hub.docker.com/v2/repositories/ubuntu/squid/tags/<tag> (read "digest").
+    image: ubuntu/squid:6.6-24.04_beta@sha256:6a097f68bae708cedbabd6188d68c7e2e7a38cedd05a176e1cc0ba29e3bbe029
     read_only: true
     tmpfs:
       # Squid only needs these paths to start. The sizes are the disk cap while it runs.

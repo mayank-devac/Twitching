@@ -1,4 +1,6 @@
-FROM node:24-bookworm-slim
+# Pinned by tag and digest so a rebuild cannot silently pick up a new base.
+# Update: curl -s https://hub.docker.com/v2/repositories/library/node/tags/<tag> (read "digest").
+FROM node:24.22.2-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c
 ARG CODEX_VERSION=0.159.2
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git ripgrep && rm -rf /var/lib/apt/lists/*
 RUN npm install -g @openai/codex@${CODEX_VERSION}
