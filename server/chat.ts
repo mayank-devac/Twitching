@@ -4,10 +4,111 @@ import { createServer, type Server } from "node:http";
 import WebSocket from "ws";
 import * as grpc from "@grpc/grpc-js";
 import * as loader from "@grpc/proto-loader";
+import { z } from "zod";
 import type { ChatMessage } from "../shared/types.js";
 import { Store } from "./store.js";
 type Status = (platform: string, status: string, fatal?: boolean) => void;
 type Receive = (message: ChatMessage) => void;
+
+// Untrusted network JSON: each schema names only the fields this file reads.
+const oauthRefreshSchema = z.object({
+  access_token: z.string().min(1),
+  refresh_token: z.string().nullish(),
+});
+const twitchFrameSchema = z.object({
+  metadata: z.object({
+    message_type: z.string(),
+    subscription_type: z.string().optional(),
+    message_timestamp: z.string().optional(),
+  }),
+  payload: z
+    .object({
+      session: z
+        .object({
+          id: z.string(),
+          keepalive_timeout_seconds: z.number().nullish(),
+          reconnect_url: z.string().nullish(),
+        })
+        .optional(),
+      event: z.unknown().optional(),
+    })
+    .optional(),
+});
+const twitchChatEventSchema = z.object({
+  broadcaster_user_id: z.unknown().optional(),
+  message_id: z.string().optional(),
+  chatter_user_id: z.string().optional(),
+  chatter_user_name: z.string().optional(),
+  message: z
+    .object({
+      text: z.string().optional(),
+      fragments: z
+        .array(
+          z.object({
+            type: z.string().optional(),
+            text: z.string().nullish(),
+          }),
+        )
+        .optional(),
+    })
+    .optional(),
+});
+type TwitchChatEvent = z.infer<typeof twitchChatEventSchema>;
+// loose: kickMessage also reads sender.username and sender.identity.
+const kickUserSchema = z.looseObject({
+  user_id: z.unknown().optional(),
+  is_anonymous: z.boolean().optional(),
+});
+// loose: the full event still goes to kickMessage, which reads its own fields (content, message_id).
+const kickWebhookSchema = z.looseObject({
+  broadcaster: kickUserSchema.optional(),
+  gifter: kickUserSchema.nullish(),
+  sender: kickUserSchema.optional(),
+  created_at: z.string().optional(),
+});
+const kickTokenSchema = z.object({
+  access_token: z.string().min(1),
+  expires_in: z.unknown(),
+});
+const kickPublicKeySchema = z.object({
+  data: z.object({ public_key: z.string() }),
+});
+
+// The 1s..30s doubling delay every chat reconnect and token refresh shares.
+export class Backoff {
+  private delay = 1000;
+  reset() {
+    this.delay = 1000;
+  }
+  next() {
+    const delay = this.delay;
+    this.delay = Math.min(30000, this.delay * 2);
+    return delay;
+  }
+}
+// One pending reconnect at a time, spaced by the shared backoff.
+class Reconnect {
+  private timer?: ReturnType<typeof setTimeout>;
+  private backoff = new Backoff();
+  constructor(private connect: () => void) {}
+  get pending() {
+    return this.timer !== undefined;
+  }
+  connected() {
+    this.backoff.reset();
+  }
+  schedule() {
+    if (this.timer) return;
+    this.timer = setTimeout(() => {
+      this.timer = undefined;
+      this.connect();
+    }, this.backoff.next());
+  }
+  cancel() {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = undefined;
+  }
+}
 export function youtubeMessage(
   item: any,
   store: Store,
@@ -48,7 +149,7 @@ export function youtubeMessage(
   };
 }
 export function twitchMessage(
-  event: any,
+  event: TwitchChatEvent,
   timestamp: string,
 ): ChatMessage | undefined {
   if (!event.message_id || !event.chatter_user_id || !event.message?.text)
@@ -56,10 +157,10 @@ export function twitchMessage(
   const at = Date.parse(timestamp);
   if (!Number.isFinite(at)) return;
   // Drop emote fragments so emote names are not submitted as prompt text.
-  const text = Array.isArray(event.message.fragments)
+  const text = event.message.fragments
     ? event.message.fragments
-      .filter((f: any) => f.type !== "emote")
-      .map((f: any) => f.text ?? "")
+      .filter((f) => f.type !== "emote")
+      .map((f) => f.text ?? "")
       .join("")
     : event.message.text;
   return {
@@ -137,10 +238,9 @@ export function validKickSignature(
 export class YouTubeChat {
   private client?: any;
   private stream?: grpc.ClientReadableStream<any>;
-  private retry?: ReturnType<typeof setTimeout>;
+  private reconnect = new Reconnect(() => this.connect());
   private active = false;
   private page?: string;
-  private backoff = 1000;
   constructor(
     private auth: {
       access: string;
@@ -183,7 +283,7 @@ export class YouTubeChat {
     );
     this.status("youtube", "Connecting");
     this.stream!.on("data", (response: any) => {
-      this.backoff = 1000;
+      this.reconnect.connected();
       this.status("youtube", "Connected");
       this.page = response.nextPageToken ?? this.page;
       for (const item of response.items ?? []) {
@@ -220,7 +320,8 @@ export class YouTubeChat {
           signal: AbortSignal.timeout(10000),
         });
         if (!response.ok) throw new Error();
-        const data = (await response.json()) as any;
+        // A body without a token would retry with "Bearer undefined" forever.
+        const data = oauthRefreshSchema.parse(await response.json());
         this.auth.access = data.access_token;
         this.schedule();
         return;
@@ -251,27 +352,67 @@ export class YouTubeChat {
     }
   }
   private schedule() {
-    if (!this.active || this.retry) return;
-    this.retry = setTimeout(() => {
-      this.retry = undefined;
-      this.connect();
-    }, this.backoff);
-    this.backoff = Math.min(30000, this.backoff * 2);
+    if (this.active) this.reconnect.schedule();
   }
   stop() {
     this.active = false;
-    if (this.retry) clearTimeout(this.retry);
-    this.retry = undefined;
+    this.reconnect.cancel();
     this.stream?.cancel();
     this.client?.close();
   }
+}
+export type TwitchFrame =
+  | { kind: "welcome"; session: string; keepaliveMs: number }
+  | { kind: "reconnect"; url: string }
+  | { kind: "revocation" }
+  | { kind: "chat"; event: TwitchChatEvent; timestamp: string }
+  | { kind: "other" };
+// undefined means malformed: never throws, so a bad frame cannot escape the socket handler.
+export function readTwitchFrame(raw: string): TwitchFrame | undefined {
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    return;
+  }
+  const frame = twitchFrameSchema.safeParse(json);
+  if (!frame.success) return;
+  const { metadata, payload } = frame.data;
+  if (metadata.message_type === "session_welcome") {
+    const session = payload?.session;
+    if (!session) return;
+    return {
+      kind: "welcome",
+      session: session.id,
+      keepaliveMs: (session.keepalive_timeout_seconds ?? 10) * 1000 + 2000,
+    };
+  }
+  if (metadata.message_type === "session_reconnect") {
+    const url = payload?.session?.reconnect_url;
+    return url ? { kind: "reconnect", url } : undefined;
+  }
+  if (metadata.message_type === "revocation") return { kind: "revocation" };
+  if (
+    metadata.message_type === "notification" &&
+    metadata.subscription_type === "channel.chat.message"
+  ) {
+    const event = twitchChatEventSchema.safeParse(payload?.event);
+    if (!event.success || metadata.message_timestamp === undefined) return;
+    return {
+      kind: "chat",
+      event: event.data,
+      timestamp: metadata.message_timestamp,
+    };
+  }
+  return { kind: "other" };
 }
 export class TwitchChat {
   private socket?: WebSocket;
   private sockets = new Set<WebSocket>();
   private active = false;
-  private retry?: ReturnType<typeof setTimeout>;
-  private backoff = 1000;
+  private reconnect = new Reconnect(() =>
+    this.connect("wss://eventsub.wss.twitch.tv/ws"),
+  );
   constructor(
     private auth: {
       access: string;
@@ -298,8 +439,10 @@ export class TwitchChat {
     this.connect("wss://eventsub.wss.twitch.tv/ws");
   }
   private connect(url: string, previous?: WebSocket) {
-    const parsed = new URL(url);
+    // Reconnect URLs come from the network; a bad one must not throw out of the socket handler.
+    const parsed = URL.parse(url);
     if (
+      !parsed ||
       parsed.protocol !== "wss:" ||
       parsed.hostname !== "eventsub.wss.twitch.tv"
     ) {
@@ -319,48 +462,38 @@ export class TwitchChat {
     socket.on("error", () => this.status("twitch", "Connection error"));
     socket.on("message", (raw) => {
       touch();
-      let m: any;
-      try {
-        m = JSON.parse(raw.toString());
-      } catch {
+      const frame = readTwitchFrame(raw.toString());
+      // Malformed frames are dropped; the keepalive watchdog still reconnects with backoff.
+      if (!frame) {
+        console.warn("Twitch EventSub: dropped a malformed frame");
         return;
       }
-      if (m.metadata?.message_type === "session_welcome") {
-        this.backoff = 1000;
-        keepalive =
-          (m.payload.session.keepalive_timeout_seconds ?? 10) * 1000 + 2000;
+      if (frame.kind === "welcome") {
+        this.reconnect.connected();
+        keepalive = frame.keepaliveMs;
         touch();
         if (previous) {
           previous.close();
           this.status("twitch", "Connected");
-        } else void this.subscribe(m.payload.session.id);
-      } else if (m.metadata?.message_type === "session_reconnect")
-        this.connect(m.payload.session.reconnect_url, socket);
-      else if (m.metadata?.message_type === "revocation") {
+        } else void this.subscribe(frame.session);
+      } else if (frame.kind === "reconnect") this.connect(frame.url, socket);
+      else if (frame.kind === "revocation") {
         this.status("twitch", "Chat permission revoked", true);
         this.stop();
       } else if (
-        m.metadata?.message_type === "notification" &&
-        m.metadata.subscription_type === "channel.chat.message" &&
-        String(m.payload.event.broadcaster_user_id) === this.auth.broadcaster
+        frame.kind === "chat" &&
+        String(frame.event.broadcaster_user_id) === this.auth.broadcaster
       ) {
-        const message = twitchMessage(
-          m.payload.event,
-          m.metadata.message_timestamp,
-        );
+        const message = twitchMessage(frame.event, frame.timestamp);
         if (message) this.receive(message);
       }
     });
     socket.on("close", () => {
       if (watchdog) clearTimeout(watchdog);
       this.sockets.delete(socket);
-      if (this.active && socket === this.socket && !this.retry) {
+      if (this.active && socket === this.socket && !this.reconnect.pending) {
         this.status("twitch", "Disconnected; reconnecting");
-        this.retry = setTimeout(() => {
-          this.retry = undefined;
-          this.connect("wss://eventsub.wss.twitch.tv/ws");
-        }, this.backoff);
-        this.backoff = Math.min(30000, this.backoff * 2);
+        this.reconnect.schedule();
       }
     });
   }
@@ -379,7 +512,7 @@ export class TwitchChat {
           signal: AbortSignal.timeout(10000),
         });
         if (!refresh.ok) throw new Error();
-        const data = (await refresh.json()) as any;
+        const data = oauthRefreshSchema.parse(await refresh.json());
         this.auth.access = data.access_token;
         this.auth.refresh = data.refresh_token ?? this.auth.refresh;
         response = await this.subscriptionRequest(session);
@@ -417,8 +550,7 @@ export class TwitchChat {
   }
   stop() {
     this.active = false;
-    if (this.retry) clearTimeout(this.retry);
-    this.retry = undefined;
+    this.reconnect.cancel();
     for (const socket of this.sockets) socket.close();
   }
 }
@@ -436,7 +568,7 @@ export class KickToken {
   private expiresAt = 0;
   private pending?: Promise<string>;
   private retryAt = 0;
-  private backoff = 1000;
+  private backoff = new Backoff();
   constructor(
     private auth: Pick<KickAuth, "access" | "client" | "secret">,
     private fetchImpl: typeof fetch = fetch,
@@ -481,22 +613,18 @@ export class KickToken {
       // Only the status is reported; the body may echo credentials.
       if (!response.ok)
         throw new Error(`Kick token request failed (${response.status})`);
-      const body = (await response.json()) as {
-        access_token?: unknown;
-        expires_in?: unknown;
-      };
-      if (typeof body.access_token !== "string" || !body.access_token)
+      const body = kickTokenSchema.safeParse(await response.json());
+      if (!body.success)
         throw new Error("Kick token response had no access token");
-      const seconds = Number(body.expires_in);
-      this.token = body.access_token;
+      const seconds = Number(body.data.expires_in);
+      this.token = body.data.access_token;
       this.expiresAt =
         this.now() + (Number.isFinite(seconds) && seconds > 0 ? seconds : 3600) * 1000;
-      this.backoff = 1000;
+      this.backoff.reset();
       this.retryAt = 0;
       return this.token;
     } catch (error) {
-      this.retryAt = this.now() + this.backoff;
-      this.backoff = Math.min(30000, this.backoff * 2);
+      this.retryAt = this.now() + this.backoff.next();
       throw error;
     }
   }
@@ -529,8 +657,9 @@ export class KickChat {
       signal: AbortSignal.timeout(10000),
     });
     if (!key.ok) throw new Error("Kick verification key unavailable");
-    this.publicKey = ((await key.json()) as any).data.public_key;
-    if (!this.publicKey?.includes("BEGIN PUBLIC KEY"))
+    const published = kickPublicKeySchema.safeParse(await key.json());
+    this.publicKey = published.success ? published.data.data.public_key : "";
+    if (!this.publicKey.includes("BEGIN PUBLIC KEY"))
       throw new Error("Invalid Kick verification key");
     this.server = createServer(async (req, res) => {
       if (req.method !== "POST" || req.url !== "/kick") {
@@ -564,7 +693,8 @@ export class KickChat {
           res.writeHead(401).end();
           return;
         }
-        const e = JSON.parse(raw.toString());
+        // Signed but malformed bodies fall through to the 400 below.
+        const e = kickWebhookSchema.parse(JSON.parse(raw.toString()));
         if (String(e.broadcaster?.user_id) !== this.auth.broadcaster) {
           res.writeHead(403).end();
           return;
@@ -579,13 +709,13 @@ export class KickChat {
             this.store.gift(
               `kick:${e.gifter.user_id}`,
               `kick:${id}`,
-              Date.parse(e.created_at),
+              Date.parse(e.created_at ?? ""),
             );
           if (type === "kicks.gifted" && e.sender?.user_id)
             this.store.gift(
               `kick:${e.sender.user_id}`,
               `kick:${id}`,
-              Date.parse(e.created_at),
+              Date.parse(e.created_at ?? ""),
             );
           if (type === "chat.message.sent") {
             const message = kickMessage(e, this.store, this.since());

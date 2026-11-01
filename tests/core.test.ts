@@ -14,6 +14,8 @@ import {
   validKickSignature,
   KickChat,
   KickToken,
+  Backoff,
+  readTwitchFrame,
 } from "../server/chat.js";
 import { generateKeyPairSync, sign } from "node:crypto";
 import type { Activity, ChatMessage, Evaluation } from "../shared/types.js";
@@ -877,6 +879,87 @@ test("Kick subscription refreshes the minted token once after a 401", async () =
   }
 });
 
+test("chat backoff doubles from one second to a thirty second cap and resets", () => {
+  const backoff = new Backoff();
+  assert.deepEqual(
+    Array.from({ length: 7 }, () => backoff.next()),
+    [1000, 2000, 4000, 8000, 16000, 30000, 30000],
+  );
+  backoff.reset();
+  assert.equal(backoff.next(), 1000);
+});
+test("malformed Twitch EventSub frames are dropped instead of throwing", () => {
+  const frame = (value: unknown) => readTwitchFrame(JSON.stringify(value));
+  assert.equal(readTwitchFrame("not json"), undefined);
+  assert.equal(frame(null), undefined);
+  assert.equal(frame({ metadata: { message_type: "session_welcome" } }), undefined);
+  assert.equal(frame({ metadata: { message_type: "session_welcome" }, payload: { session: {} } }), undefined);
+  assert.equal(frame({ metadata: { message_type: "session_reconnect" }, payload: {} }), undefined);
+  assert.equal(
+    frame({ metadata: { message_type: "notification", subscription_type: "channel.chat.message", message_timestamp: "t" }, payload: { event: { message_id: 7 } } }),
+    undefined,
+  );
+  assert.deepEqual(
+    frame({ metadata: { message_type: "session_welcome" }, payload: { session: { id: "s", keepalive_timeout_seconds: 5, reconnect_url: null } } }),
+    { kind: "welcome", session: "s", keepaliveMs: 7000 },
+  );
+  assert.deepEqual(frame({ metadata: { message_type: "session_keepalive" }, payload: {} }), { kind: "other" });
+  const chat = frame({
+    metadata: { message_type: "notification", subscription_type: "channel.chat.message", message_timestamp: new Date(1000).toISOString() },
+    payload: { event: { broadcaster_user_id: "b", message_id: "m", chatter_user_id: "u", message: { text: "hi" } } },
+  });
+  assert.equal(chat?.kind, "chat");
+  if (chat?.kind === "chat") assert.equal(twitchMessage(chat.event, chat.timestamp)?.text, "hi");
+});
+test("signed Kick webhooks keep sender details and malformed bodies get a 400", async () => {
+  const { publicKey, privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const pem = publicKey.export({ type: "spki", format: "pem" }).toString();
+  const fetchImpl = (async (url: string) =>
+    url.endsWith("/public-key")
+      ? Response.json({ data: { public_key: pem } })
+      : new Response(null, { status: 204 })) as unknown as typeof fetch;
+  const store = new Store(":memory:");
+  const received: ChatMessage[] = [];
+  const auth = { access: "static", broadcaster: "42" };
+  const kick = new KickChat(auth, 0, "127.0.0.1", "https://example.test/kick", store,
+    (message) => received.push(message), () => {}, () => 0, new KickToken(auth, fetchImpl), fetchImpl);
+  try {
+    await kick.start();
+    const port = ((kick as unknown as { server: import("node:http").Server }).server.address() as { port: number }).port;
+    const post = (id: string, body: string, type = "chat.message.sent") => {
+      const timestamp = new Date().toISOString();
+      const signature = sign("RSA-SHA256", Buffer.from(`${id}.${timestamp}.${body}`), privateKey).toString("base64");
+      return fetch(`http://127.0.0.1:${port}/kick`, {
+        method: "POST",
+        body,
+        headers: {
+          "kick-event-version": "1",
+          "kick-event-type": type,
+          "kick-event-message-id": id,
+          "kick-event-message-timestamp": timestamp,
+          "kick-event-signature": signature,
+        },
+      });
+    };
+    const event = {
+      broadcaster: { user_id: 42 },
+      message_id: "m1",
+      created_at: new Date(1000).toISOString(),
+      sender: { user_id: 7, username: "K", identity: { badges: [{ type: "subscriber" }] } },
+      content: "!prompt Build a colourful card game",
+    };
+    assert.equal((await post("e1", JSON.stringify(event))).status, 204);
+    assert.equal(received[0]?.author, "K");
+    assert.equal(received[0]?.membership.member, true);
+    assert.equal((await post("e2", "null")).status, 400);
+    assert.equal((await post("e3", JSON.stringify({ ...event, broadcaster: { user_id: 1 } }))).status, 403);
+    assert.equal((await post("e4", JSON.stringify({ broadcaster: { user_id: 42 }, gifter: null }), "channel.subscription.gifts")).status, 204);
+    assert.equal(received.length, 1);
+  } finally {
+    kick.stop();
+    store.close();
+  }
+});
 test("conversation search filters before paging and treats wildcards literally", () => {
   const store = new Store(":memory:");
   const save = (n: number, title: string) => store.saveConversation({
