@@ -1,0 +1,229 @@
+
+Discussed, not fixed yet
+
+┌─────┬───────────────────────────────────────────────────────────────────────────────────────────┬────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│  #  │                                          Finding                                          │                                             Suggested fix                                              │
+├─────┼───────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ D1  │ The agent can read the Codex/Cursor login tokens in its own HOME, and copies pile up in   │ Delete <round>/.home after retainAuth for arena rounds. Longer term, mount auth read-only outside      │
+│     │ round folders and archives (docker.ts:70-91, disk-budget.ts:53).                          │ HOME. Rotate the logins if live rounds have run.                                                       │
+├─────┼───────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ D2  │ The Cursor profile (config.toml, cli-config.json) is copied back from the agent-writable  │ Copy back only auth.json and rebuild config from a template each round. Check that Cursor stays logged │
+│     │ home, so a round can permanently change it (docker.ts:37).                                │  in first.                                                                                             │
+├─────┼───────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ D3  │ Native Cursor still runs with --sandbox disabled (native-host.ts:178), and live mode      │ Drop the --sandbox disabled splice, and refuse mode=live with runnerMode=native unless a separate      │
+│     │ allows native (controller.ts:440).                                                        │ consent is given.                                                                                      │
+├─────┼───────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ D4  │ Background promises have no .catch, so one SQLite error kills the live show               │ Add .catch(e => controller.pause(...)) to each, plus a last-resort process.on("unhandledRejection") in │
+│     │ (index.ts:160, controller.ts:759, service.ts:553, runner.ts:322).                         │  server/index.ts.                                                                                      │
+├─────┼───────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ D5  │ npm test skips tests/markdown.test.tsx, and there's no CI.                                │ Make the script tsx --test tests/*.test.ts tests/*.test.tsx, and add a GitHub Actions workflow running │
+│     │                                                                                           │  check, test and build on Node 24.                                                                     │
+├─────┼───────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ D6  │ The 250 ms tick saves and broadcasts full state even when idle (controller.ts:699-702).   │ Server: call persist() only when tick() changed something, and skip broadcasts when nothing changed.   │
+│     │ On the client, a 250 ms clock re-renders the whole host desk (main.tsx:252).              │ Client: a useNow() hook used only by the clocks, plus a memoised Markdown component.                   │
+├─────┼───────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ D7  │ Session search filters after LIMIT 31, so results are missing (store.ts:83-88).           │ Do the search in SQL with json_extract(...) LIKE ? before the LIMIT.                                   │
+├─────┼───────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ D8  │ Regressions from commit 6ec5861: a failed Mermaid import is cached for the page's         │ .catch that clears mermaidReady, plus suppressErrorRendering: true; strip node in the shared a in      │
+│     │ lifetime; links get node="[object Object]"; annotation numbers run on across blocks.      │ markdown.tsx; number annotations per block again.                                                      │
+├─────┼───────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ D9  │ The timeline matches the server strings "Files edited" and "Recorded tool activity"       │ Add placeholder?: true to TimelineItem and set it in codex-history.ts, and type kindLabel as           │
+│     │ (timeline-rows.ts:23).                                                                    │ Record<TimelineItem["kind"], string>.                                                                  │
+└─────┴───────────────────────────────────────────────────────────────────────────────────────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Security, not discussed yet
+
+┌─────┬─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────┐
+│  #  │                                                         Finding                                                         │                              Suggested fix                               │
+├─────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
+│ S1  │ Approving native once sets ARENA_NATIVE_APPROVED=1 for the whole process, which also unlocks arena native runs          │ Store the approval on the conversation and pass it to NativeHost.create, │
+│     │ (service.ts:214,426).                                                                                                   │  and stop writing to process.env.                                        │
+├─────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
+│ S2  │ host in settings isn't limited to loopback, so 0.0.0.0 exposes the host token to t13).        │ Allow only 127.0.0.1, ::1 or localhost in startupSchema.                 │
+┌─────┬───────────────────────────────────────────────────────────────────────────────────────────┬────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│  #  │                                          Finding                                          │                                             Suggested fix                                              │
+├─────┼───────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ D1  │ The agent can read the Codex/Cursor login tokens in its own HOME, and copies pile up in   │ Delete <round>/.home after retainAuth for arena rounds. Longer term, mount auth read-only outside      │
+│     │ round folders and archives (docker.ts:70-91, disk-budget.ts:53).                          │ HOME. Rotate the logins if live rounds have run.                                                       │
+├─────┼───────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ D2  │ The Cursor profile (config.toml, cli-config.json) is copied back from the agent-writable  │ Copy back only auth.json and rebuild config from a template each round. Check that Cursor stays logged │
+│     │ home, so a round can permanently change it (docker.ts:37).                                │  in first.                                                                                             │
+├─────┼───────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ D3  │ Native Cursor still runs with --sandbox disabled (native-host.ts:178), and live mode      │ Drop the --sandbox disabled splice, and refuse mode=live with runnerMode=native unless a separate      │
+│     │ allows native (controller.ts:440).                                                        │ consent is given.                                                                                      │
+├─────┼───────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ D4  │ Background promises have no .catch, so one SQLite error kills the live show               │ Add .catch(e => controller.pause(...)) to each, plus a last-resort process.on("unhandledRejection") in │
+│     │ (index.ts:160, controller.ts:759, service.ts:553, runner.ts:322).                         │  server/index.ts.                                                                                      │
+├─────┼───────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ D5  │ npm test skips tests/markdown.test.tsx, and there's no CI.                                │ Make the script tsx --test tests/*.test.ts tests/*.test.tsx, and add a GitHub Actions workflow running │
+│     │                                                                                           │  check, test and build on Node 24.                                                                     │
+├─────┼───────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ D6  │ The 250 ms tick saves and broadcasts full state even when idle (controller.ts:699-702).   │ Server: call persist() only when tick() changed something, and skip broadcasts when nothing changed.   │
+│     │ On the client, a 250 ms clock re-renders the whole host desk (main.tsx:252).              │ Client: a useNow() hook used only by the clocks, plus a memoised Markdown component.                   │
+├─────┼───────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ D7  │ Session search filters after LIMIT 31, so results are missing (store.ts:83-88).           │ Do the search in SQL with json_extract(...) LIKE ? before the LIMIT.                                   │
+├─────┼───────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ D8  │ Regressions from commit 6ec5861: a failed Mermaid import is cached for the page's         │ .catch that clears mermaidReady, plus suppressErrorRendering: true; strip node in the shared a in      │
+│     │ lifetime; links get node="[object Object]"; annotation numbers run on across blocks.      │ markdown.tsx; number annotations per block again.                                                      │
+├─────┼───────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ D9  │ The timeline matches the server strings "Files edited" and "Recorded tool activity"       │ Add placeholder?: true to TimelineItem and set it in codex-history.ts, and type kindLabel as           │
+│     │ (timeline-rows.ts:23).                                                                    │ Record<TimelineItem["kind"], string>.                                                                  │
+└─────┴───────────────────────────────────────────────────────────────────────────────────────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Security, not discussed yet
+
+┌─────┬─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────┐
+│  #  │                                                         Finding                                                         │                              Suggested fix                               │
+├─────┼───────────────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
+│ S1  │ Approving native once sets ARENA_NATIVE_APPROVED=1 for the whole process, which also unlocks arena native runs          │ Store the approval on the conversation and pass it to NativeHost.create, │
+│     │ (service.ts:214,426).                                                                         │  and stop writing to process.env.                                        │
+├─────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
+│ S2  │ host in settings isn't limited to loopback, so 0.0.0.0 exposes the host token to t13).        │ Allow only 127.0.0.1, ::1 or localhost in startupSchema.                 │
+├─────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
+│ S3  │ Live preview mode sends raw agent HTML to OBS and the host browser (preview.ts:132he comment  │ Make jpeg the default for public or live output, or fix the comment so   │
+│     │ at :242. The WebRTC CSP directive probably isn't enforced.                                                              │ it matches.                                                              │
+├─────┼───────────────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
+│ S4  │ Nothing limits how many paid Jev evaluations one viewer can trigger, short of 100 at once (collection.ts:92-110).       │ Add a per-platform:author cooldown before judge.evaluate.                │
+├─────┼───────────────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
+│ S5  │ Chat text is put into Jev's selection criteria, so a viewer can try to steer the pick (jev.ts:147-183).                 │ Use opaque IDs and scores in the criteria, and pass the text only as     │
+│     │                                                                                               │ data.                                                                    │
+├─────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
+│ S6  │ The sandbox inputs aren't pinned: ubuntu/squid:latest, plus an unverified curl curime.        │ Pin the image digest and the Cursor version or checksum.                 │
+├─────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
+│ S7  │ An agent could replace the whole .home folder with a symlink. This predates my fix            │ lstat .home in docker.workspace() and refuse if it isn't a real          │
+│     │                                                                                                                         │ directory.                                                               │
+└─────┴───────────────────────────────────────────────────────────────────────────────────────────────┴──────────────────────────────────────────────────────────────────────────┘
+
+Correctness
+
+┌─────┬────────────────────────────────────────────────────────────────────────────────────────────┬─────────────────────────────────────────────────────────────────────────────┐
+│  #  │                                                       Finding                                                        │                                Suggested fix                                │
+├─────┼────────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────┤
+│ B1  │ Background list refreshes go through perform, which wipes notices and disables the desk while you type in search     │ Give list loading its own listBusy flag.                                    │
+│     │ (Welcome.tsx:258).                                                                         │                                                                             │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────┤
+│ B2  │ Continue sends the arena action twice (Welcome.tsx:371,374).                               │ Remove the second POST.                                                     │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────┤
+│ B3  │ Errors from the privacy shortcut and /api/host are never shown on the welcome and          │ Render one error banner above the route switch.                             │
+│     │ (main.tsx:263,282).                                                                                                  │                                                                             │
+├─────┼────────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────┤
+│ B4  │ Unchecked sessions[0] (Welcome.tsx:223,456), and WS messages parsed as any (main.tsx:122).                           │ Add length guards and a typed ServerMessage parser in shared/.              │
+├─────┼────────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────┤
+│ B5  │ The WS heartbeat never drops dead sockets (http.ts:311).                                                             │ Use the standard isAlive flag and pong pattern.                             │
+├─────┼────────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────┤
+│ B6  │ Two simultaneous starts can both take the lock file (index.ts:41-57).                                                │ Rename the stale lock atomically before taking it.                          │
+├─────┼────────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────┤
+│ B7  │ The overlay combobox isn't valid ARIA and has no keyboard support, "8 max" is hard-coded, and a timer isn't cleared  │ Use a native <select>, and interpolate MAX_OVERLAY_SESSIONS.                │
+│     │ (OverlayManager.tsx).                                                                      │                                                                             │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────┤
+│ B8  │ Unconfirmed: the hide-runs checkbox picks up the 32px text-input style, and the ovm 700px  │ Restore the .multi-overlays .hide-runs-choice input size rule, and check    │
+│     │ to 760px.                                                                                                            │ the breakpoint.                                                             │
+└─────┴────────────────────────────────────────────────────────────────────────────────────────────┴─────────────────────────────────────────────────────────────────────────────┘
+
+Performance
+
+┌─────┬──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│  #  │                                                  Finding                                                   │                                     Suggested fix                                     │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ P1  │ The whole accumulated text is redacted on every streamed delta, then redacted 3–4 more times further down, │ Parse once, mark text as already redacted, and redact once per item.                  │
+│     │  and each event is parsed twice (activity.ts:92,201-219).                                                                                                                │
+├─────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────┤
+│ P2  │ Managed sessions build a new CliRunner per prompt, which re-runs the capability pr Keep one runner per host, save the conversation only when its status changes, and use │
+│     │  conversation on every event (service.ts:473-514).                                                         │  Promise.all for discovery and container creation.                                    │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ P3  │ Every OBS overlay loads the host-desk code and CSS (main.tsx:7-16; Timeline is imported but unused).       │ React.lazy the welcome and settings routes, and delete the unused import.             │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ P4  │ Several separate pollers fetch overlapping data (4 s, 2.5 s, 5 s, and settings twice).                     │ Push changes over the existing /events socket, or use one shared poller. Skip         │
+│     │                                                                                    setState when the revision hasn't changed.                                            │
+├─────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────┤
+│ P5  │ The messages, events, decisions and evaluations tables grow forever, and each mana Prune old rows at startup and hourly, and give managed runs their own ID sequence.    │
+│     │ placeholder rounds row.                                                                                    │                                                                                       │
+└─────┴──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Architecture and tech debt (bigger refactors)
+
+┌─────┬──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│  #  │                                                 Finding                                                 │                                      Suggested fix                                       │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ A1  │ controller.ts is a 995-line god object, with 7 boolean flags acting as a state machine.                 │ Replace the flags with one phase enum, and extract RoundLauncher, BreakPolicy and a      │
+│     │                                                                                   heduler table. Write characterization tests first.                                     │
+├─────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────┤
+│ A2  │ CliRunner branches on experience 12 times, and prompts are patched with .replace()troduce a RunProfile strategy (arena and session) and structured prompt templates.     │
+├─────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────┤
+│ A3  │ NativeHost extends Docker but overrides nearly everything, and Codex/Cursor branchfine an ExecutionHost interface, and move per-CLI home, auth and argv handling into    │
+│     │ files.                                                                                                  │ the adapters.                                                                            │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ A4  │ There are two JSON-RPC clients and three NDJSON line splitters (codex-history.ts, docker.ts).           │ One CodexAppServerClient built on JsonLines, with zod-checked results.                   │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ A5  │ The session zod schemas are copied 3 times, and "docker" | "native" is repeated 16 times.               │ shared/schema.ts exporting the base schemas, with types derived by z.infer.              │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ A6  │ JSON at boundaries isn't validated: chat frames, SQLite rows, launcher responses (about 20 as any).     │ zod schemas at each boundary, plus a Store.doc(table, schema) helper.                    │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ A7  │ Six single-row JSON tables with copy-pasted get/save, and multi-step writes without transactions.       │ One documents table, prepared statements cached once, and BEGIN…COMMIT around multi-step │
+│     │                                                                                   rites.                                                                                 │
+├─────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────┤
+│ A8  │ The HTTP routes duplicate respond and the auth guards, and map errors to differentserver/http-kit.ts with hostOnly, respond and routeAction.                             │
+├─────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────┤
+│ A9  │ scripts/stream.ts (1116 lines) rebuilds the server's wiring, passes settings throushared server/compose.ts and a typed StartupOverrides object instead of env vars.      │
+│     │ and its redaction secret list has drifted from the server's.                                            │                                                                                          │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ A10 │ Visibility filtering and activity projection are implemented twice. Privacy rules are involved.         │ A shared/visibility.ts used by both the arena and session paths.                         │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ A11 │ Each chat platform is spelled out as its own boolean in about 12 places, and the reconnect logic is     │ Record<ChatPlatform, boolean>, a ChatSource interface and one shared Backoff helper.     │
+│     │ copied 3 times.                                                                                                                                                          │
+├─────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────┤
+│ A12 │ ShowState is a bag of about 30 optional fields, and the session overlay fakes an adiscriminated union on phase, and a split socket payload.                              │
+│     │ the socket.                                                                                             │                                                                                          │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ A13 │ Welcome.tsx (950 lines, 20 useStates) and main.tsx (994 lines, the WS merge logic copied 3 times).      │ useModeSwitch, useNewSessionDraft and useShowState hooks, plus route components.         │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ A14 │ About 15 copies of the busy/error try-finally pattern, and some calls skip hostRequest.                 │ useHostAction and useHostQuery hooks.                                                    │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ A15 │ Three separate ReactMarkdown setups.                                                                    │ One memoised SafeMarkdown with typed overrides.                                          │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ A16 │ prompt-parts.ts has two different annotation parsers, a quadratic JSON.parse loop and hard-coded        │ A list of extractors sharing one validated annotation parser, plus fixture tests.        │
+│     │ strings.                                                                                                                                                                 │
+├─────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────┤
+│ A17 │ Five stylesheets with duplicated tokens, !important fights and dead selectors.    e tokens.css, per-surface scoping, and removal of the dead selectors.                  │
+├─────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────┤
+│ A18 │ State variables named document hide the browser's global document (Welcome, QuickSname them to settingsDoc and overlayDoc.                                               │
+│     │ break-control, OverlayManager).                                                                         │                                                                                          │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ A19 │ Runtime writes aren't atomic (the native PID file), and sync ps/git calls block the event loop          │ A writeFileAtomic helper, and promisified execFile.                                      │
+│     │ (native-host.ts).                                                                                                                                                        │
+└─────┴─────────────────────────────────────────────────────────────────────────────────────────────────────────┴──────────────────────────────────────────────────────────────────────────────────────────┘
+
+Tests, DX and docs
+
+┌─────┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┬───────────────────────────────────────────────────────────────────────┐
+│  #  │                                                          Finding                                 │                             Suggested fix                             │
+├─────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────┤
+│ T1  │ No tests for prompt-parts.ts, timeline-rows.ts, codex-history.ts, settings-http.tsmost of web/.  │ Table tests for the pure helpers first, then route tests modelled on  │
+│     │                                                                                                                            │ tests/http.test.ts.                                                   │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────┤
+│ T2  │ Tests use fixed ports and a browser path specific to this machine.                                                         │ listen(0), and skip the browser tests when no browser is found.       │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────┤
+│ X1  │ Prettier is installed but has no config or script.                                                                         │ format and format:check scripts plus .prettierignore.                 │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────┤
+│ X2  │ main/*.html is tracked and overwritten at runtime. run.txt and settings.json are also tracked.                             │ Gitignore main/ and move wanted examples to examples/.                │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────┤
+│ X3  │ The tsconfig is missing noUncheckedIndexedAccess and noFallthroughCasesInSwitch.                                           │ Turn them on and fix errors module by module.                         │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────┤
+│ X4  │ Playwright must match the Dockerfile ARG, but nothing enforces it. remark-gfm is pinned with no stated reason.             │ Pass the version as a --build-arg from package.json, or add a test    │
+│     │                                                                                                  │ that checks they match.                                               │
+├─────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────┤
+│ X5  │ The main bundle is about 500 KB, at Vite's warning threshold.                                    │ Split react-markdown into its own chunk or lazy-load the host routes  │
+│     │                                                                                                                            │ (P3).                                                                 │
+├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────┤
+│ X6  │ README issues: the grok asset is unused, npm test is called "acceptance tests", and the prettier --write . advice. There's │ Fix the docs, and leave the Docker names alone unless you add a       │
+│     │  also the "stram" typo in Docker names.                                                          │ migration.                                                            │
+├─────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────┤
+│ X7  │ AGENTS.md lists no commands and doesn't point to .agent/repo_map.md.                             │ Add the check, test and build commands and a pointer to the map.      │
+└─────┴────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┴───────────────────────────────────────────────────────────────────────┘
+
+Product direction (options)
+
+- Resume real provider threads and allow attaching to external sessions.
+- Refresh the Kick token automatically.
+- A post-stream recap or gallery page.
+- A third CLI adapter.
