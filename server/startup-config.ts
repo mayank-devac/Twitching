@@ -10,7 +10,11 @@ import {
 import { DEFAULT_PROMPT_FILE } from "./prompt-playlist.js";
 export const startupSchema = z.object({
   experience: z.enum(["welcome", "session", "arena"]).default("welcome"),
-  host: z.string().regex(/^[\w.-]+$/),
+  // The control server holds credentials and native-run controls; it must
+  // never listen beyond this machine.
+  host: z.enum(["127.0.0.1", "::1", "localhost"], {
+    error: "host must be a loopback address: 127.0.0.1, ::1 or localhost",
+  }),
   port: z.number().int().min(1024).max(65535),
   previewPort: z.number().int().min(1024).max(65535),
   webhookPort: z.number().int().min(1024).max(65535),

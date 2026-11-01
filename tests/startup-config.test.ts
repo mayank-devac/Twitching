@@ -51,6 +51,13 @@ test("interactive selection discovers once for two sessions of the same CLI", as
   assert.deepEqual(selected, [parseSessionSpec("codex:a:high", 0), parseSessionSpec("codex:b", 1)]);
 });
 
+test("startup host accepts only loopback addresses", () => {
+  for (const host of ["127.0.0.1", "::1", "localhost"])
+    assert.equal(resolveStartup({ ...raw, host }, {}, root, false).host, host);
+  for (const host of ["0.0.0.0", "192.168.1.5", "example.com", "::"])
+    assert.throws(() => resolveStartup({ ...raw, host }, {}, root, false), /loopback address/);
+});
+
 // Fresh startup must not connect chat until the host explicitly opts into a platform.
 test("chat defaults to none and explicit flags or file choices opt in",()=>{
   const initial=resolveStartup(raw,{},root,false);
