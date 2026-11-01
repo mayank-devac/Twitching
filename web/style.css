@@ -37,15 +37,6 @@ textarea {
   font: inherit;
 }
 
-button {
-  cursor: pointer;
-}
-
-button:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
 a {
   color: inherit;
   text-decoration: none;
@@ -233,18 +224,6 @@ main {
   border-color: #314257;
 }
 
-.agent-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border: 1px solid #516344;
-  border-radius: 10px;
-  color: var(--lime);
-  font-size: 24px;
-}
-
 .codex .agent-icon {
   color: var(--blue);
   border-color: #4e6584;
@@ -281,12 +260,7 @@ main {
 }
 
 .agent-header time {
-  margin-left: auto;
-  min-width: 88px;
   text-align: center;
-  padding: 9px 13px;
-  background: #ffffff06;
-  border: 0;
   border-radius: 0;
   color: var(--lime);
   font:
@@ -658,6 +632,7 @@ main {
   flex-wrap: wrap;
 }
 
+/* Global arena button: kept after the font reset above so its font-size wins. */
 button {
   background: #263343;
   color: #dae4f1;
@@ -665,6 +640,12 @@ button {
   border-radius: 6px;
   padding: 10px 14px;
   font-size: 12px;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 button:hover:not(:disabled) {
@@ -932,12 +913,6 @@ textarea {
   font-size: 14px;
 }
 
-.host .agent-content {
-  flex: 1 1 auto;
-  height: 100%;
-  min-height: 0;
-}
-
 @keyframes appear {
   from {
     opacity: 0;
@@ -1020,13 +995,7 @@ textarea {
   }
 
   .agent-header time {
-    min-width: 58px;
-    padding: 6px;
     font-size: 18px;
-  }
-
-  .agent-icon {
-    display: none;
   }
 
   .agent-state {
@@ -1039,10 +1008,6 @@ textarea {
 
   .host-grid {
     grid-template-columns: 1fr;
-  }
-
-  .activity-log {
-    padding: 4px 8px;
   }
 }
 
@@ -1225,12 +1190,16 @@ textarea {
   line-height: 1;
 }
 
+/* Arena agent logo box; only .host hides it. */
 .agent-icon {
   display: flex;
   align-items: center;
   justify-content: center;
   background: none;
   border: 0;
+  border-radius: 10px;
+  color: var(--lime);
+  font-size: 24px;
   width: 34px;
   height: 34px;
   padding: 0;
@@ -1248,10 +1217,6 @@ textarea {
   max-height: 100%;
   min-height: 0;
   overflow: hidden;
-}
-
-.overlay .next-strip {
-  margin-top: 0;
 }
 
 .prompt-pop {
@@ -1616,10 +1581,6 @@ textarea {
   background: transparent;
   padding: 0;
   min-width: 0;
-}
-
-.host {
-  padding: 6px 8px 8px;
 }
 
 .host .arena {

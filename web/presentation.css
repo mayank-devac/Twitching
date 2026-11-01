@@ -102,7 +102,6 @@
 .rehearsal-popover .rehearsal-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; }
 .rehearsal-popover .rehearsal-actions a { display: inline-flex; align-items: center; padding: 8px 10px; border: 1px solid #343a4b; border-radius: 7px; background: #1a1e29; }
 .rehearsal-popover .rehearsal-choices label { display: flex; align-items: start; gap: 8px; margin: 7px 0; font-size: 12px; }
-.rehearsal-popover .host-button-primary { background: #30264c; border-color: #65518c; color: #e5ddff; }
 
 /* Overlay presentation: nav status button; goal, stopwatch and privacy open in a popover. */
 .welcome-header-tools > .overlay-presentation { display: inline-flex; flex: 0 0 auto; }

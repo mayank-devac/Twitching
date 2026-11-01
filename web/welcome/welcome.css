@@ -18,9 +18,6 @@ body:has(.welcome-page) {
 .welcome-page * {
   box-sizing: border-box;
 }
-.welcome-page [hidden] {
-  display: none !important;
-}
 .welcome-page {
   display: flex;
   flex-direction: column;
@@ -154,15 +151,12 @@ body:has(.welcome-page) {
   color: var(--welcome-muted);
   font-size: 13px;
   font-weight: 620;
-  white-space: nowrap;
+  white-space: normal;
 }
+/* Mode controls retain their selected appearance while a handover is pending. */
 .welcome-options button[aria-pressed="true"] {
   background: #262050;
   color: #fff;
-}
-/* Mode controls retain their selected appearance while a handover is pending. */
-.welcome-options button {
-  white-space: normal;
 }
 .welcome-options button:focus-visible,
 .mode-handover button:focus-visible,
@@ -271,6 +265,7 @@ body:has(.welcome-page) {
 }
 .welcome-error,
 .welcome-notice {
+  flex: 0 0 auto;
   max-width: 100%;
   overflow-wrap: anywhere;
   padding: 10px 12px;
@@ -464,8 +459,6 @@ body:has(.welcome-page) {
   border: 1px solid var(--welcome-border);
   border-radius: 15px;
   background: var(--welcome-panel);
-}
-.preview-card {
   display: flex;
   flex-direction: column;
   min-height: 400px;
@@ -614,10 +607,6 @@ body:has(.welcome-page) {
 .visibility-chips::-webkit-scrollbar {
   display: none;
 }
-.hide-runs-choice {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
 .visibility-chip {
   flex: 0 0 auto;
   white-space: nowrap;
@@ -644,6 +633,8 @@ body:has(.welcome-page) {
   color: #d9d3ff !important;
 }
 .hide-runs-choice {
+  flex: 0 0 auto;
+  white-space: nowrap;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -843,20 +834,6 @@ body:has(.welcome-page) {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
-}
-.welcome-error,
-.welcome-notice {
-  flex: 0 0 auto;
-  padding: 10px 12px;
-  border: 1px solid #4b303a;
-  border-radius: 9px;
-  color: #ffc4ca;
-  background: #24191f;
-}
-.welcome-notice {
-  color: #c8c1ff;
-  border-color: #3a326b;
-  background: #1c1b2c;
 }
 .new-session-settings,
 .session-model-settings,
@@ -1089,17 +1066,6 @@ body:has(.welcome-page) {
   height: clamp(320px, 40vh, 480px);
   border: 0;
   background: #10141c;
-}
-
-/* Keep scrolling while hiding scrollbar tracks throughout the site. */
-* {
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
-}
-*::-webkit-scrollbar {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
 }
 
 @media (max-width: 1050px) {
