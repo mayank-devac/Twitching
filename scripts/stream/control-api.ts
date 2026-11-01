@@ -6,7 +6,7 @@ export const rehearsalSchema = z.object({
   rehearsalComplete: z.boolean().optional(),
   rehearsalRunnerMode: z.string().optional(),
 });
-export const launcherStateSchema = rehearsalSchema.extend({
+const launcherStateSchema = rehearsalSchema.extend({
   status: z.string(),
   reason: z.string().optional(),
   round: z

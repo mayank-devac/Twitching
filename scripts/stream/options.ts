@@ -22,9 +22,8 @@ Check never starts a broadcast or coding round. Native agents still require Dock
 Public starts require terminal confirmation. No credentials are requested or printed in this terminal.
 `;
 
-export type StreamCommand = "check" | "start";
 export interface StreamOptions {
-  command: StreamCommand;
+  command: "check" | "start";
   mode?: "live" | "rehearsal";
   runnerMode?: "docker" | "native";
   verify: boolean;
