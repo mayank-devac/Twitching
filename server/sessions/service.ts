@@ -445,7 +445,7 @@ export class Sessions extends EventEmitter {
       ...this.preferences.get().value.managedModels?.[id],
     };
     const run = randomUUID(),
-      round = this.store.roundId();
+      round = this.store.runId();
     const now = Date.now();
     // Bounded recent context is supplied to a fresh CLI process; files stay in this session's workspace.
     const context = this.store

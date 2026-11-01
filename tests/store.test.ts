@@ -86,3 +86,56 @@ test("saving state writes the round history row and state together", () => {
     store.close();
   }
 });
+
+test("prune trims old append-only rows but keeps the current round and recent data", () => {
+  const store = new Store(":memory:");
+  try {
+    const day = 24 * 60 * 60 * 1000, now = 100 * day;
+    const current = store.roundId();
+    store.save({ ...legacyRows.state, round: { id: current, task: { text: "t", author: "a", platform: "fallback" }, launchedAt: 1, sessions: [], attempts: {} } } as unknown as ShowState);
+    const placeholder = store.roundId();
+    const event = (id: string, round: number, at: number) =>
+      store.event({ id, round, at, agent: "codex", kind: "output", text: id } as never);
+    event("old-current", current, now - 60 * day);
+    event("old-other", placeholder, now - 60 * day);
+    event("recent-other", placeholder, now - day);
+    const insertMessage = store.db.prepare("INSERT INTO messages VALUES (?,?)");
+    insertMessage.run("old", now - 8 * day);
+    insertMessage.run("new", now - day);
+    const insertDecision = store.db.prepare("INSERT INTO decisions(at,window,value) VALUES (?,?,'{}')");
+    insertDecision.run(now - 31 * day, 1);
+    insertDecision.run(now - day, 2);
+    for (let i = 0; i < 5003; i++) store.cachePut(`k${i}`, { safe: true } as never);
+
+    assert.deepEqual(store.prune(now), { messages: 1, decisions: 1, events: 1, evaluations: 3, placeholders: 1 });
+    const ids = (sql: string) => (store.db.prepare(sql).all() as { id: string }[]).map((r) => String(r.id));
+    assert.deepEqual(ids("SELECT id FROM events ORDER BY id"), ["old-current", "recent-other"]);
+    assert.deepEqual(ids("SELECT id FROM messages"), ["new"]);
+    assert.deepEqual(ids("SELECT window AS id FROM decisions"), ["2"]);
+    assert.equal(store.cache("k0"), undefined);
+    assert.ok(store.cache("k5002"));
+    assert.equal(store.history().rounds[0].id, current);
+    // A second pass finds nothing more to remove.
+    assert.deepEqual(store.prune(now), { messages: 0, decisions: 0, events: 0, evaluations: 0, placeholders: 0 });
+  } finally {
+    store.close();
+  }
+});
+
+test("managed run IDs share the round sequence without leaving rounds rows", () => {
+  const store = new Store(":memory:");
+  try {
+    const first = store.roundId();
+    const run = store.runId();
+    const next = store.roundId();
+    assert.ok(run > first && next > run);
+    const rows = store.db.prepare("SELECT id FROM rounds ORDER BY id").all() as { id: number }[];
+    assert.deepEqual(rows.map((r) => r.id), [first, next]);
+    // Deleting the newest row must not let SQLite hand its ID out again.
+    const last = store.runId();
+    assert.ok(last > next);
+    assert.ok(store.runId() > last);
+  } finally {
+    store.close();
+  }
+});

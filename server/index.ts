@@ -76,6 +76,17 @@ try {
 }
 const bootConfigurationId = startupConfigurationId(settings);
 const store = new Store(resolve(root, "runtime/show.sqlite"));
+// Append-only tables are trimmed at startup and hourly; see Store.prune.
+const pruneStore = () => {
+  try {
+    store.prune();
+  } catch (error) {
+    console.error(`Database pruning failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+};
+pruneStore();
+const pruneTimer = setInterval(pruneStore, 60 * 60 * 1000);
+pruneTimer.unref();
 // Durable web preferences overlay safe operational fields; process-only execution stays unchanged.
 const preferences = new QuickSettings(
   store,
@@ -470,6 +481,7 @@ const close = async () => {
   if (closing) return;
   closing = true;
   clearInterval(timer);
+  clearInterval(pruneTimer);
   clearInterval(presentationCheckpoint);
   presentation.checkpoint();
   presentation.close();

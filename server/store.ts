@@ -248,6 +248,42 @@ export class Store {
   round(round: Round) {
     this.sql("UPDATE rounds SET value=? WHERE id=?").run(JSON.stringify(round), round.id);
   }
+  // Managed session runs need an ID that never collides with an arena round
+  // (both name per-run output folders), but no history row. Inserting and
+  // deleting in one transaction advances the AUTOINCREMENT sequence, which
+  // SQLite never reuses, without leaving a placeholder behind.
+  runId() {
+    return this.transaction(() => {
+      const id = this.roundId();
+      this.sql("DELETE FROM rounds WHERE id=?").run(id);
+      return id;
+    });
+  }
+  // Retention for append-only tables, chosen conservatively:
+  // - messages only de-duplicate chat and webhook redeliveries, which arrive
+  //   within minutes or hours, so a week is ample;
+  // - decisions and events are host-side audit trails kept for 30 days, and
+  //   the current round's events are never removed, whatever their age
+  //   (saved sessions keep their own transcript in conversation_items);
+  // - evaluations are a judge cache with no timestamp, so the newest 5000
+  //   (insert order) are kept and older entries are simply re-judged;
+  // - '{}' rounds rows are placeholders from older managed runs or a crash
+  //   between allocating and saving a round; history already hides them, and
+  //   AUTOINCREMENT keeps their IDs from being reused.
+  // Rounds, candidates, conversations and gifts are not pruned here.
+  prune(now = Date.now()) {
+    const day = 24 * 60 * 60 * 1000;
+    const current = this.doc<ShowState>("state")?.round?.id ?? null;
+    return this.transaction(() => ({
+      messages: Number(this.sql("DELETE FROM messages WHERE at<?").run(now - 7 * day).changes),
+      decisions: Number(this.sql("DELETE FROM decisions WHERE at<?").run(now - 30 * day).changes),
+      events: Number(this.sql("DELETE FROM events WHERE at<? AND (? IS NULL OR round!=?)")
+        .run(now - 30 * day, current, current).changes),
+      evaluations: Number(this.sql(`DELETE FROM evaluations WHERE rowid<=
+        (SELECT rowid FROM evaluations ORDER BY rowid DESC LIMIT 1 OFFSET 5000)`).run().changes),
+      placeholders: Number(this.sql("DELETE FROM rounds WHERE value='{}'").run().changes),
+    }));
+  }
   candidate(candidate: Candidate, status = "eligible") {
     this.sql("INSERT OR REPLACE INTO candidates VALUES (?,?,?,?)")
       .run(candidate.id, candidate.window, status, JSON.stringify(candidate));
