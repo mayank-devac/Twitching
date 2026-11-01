@@ -876,3 +876,26 @@ test("Kick subscription refreshes the minted token once after a 401", async () =
     store.close();
   }
 });
+
+test("conversation search filters before paging and treats wildcards literally", () => {
+  const store = new Store(":memory:");
+  const save = (n: number, title: string) => store.saveConversation({
+    id: `c${n}`, source: "managed", cli: "codex", title, project: "demo",
+    updatedAt: n, status: "idle",
+  });
+  save(0, "Garden 100% done");
+  save(1, "Garden_beta");
+  for (let n = 2; n < 72; n++) save(n, n % 2 ? "Other work" : `Garden ${n}`);
+  // 35 even-numbered gardens sit among 70 newer rows, so a filter after LIMIT finds ~15.
+  const first = store.conversations("garden");
+  assert.equal(first.conversations.length, 30);
+  assert.ok(first.before);
+  const second = store.conversations("garden", Number(first.before));
+  assert.equal(second.conversations.length, 7);
+  assert.equal(second.before, undefined);
+  // Unescaped, "%" would match every row and "n_" every "Garden N" title.
+  assert.deepEqual(store.conversations("%").conversations.map((c) => c.id), ["c0"]);
+  assert.deepEqual(store.conversations("n_").conversations.map((c) => c.id), ["c1"]);
+  assert.equal(store.conversations("").conversations.length, 30);
+  store.close();
+});

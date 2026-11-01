@@ -81,9 +81,13 @@ export class Store {
     this.db.prepare("INSERT INTO conversations VALUES (?,?) ON CONFLICT(id) DO UPDATE SET value=excluded.value").run(value.id, JSON.stringify(value));
   }
   conversations(search = "", before = Number.MAX_SAFE_INTEGER) {
-    const rows = this.db.prepare("SELECT rowid,value FROM conversations WHERE rowid<? ORDER BY rowid DESC LIMIT 31").all(before) as { rowid: number; value: string }[];
-    return { conversations: rows.slice(0, 30).map((r) => JSON.parse(r.value) as import("../shared/sessions.js").Conversation)
-      .filter((c) => `${c.title} ${c.project} ${c.cli}`.toLowerCase().includes(search.toLowerCase())),
+    // Search before LIMIT so every page holds up to 30 matches, not matches among 30 rows.
+    // Wildcards in the query are escaped so "%" and "_" match literally.
+    const pattern = `%${search.toLowerCase().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    const rows = this.db.prepare(`SELECT rowid,value FROM conversations WHERE rowid<?
+      AND lower(ifnull(json_extract(value,'$.title'),'')||' '||ifnull(json_extract(value,'$.project'),'')||' '||ifnull(json_extract(value,'$.cli'),'')) LIKE ? ESCAPE '\\'
+      ORDER BY rowid DESC LIMIT 31`).all(before, pattern) as { rowid: number; value: string }[];
+    return { conversations: rows.slice(0, 30).map((r) => JSON.parse(r.value) as import("../shared/sessions.js").Conversation),
       before: rows.length > 30 ? String(rows[29].rowid) : undefined };
   }
   conversationItem(conversation: string, item: import("../shared/sessions.js").TimelineItem) {
