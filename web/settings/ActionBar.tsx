@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import type { ShowState } from "../../shared/types.js";
 import { hostRequest } from "./api.js";
+import { useNow } from "../use-now.js";
 
 // Destructive broadcast actions and immediate cancellation require explicit confirmation.
 export function ActionBar({
@@ -26,6 +27,8 @@ export function ActionBar({
   const invalidTimer =
     useTimer && (!Number.isFinite(minutes) || minutes < 1 || minutes > 60);
   const [working, setWorking] = useState(false);
+  // App no longer re-renders on a clock, so the break countdown ticks itself.
+  const now = useNow(250);
   const locked = busy || working || !token;
   async function action(path: string, value: unknown) {
     setWorking(true);
@@ -40,7 +43,7 @@ export function ActionBar({
     }
   }
   const remaining = state.breakUntil
-    ? Math.max(0, Math.ceil((state.breakUntil - Date.now()) / 1000))
+    ? Math.max(0, Math.ceil((state.breakUntil - now) / 1000))
     : 0;
   return (
     <footer className="qs-actions">

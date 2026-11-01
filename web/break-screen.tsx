@@ -2,17 +2,18 @@ import { playExclusive } from "./audio-owner.js";
 import React, { useEffect, useRef, useState } from "react";
 import type { ShowState } from "../shared/types.js";
 import { breakVisualObjectFit } from "../shared/settings.js";
+import { useNow } from "./use-now.js";
 
 // The overlay fills the output frame; host previews keep controls available and never autoplay.
 export function BreakScreen({
   state,
-  now,
   host,
 }: {
   state: ShowState;
-  now: number;
   host: boolean;
 }) {
+  // The countdown ticks here so the break clock doesn't re-render the parent tree.
+  const now = useNow(250);
   const screen = useRef<HTMLElement>(null);
   const audio = useRef<HTMLAudioElement>(null);
   const [blocked, setBlocked] = useState(false);

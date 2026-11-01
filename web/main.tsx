@@ -31,6 +31,7 @@ import codexLogo from "../assets/codex/codex.svg";
 import botLogo from "../assets/chatgpt/chatgpt-icon.svg";
 import cursorLogo from "../assets/cursor/Cube/SVG/CUBE_2D_DARK.svg";
 import { mergeActivityPatches } from "../shared/activity-stream.js";
+import { useNow } from "./use-now.js";
 // The settings tab shares host authentication but renders its own focused page.
 const settingsPage = location.pathname === "/control/settings";
 const welcomePage = location.pathname === "/control/welcome";
@@ -56,10 +57,14 @@ function clock(ms: number) {
   const seconds = Math.max(0, Math.floor(ms / 1000));
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 }
+// Renders only the remaining time so the 250ms tick stays out of App.
+function Countdown({ until }: { until: number }) {
+  const now = useNow(250);
+  return <>{clock(until - now)}</>;
+}
 function App() {
   const [state, setState] = useState<ShowState>();
   const [connected, setConnected] = useState(false);
-  const [now, setNow] = useState(Date.now());
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
   const [suggestion, setSuggestion] = useState(
@@ -260,7 +265,6 @@ function App() {
       ws.onerror = () => ws.close();
     };
     connect();
-    const timer = setInterval(() => setNow(Date.now()), 250);
     if (control)
       fetch("/api/host")
         .then((r) => r.json())
@@ -276,7 +280,6 @@ function App() {
       closed = true;
       refresh.close();
       clearTimeout(retry);
-      clearInterval(timer);
       ws?.close();
     };
   }, []);
@@ -373,7 +376,7 @@ function App() {
   if (!control && (state.presentation?.hidden || !connected))
     return <main className="privacy-screen">Back shortly</main>;
   if (!control && state.presentation?.breakActive)
-    return <BreakScreen state={state} now={now} host={false} />;
+    return <BreakScreen state={state} host={false} />;
   if (
     !control &&
     (namedOverlay || (state.experience && state.experience !== "arena"))
@@ -427,7 +430,7 @@ function App() {
                   : state.prepared
                     ? "READY"
                     : "COLLECT"}{" "}
-              <b>{countdown ? clock(countdown - now) : ""}</b>
+              <b>{countdown ? <Countdown until={countdown} /> : ""}</b>
             </span>
           </div>
         </section>
@@ -443,7 +446,7 @@ function App() {
           <span className="status-reason">{state.reason}</span>
           {state.obsReconnectDeadline && (
             <span className="status-pill" role="alert">
-              RECONNECTING {clock(state.obsReconnectDeadline - now)}
+              RECONNECTING <Countdown until={state.obsReconnectDeadline} />
             </span>
           )}
           {state.quota && (
@@ -467,7 +470,7 @@ function App() {
         </footer>
       )}
       {state.status === "break" ? (
-        <BreakScreen state={state} now={now} host={control} />
+        <BreakScreen state={state} host={control} />
       ) : (
         <>
           {!control && round?.task.text && (
@@ -477,7 +480,7 @@ function App() {
           )}
           <div className={`arena ${state.agents?.length === 1 ? "solo" : ""}`}>
             {(state.agents ?? (["cursor", "codex"] as const)).map((agent) => (
-              <AgentPanel key={agent} agent={agent} state={state} now={now} />
+              <AgentPanel key={agent} agent={agent} state={state} />
             ))}
             {!control && !state.round && state.agents?.length !== 1 && (
               <div className="versus">VS</div>
@@ -860,15 +863,19 @@ function CliBoards({ state }: { state: ShowState }) {
     </div>
   );
 }
-function AgentPanel({
-  agent,
-  state,
-  now,
+// Only the header timer ticks; the transcript below re-renders on state changes.
+function AttemptTimer({
+  startedAt,
+  endedAt,
 }: {
-  agent: SessionId;
-  state: ShowState;
-  now: number;
+  startedAt?: number;
+  endedAt?: number;
 }) {
+  const now = useNow(250);
+  const elapsed = startedAt ? (endedAt ?? now) - startedAt : 0;
+  return <time>{clock(elapsed)}</time>;
+}
+function AgentPanel({ agent, state }: { agent: SessionId; state: ShowState }) {
   const attempt = state.round?.attempts[agent];
   const cli = sessionCli(state, agent);
   const model = attempt ? sessionLabel(attempt) : state.models?.[agent];
@@ -904,9 +911,6 @@ function AgentPanel({
     const frame = requestAnimationFrame(scroll);
     return () => cancelAnimationFrame(frame);
   }, [events.length, textSize]);
-  const elapsed = attempt?.startedAt
-    ? (attempt.endedAt ?? now) - attempt.startedAt
-    : 0;
   // Group consecutive real Cursor deltas to keep character streaming readable.
   const lines: Activity[] = [];
   for (const event of events) {
@@ -935,7 +939,10 @@ function AgentPanel({
             className={`dot ${attempt?.status === "running" ? "online" : ""}`}
           />
         </div>
-        <time>{clock(elapsed)}</time>
+        <AttemptTimer
+          startedAt={attempt?.startedAt}
+          endedAt={attempt?.endedAt}
+        />
       </div>
       <div className="agent-content">
         {showIntro ? (
