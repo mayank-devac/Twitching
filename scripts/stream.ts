@@ -534,7 +534,17 @@ try {
           .command(["image", "inspect", settings.agentImage])
           .then(() => {}),
       "Run npm run sandbox:build.",
-      () => run("npm", ["run", "sandbox:build"]),
+      // Ask here: this process's readline owns stdin, so the npm script's own
+      // prompt would race it. The env answer makes the script skip asking.
+      async () => {
+        const env = {
+          ...toolEnv,
+          INSTALL_CURSOR: (await yes("Install Cursor CLI in the sandbox image?"))
+            ? "1"
+            : "0",
+        };
+        await run("npm", ["run", "sandbox:build"], env);
+      },
     );
   await repair(
     "preview image",
