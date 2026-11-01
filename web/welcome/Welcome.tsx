@@ -1,5 +1,6 @@
 import { LastSetup } from "./LastSetup.js";
-import { ModeHandover, type ModeHandoverState } from "./ModeHandover.js";
+import { ModeHandover } from "./ModeHandover.js";
+import { useModeSwitch } from "./use-mode-switch.js";
 import { RehearsalCheck } from "./RehearsalCheck.js";
 import { BreakControl } from "../break-control.js";
 import React, { useEffect, useRef, useState } from "react";
@@ -115,10 +116,9 @@ export function Welcome({
 }) {
   const [settingsDoc, setSettingsDoc] = useState<SettingsDocument>();
   const [ready, setReady] = useState<Readiness>();
-  // Reflect server ownership on entry; loading this page must never switch modes.
-  const [path, setPath] = useState<"existing" | "new" | "arena">(arenaActive ? "arena" : "existing");
-  const [handover, setHandover] = useState<ModeHandoverState>();
-  const [failedMode, setFailedMode] = useState<"existing" | "new" | "arena">();
+  const { busy, error, notice, setError, setNotice, run } = useHostAction();
+  const { path, setPath, handover, setHandover, failedMode, setFailedMode, switchPath } =
+    useModeSwitch({ token, arenaActive, setError, setNotice });
   const [cli, setCli] = useState<Agent>("codex");
   const [runner, setRunner] = useState<RunnerMode>("native");
   const [nativeAccepted, setNativeAccepted] = useState(false);
@@ -129,7 +129,6 @@ export function Welcome({
   const [listing, setListing] = useState<Listing>({ conversations: [] });
   const [selected, setSelected] = useState<SessionView>();
   const [prompt, setPrompt] = useState("");
-  const { busy, error, notice, setError, setNotice, run } = useHostAction();
   const [listBusy, setListBusy] = useState(false);
   const [resultUrl, setResultUrl] = useState("");
   const overlayEditor = useOverlayEditor(token);
@@ -150,52 +149,6 @@ export function Welcome({
   const request = <T,>(url: string, body?: unknown, method?: string) =>
     hostRequest<T>(token, url, body, method);
   const perform = <T,>(fn: () => Promise<T>) => run(fn, "Request failed");
-  // Change tabs only after the server has transferred ownership of the arena.
-  async function switchPath(target: "existing" | "new" | "arena") {
-    setFailedMode(target);
-    if (target === "arena") {
-      await request("/api/sessions/action", { action: "arena" });
-    } else {
-      const result = await request<{ status: "ready" | "choice" | "waiting" }>(
-        "/api/sessions/action", { action: "session-mode" });
-      if (result.status !== "ready") {
-        setPath("arena");
-        setHandover({ target, ...(result.status === "waiting" ? { choice: "wait" as const } : {}) });
-        setFailedMode(undefined);
-        return false;
-      }
-    }
-    setPath(target);
-    setFailedMode(undefined);
-    return true;
-  }
-  // Poll only during an explicit handover, one request at a time; never launch a model.
-  useEffect(() => {
-    if (!handover?.choice) return;
-    let closed = false;
-    let timer: ReturnType<typeof setTimeout>;
-    const check = async () => {
-      try {
-        const result = await hostRequest<{ status: string }>(token, "/api/sessions/action", {
-          action: "session-mode", choice: handover.choice,
-        });
-        if (closed) return;
-        if (result.status === "ready") {
-          setPath(handover.target);
-          setHandover(undefined);
-          setNotice("Arena stopped. You can now continue with your session. OBS was left running.");
-        } else timer = setTimeout(() => void check(), 1000);
-      } catch (e) {
-        if (!closed) {
-          setError(e instanceof Error ? e.message : "Mode switch failed");
-          setFailedMode(handover.target);
-          setHandover(undefined);
-        }
-      }
-    };
-    void check();
-    return () => { closed = true; clearTimeout(timer); };
-  }, [handover, token]);
   useHostQuery(
     token,
     () =>
