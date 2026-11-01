@@ -319,7 +319,43 @@ export class Filter {
   }
   private abusive(token: string) {
     const key = token.replace(/[^a-z0-9]/g, "");
-    return this.listed(key) || this.listed(leet(key).replace(/[^a-z]/g, ""));
+    return (
+      this.listed(key) ||
+      this.listed(leet(key).replace(/[^a-z]/g, "")) ||
+      this.compound(key)
+    );
+  }
+  // One masked letter (f*ck, f4ck) may stand for any letter of a listed stem.
+  // Leet alone cannot cover it: 4 reads as "a", and "*" has no letter at all.
+  private masked(token: string) {
+    if (token.length < 4 || !/[a-z]/.test(token)) return false;
+    if ((token.match(/[*0-9]/g) ?? []).length !== 1) return false;
+    const bases = [
+      token,
+      ...SUFFIXES.filter(
+        (suffix) => token.length - suffix.length >= 3 && token.endsWith(suffix),
+      ).map((suffix) => token.slice(0, -suffix.length)),
+    ];
+    return bases.some((base) =>
+      [...this.stems].some(
+        (stem) =>
+          stem.length === base.length &&
+          [...base].every((ch, i) => /[*0-9]/.test(ch) || ch === stem[i]),
+      ),
+    );
+  }
+  // A dictionary word glued to a listed stem (motherfucker) is blocked. When
+  // the whole token is itself English (peacock, gamecock) only an inflected
+  // remainder counts, so plain compounds of an exact stem still pass.
+  private compound(key: string) {
+    if (key.length < 7 || !/^[a-z]+$/.test(key)) return false;
+    const wholeWord = english.correct(key);
+    for (let i = 3; i <= key.length - 4; i++) {
+      if (!english.correct(key.slice(0, i))) continue;
+      const rest = key.slice(i);
+      if (this.stemHit(rest) ? !wholeWord : this.listed(rest)) return true;
+    }
+    return false;
   }
   check(
     message: ChatMessage,
@@ -336,7 +372,12 @@ export class Filter {
       return { error: "Unreadable control characters" };
     const words = text.match(/[A-Za-z]+(?:'[A-Za-z]+)?|\d+/g) ?? [];
     if (words.length < 5) return { error: "At least five words are needed" };
-    if (abuseTokens(text).some((token) => this.abusive(token)))
+    if (
+      abuseTokens(text).some((token) => this.abusive(token)) ||
+      (foldLetters(text).match(/[a-z0-9*]+/g) ?? []).some((token) =>
+        this.masked(token),
+      )
+    )
       return { error: "Blocked abusive language" };
     const letters = text.replace(/[^A-Za-z]/g, "").length;
     if (letters < text.replace(/\s/g, "").length * 0.6)
