@@ -24,7 +24,7 @@ function savedRehearsal(runnerMode: string) {
       readOnly: true,
     });
     const row = savedStateRow.safeParse(
-      saved.prepare("SELECT value FROM state WHERE id=1").get(),
+      saved.prepare("SELECT value FROM documents WHERE key='state'").get(),
     );
     return row.success && rehearsedFor(runnerMode, JSON.parse(row.data.value));
   } catch {

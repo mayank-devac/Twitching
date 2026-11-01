@@ -398,7 +398,7 @@ export class Controller extends EventEmitter {
   private persisted?: string;
   private persist() {
     const serialized = JSON.stringify(this.state);
-    if (this.state.round) this.store.round(this.state.round);
+    // save() also writes the round's history row, in one transaction.
     this.store.save(this.state, serialized);
     this.persisted = serialized;
     this.emit("state", this.snapshot());
