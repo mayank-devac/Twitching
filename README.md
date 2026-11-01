@@ -28,7 +28,7 @@ Developed with the help of Codex. Started for the [TwitchCon Codex hackathon](ht
 
 ### Meet the CLIs
 ```tex
-+-----------------------------+-----------------------------+ with Quota monitoring and SANDOX
++-----------------------------+-----------------------------+ with Quota monitoring
 | Cursor CLI                  | Codex CLI                   |
 |                             |                             |
 |                             vs                            | 
