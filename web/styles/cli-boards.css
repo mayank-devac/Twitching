@@ -1,0 +1,124 @@
+/* Arena host CLI boards: per-agent read/write/tool/terminal columns. */
+.cli-boards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  align-items: stretch;
+  min-height: 0;
+}
+
+.host .cli-boards {
+  max-height: 240px;
+}
+
+.cli-board {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.cli-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  height: 220px;
+  max-height: 220px;
+  min-height: 0;
+  border: 1px solid #2c3848;
+  border-radius: 8px;
+  background: #121820;
+  overflow: hidden;
+}
+
+.cli-column {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid #2c3848;
+  border-bottom: 1px solid #2c3848;
+}
+
+.cli-column-tag {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #0d1016d9;
+  color: #9aabbd;
+  font:
+    10px ui-monospace,
+    monospace;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.cli-column-tag img {
+  width: 14px;
+  height: 14px;
+  display: block;
+  flex-shrink: 0;
+}
+
+.cli-column-tag.visible {
+  opacity: 1;
+}
+
+.cli-column:nth-child(2n) {
+  border-right: 0;
+}
+
+.cli-column:nth-child(n + 3) {
+  border-bottom: 0;
+}
+
+.cli-column ul {
+  list-style: none;
+  margin: 0;
+  padding: 8px 10px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  scrollbar-width: thin;
+  scrollbar-color: #303c4b transparent;
+}
+
+.cli-column li {
+  margin: 0 0 8px;
+  max-width: 100%;
+  min-width: 0;
+  color: #d5deea;
+  font:
+    11px ui-monospace,
+    monospace;
+  line-height: 1.45;
+  overflow: visible;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.cli-column li.command-line,
+.event.command p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .cli-boards {
+    grid-template-columns: 1fr;
+  }
+}

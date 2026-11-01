@@ -1,0 +1,138 @@
+/* Arena host page (main.host): layout, prompt strip, status bar and control toolbar. */
+.host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  height: auto;
+  max-width: none;
+  padding: 6px 8px 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.host .prompt-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  margin: 0 0 6px;
+  flex-shrink: 0;
+}
+
+.host .prompt-strip h1 {
+  font-size: 14px;
+  line-height: 1.25;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.host .prompt-meta {
+  flex-shrink: 0;
+  gap: 10px;
+  font-size: 11px;
+}
+
+.host .status-bar {
+  margin: 0;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.host .status-reason {
+  padding-bottom: 0;
+}
+
+.host .show-label {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.host .controls {
+  margin-top: 0;
+  padding-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 18px;
+  row-gap: 12px;
+  flex-shrink: 0;
+}
+
+.host .control-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 0;
+  flex: 0 0 auto;
+}
+
+.control-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  container-type: inline-size;
+  container-name: control-toolbar;
+}
+
+.host .control-toolbar {
+  flex: 1 1 100%;
+}
+
+.host .control-toolbar .buttons {
+  flex: 1 1 auto;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+  padding-right: 12px;
+  border-right: 1px solid #2d3848;
+}
+
+.host .cli-toggle {
+  flex: 0 0 auto;
+  margin-left: 12px;
+  white-space: nowrap;
+}
+
+@container control-toolbar (max-width: 720px) {
+  .host .control-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .host .control-toolbar .buttons {
+    border-right: 0;
+    padding-right: 0;
+    border-bottom: 1px solid #2d3848;
+    padding-bottom: 10px;
+  }
+
+  .host .cli-toggle {
+    margin-left: 0;
+    align-self: flex-end;
+  }
+}
+
+.host .controls > .error,
+.host .controls > .suggest-form,
+.host .controls > .host-grid,
+.host .controls > .cli-boards {
+  flex: 1 0 100%;
+}
+
+.stop-platform {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+  color: #c5d0dc;
+  font-size: 14px;
+  white-space: nowrap;
+}

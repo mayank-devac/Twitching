@@ -1,0 +1,109 @@
+/* Arena keyframes, breakpoints and global utilities; they follow the base rules above
+   and precede the .overlay/.host layouts, which must still win over them. */
+@keyframes appear {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (min-width: 1600px) {
+  main {
+    padding: 34px 45px;
+  }
+
+  .agent-header {
+    padding: 22px 26px;
+  }
+
+  .agent-header h2 {
+    font-size: 23px;
+  }
+
+  .agent-header p {
+    font-size: 13px;
+  }
+
+  .agent-header time {
+    font-size: 27px;
+  }
+
+  .event p {
+    font-size: 16px;
+  }
+
+  .event .markdown {
+    font-size: 16px;
+  }
+
+  .agent-content {
+    height: 60vh;
+  }
+
+  .prompt-strip {
+    padding: 25px 30px;
+  }
+}
+
+@media (max-width: 900px) {
+  main {
+    padding: 18px;
+  }
+
+  .prompt-meta {
+    flex-wrap: wrap;
+  }
+
+  .suggest-count {
+    margin-left: 0;
+  }
+
+  .show-label {
+    letter-spacing: 0;
+    font-size: 9px;
+  }
+
+  .arena {
+    gap: 12px;
+  }
+
+  .agent-header {
+    padding: 14px 12px;
+    gap: 8px;
+  }
+
+  .agent-header h2 {
+    font-size: 16px;
+  }
+
+  .agent-header time {
+    font-size: 18px;
+  }
+
+  .agent-state {
+    padding: 10px 12px;
+  }
+
+  .agent-state > span:last-child {
+    display: none;
+  }
+
+  .host-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+  }
+}
+
+[hidden] {
+  display: none !important;
+}

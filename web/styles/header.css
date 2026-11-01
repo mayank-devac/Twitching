@@ -1,0 +1,138 @@
+/* Arena host/overlay header: wordmark, connection dot, prompt strip and status bar. */
+.wordmark {
+  font-size: 26px;
+  font-weight: 850;
+  letter-spacing: -1.2px;
+}
+
+.wordmark > span {
+  color: var(--lime);
+  margin-left: 5px;
+}
+
+.wordmark small {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  font-weight: 500;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+.show-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font:
+    11px ui-monospace,
+    monospace;
+  letter-spacing: 1.7px;
+  padding: 9px 0;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  display: inline-block;
+  border-radius: 50%;
+  background: #677181;
+  flex-shrink: 0;
+}
+
+.dot.online {
+  background: var(--lime);
+  box-shadow: 0 0 12px #c4f88255;
+}
+
+.prompt-strip {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: linear-gradient(120deg, #181e26, #141921);
+  padding: 20px 24px;
+}
+
+.prompt-strip h1 {
+  font-size: clamp(21px, 2.1vw, 36px);
+  line-height: 1.3;
+  font-weight: 550;
+  letter-spacing: -0.8px;
+  margin: 14px 0 19px;
+  max-width: 1500px;
+}
+
+.prompt-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: #99a3b2;
+}
+
+.prompt-meta b {
+  color: #e6e8ed;
+  font-weight: 500;
+}
+
+.platform {
+  font:
+    10px ui-monospace,
+    monospace;
+  text-transform: uppercase;
+  color: #c8ced8;
+  border: 1px solid #3c4553;
+  border-radius: 4px;
+  padding: 5px 8px;
+}
+
+.suggest-count {
+  margin-left: auto;
+}
+
+.phase-count {
+  margin-left: 18px;
+  font:
+    10px ui-monospace,
+    monospace;
+  letter-spacing: 1px;
+}
+
+.phase-count b {
+  font-size: 16px;
+  margin-left: 8px;
+}
+
+.status-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  color: #c5ccd6;
+  font-size: 15px;
+  line-height: 1.45;
+  min-height: 48px;
+}
+
+.status-pill {
+  flex-shrink: 0;
+  margin-top: 2px;
+  text-transform: uppercase;
+  font:
+    12px/1.2 ui-monospace,
+    monospace;
+  letter-spacing: 1px;
+  padding: 5px 8px;
+  border: 1px solid #313b48;
+  border-radius: 4px;
+  color: #d4dbe5;
+}
+
+.status-reason {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding-bottom: 12px;
+}
+
+.quota {
+  white-space: nowrap;
+  flex-shrink: 0;
+}

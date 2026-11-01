@@ -1,0 +1,130 @@
+/* Arena host page: host grid, agent panel sizing, plus the shared versus badge and
+   agent-header state/time overrides that must follow the panel rules. */
+.host .host-grid {
+  gap: 26px;
+  margin-top: 0;
+}
+
+.host .host-grid:not(:has(article)) {
+  grid-template-columns: 1fr;
+}
+
+.host .host-grid:not(:has(article)) > div:last-child {
+  display: none;
+}
+
+.host .host-grid:not(:has(li)):not(:has(article)) {
+  display: none;
+}
+
+.host .checks {
+  max-height: 140px;
+  overflow: auto;
+}
+
+.host .checks li {
+  padding: 6px 0;
+}
+
+.versus {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: 22px;
+  transform: translateX(-50%);
+  background: transparent;
+  color: #9aa3b2;
+  font:
+    11px ui-monospace,
+    monospace;
+  letter-spacing: 1px;
+  border: 0;
+  padding: 0;
+}
+
+.agent-header .agent-state {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  gap: 6px;
+}
+
+.agent-header .agent-state > span {
+  display: inline-block;
+}
+
+.agent-header time {
+  margin-left: 10px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  min-width: 0;
+}
+
+.host .arena {
+  /* Keep the result visible on short windows and let the host page scroll. */
+  flex: 1 0 max(360px, calc(100vh - 230px));
+  gap: 0;
+  min-height: 360px;
+  width: 100%;
+  height: auto;
+}
+
+.host .agent-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  border-radius: 0;
+}
+
+.host .agent-panel.codex {
+  border-left: 0;
+}
+
+.host .agent-icon {
+  display: none;
+}
+
+.host .agent-header {
+  height: 28px;
+  padding: 0 10px;
+  gap: 8px;
+}
+
+.host .agent-header h2 {
+  font-size: 13px;
+  margin: 0;
+  line-height: 1;
+}
+
+.host .agent-header p {
+  display: none;
+}
+
+.host .agent-header time {
+  font-size: 13px;
+}
+
+.host .agent-content {
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+}
+
+.host .activity-log {
+  padding: 6px 8px;
+  min-height: 100%;
+}
+
+.host .empty-state {
+  height: 100%;
+  min-height: 100%;
+  padding: 0;
+}
+
+.host .empty-logo {
+  width: 72px;
+  height: 72px;
+}

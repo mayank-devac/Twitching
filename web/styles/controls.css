@@ -1,0 +1,253 @@
+/* Arena host controls: next-round strip, toolbar buttons, checks, candidates and the
+   suggestion form (plus the global button/textarea styles they build on). */
+.next-strip {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 18px;
+  border: 1px solid #2d3744;
+  border-radius: 8px;
+  padding: 14px 18px;
+  background: #171d25;
+  font-size: 12px;
+  color: #a5afbc;
+}
+
+.next-strip > span:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.controls {
+  margin-top: 12px;
+  padding-top: 0;
+}
+
+.control-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.control-heading h2 {
+  font-size: 25px;
+  font-weight: 500;
+  margin: 8px 0 18px;
+}
+
+.control-heading a {
+  font-size: 12px;
+  color: var(--blue);
+}
+
+.buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Global arena button: kept after the font reset above so its font-size wins. */
+button {
+  background: #263343;
+  color: #dae4f1;
+  border: 1px solid #405167;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+button:hover:not(:disabled) {
+  background: #344861;
+}
+
+.buttons > button:first-child {
+  background: var(--lime);
+  color: #182111;
+  border-color: var(--lime);
+}
+
+button.danger {
+  background: #3b2228;
+  color: #ffb5b1;
+  border-color: #66363f;
+}
+
+.host-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 30px;
+  margin-top: 25px;
+}
+
+.host-grid h3 {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.checks {
+  padding: 0;
+  list-style: none;
+}
+
+.checks li {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  font-size: 11px;
+  color: #a0acbc;
+  border-bottom: 1px solid #252e3a;
+  padding: 11px 0;
+}
+
+.checks b {
+  font-weight: 450;
+}
+
+.checks span {
+  text-transform: capitalize;
+}
+
+.candidates {
+  max-height: 500px;
+  overflow: auto;
+}
+
+.candidates article {
+  position: relative;
+  background: #19212c;
+  border: 1px solid #2a3646;
+  border-radius: 8px;
+  padding: 14px 85px 14px 14px;
+  margin-bottom: 10px;
+}
+
+.candidates article > div {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.candidates b {
+  font:
+    18px ui-monospace,
+    monospace;
+  color: var(--lime);
+}
+
+.candidates span {
+  font-size: 10px;
+  color: #8394ab;
+}
+
+.candidates p {
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.candidates button {
+  position: absolute;
+  right: 12px;
+  top: 15px;
+  font-size: 10px;
+  padding: 7px 10px;
+}
+
+form label {
+  font-size: 12px;
+  color: #aab6c7;
+}
+
+textarea {
+  display: block;
+  width: 100%;
+  margin: 10px 0;
+  min-height: 90px;
+  resize: vertical;
+  border: 1px solid #3a475a;
+  background: #17202c;
+  color: #dde6f2;
+  border-radius: 7px;
+  padding: 12px;
+  font-size: 12px;
+}
+
+.host .buttons .toggle-on {
+  background: #2a3a4f;
+  border-color: #5d7fa8;
+  color: #e8edf4;
+}
+
+.suggest-form {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin-top: 0;
+  border: 1px solid #3a475a;
+  border-radius: 8px;
+  background: #141c26;
+  overflow: hidden;
+}
+
+.suggest-form:focus-within {
+  border-color: #5d7fa8;
+  box-shadow: 0 0 0 3px #92baff22;
+}
+
+.suggest-form label {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  margin: 0;
+  font:
+    10px ui-monospace,
+    monospace;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--lime);
+  border-right: 1px solid #2a3646;
+  background: #101820;
+  white-space: nowrap;
+}
+
+.suggest-form textarea {
+  flex: 1;
+  width: auto;
+  min-height: 0;
+  height: 48px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 8px 12px;
+  resize: none;
+  outline: none;
+  line-height: 1.45;
+}
+
+.suggest-form button {
+  flex-shrink: 0;
+  border: 0;
+  border-left: 1px solid #2a3646;
+  border-radius: 0;
+  background: var(--lime);
+  color: #182111;
+  padding: 0 18px;
+  font-weight: 650;
+}
+
+.suggest-form button:hover:not(:disabled) {
+  background: #d4ffa0;
+}
+
+.error {
+  color: #ffb4a7;
+  font-size: 12px;
+  line-height: 1.7;
+}

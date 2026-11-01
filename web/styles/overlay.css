@@ -1,0 +1,217 @@
+/* OBS overlay arena layout (main.overlay) and the full-screen prompt pop. */
+.overlay {
+  height: 100vh;
+  max-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.overlay-prompt {
+  flex-shrink: 0;
+  padding: 1px 6px 2px;
+  border-bottom: 1px solid #2c3848;
+  background: var(--color-bg);
+}
+
+.overlay-prompt p {
+  margin: 0;
+  font-size: clamp(22px, 2.6vw, 34px);
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: -0.4px;
+  color: #e8edf4;
+  overflow-wrap: anywhere;
+}
+
+.overlay .arena {
+  flex: 1;
+  gap: 0;
+  min-height: 0;
+}
+
+.overlay .agent-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  overflow: hidden;
+}
+
+.overlay .agent-panel.codex {
+  border-left: 0;
+}
+
+.overlay .agent-header {
+  min-height: 76px;
+  flex-shrink: 0;
+  padding: 10px 18px;
+  gap: 12px;
+}
+
+.overlay .agent-header h2 {
+  font-size: 22px;
+  margin: 0;
+}
+
+.overlay .agent-header > div:nth-child(2) {
+  min-width: 0;
+}
+
+.overlay .agent-header p {
+  font-size: 18px;
+  line-height: 1.4;
+  color: #d2dccd;
+  overflow-wrap: anywhere;
+}
+
+.overlay .codex .agent-header p {
+  color: #c6d8f2;
+}
+
+.overlay .agent-icon {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+}
+
+.overlay .agent-header time {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.overlay .agent-state b {
+  display: none;
+}
+
+.overlay .versus {
+  font:
+    900 clamp(40px, 5vw, 76px)/1 Inter,
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
+  letter-spacing: -1px;
+  padding: 16px 20px;
+  border-radius: 16px;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  color: #f4f6fa;
+  text-shadow:
+    0 0 9px var(--color-bg),
+    0 1px 0 var(--color-bg);
+  background: var(--color-bg);
+}
+.overlay .activity-log {
+  height: 100%;
+  max-height: 100%;
+  padding: 8px 10px;
+  overflow-y: auto;
+}
+
+.overlay .empty-state {
+  padding: 0;
+}
+
+.overlay .model-intro {
+  padding: 24px 48px;
+  background: radial-gradient(ellipse at center, #b5e88212, transparent 65%);
+}
+
+.overlay .codex .model-intro {
+  background: radial-gradient(ellipse at center, #92baff12, transparent 65%);
+}
+
+.overlay .model-intro .empty-logo {
+  width: 88px;
+  height: 88px;
+  margin-bottom: 16px;
+}
+
+.overlay .model-intro h3 {
+  font-size: clamp(30px, 4vw, 56px);
+  font-weight: 700;
+  color: #f4f6fa;
+}
+
+.overlay .model-intro p {
+  margin: 0;
+  font-size: clamp(20px, 2.5vw, 36px);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--lime);
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+
+.overlay .codex .model-intro p {
+  color: var(--blue);
+}
+
+.overlay .next-strip {
+  margin: 0;
+  padding: 6px 10px 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  align-items: flex-start;
+  font-size: 25px;
+  font-weight: 500;
+  letter-spacing: -0.3px;
+  color: #e8edf4;
+}
+.overlay .next-strip span {
+  white-space: normal;
+  line-height: 1;
+}
+
+.overlay .agent-content {
+  flex: 1 1 auto;
+  height: auto;
+  max-height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.prompt-pop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: #0d1016f2;
+  animation: appear 0.25s ease-out;
+}
+
+.prompt-pop > div {
+  max-width: 1200px;
+  padding: 0 40px;
+  text-align: center;
+}
+
+.prompt-pop span {
+  font:
+    11px ui-monospace,
+    monospace;
+  letter-spacing: 4px;
+  color: var(--lime);
+}
+
+.prompt-pop h2 {
+  font-size: clamp(30px, 4.4vw, 64px);
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -1.5px;
+  margin: 22px 0 18px;
+}
+
+.prompt-pop p {
+  font:
+    12px ui-monospace,
+    monospace;
+  letter-spacing: 2px;
+  color: var(--muted);
+}
