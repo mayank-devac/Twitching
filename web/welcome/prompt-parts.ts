@@ -20,6 +20,15 @@ export interface PromptParts {
   files: PromptFile[];
 }
 
+// Fixed wording of Codex's bare annotation export, and how its JSON array begins.
+const BARE_EXPORT_PREAMBLE = "Each item contains text selected";
+const BARE_EXPORT_ARRAY = '[{"text"';
+// The bare export's array always closes on an object; arrays ending otherwise stay as text.
+const BARE_EXPORT_ARRAY_END = "}]";
+// A pasted block may carry a caption before its array.
+const PASTED_ARRAY = "[{";
+const JSON_WHITESPACE = /^[ \t\n\r]*$/;
+
 const str = (value: unknown) => (typeof value === "string" ? value : "");
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -35,25 +44,50 @@ function json(source: string): unknown {
   }
 }
 
-export function parsePrompt(input: string): PromptParts {
-  let body = input;
-  const annotations: PromptAnnotation[] = [];
-  const replies: PromptReply[] = [];
-  const files: PromptFile[] = [];
-  // `firstIndex` is where numbering starts: each <pasted_content> block is its own
-  // export numbered from 1, matching its :codex-annotation{index="N"} links.
-  const pushAnnotations = (rows: unknown[], firstIndex: number) => {
-    rows.forEach((row, i) => {
-      const entry = isRecord(row) ? row : {};
-      annotations.push({
-        index: firstIndex + i,
-        quote: str(entry.text),
-        comment: str(entry.annotation),
-      });
-    });
-  };
+// Index just past the bracket closing the array opened at `start`, found in one
+// string-aware pass, or -1 when it never closes. Only valid JSON is trusted afterwards.
+function arrayEnd(source: string, start: number) {
+  let depth = 0;
+  let inString = false;
+  for (let i = start; i < source.length; i++) {
+    const char = source[i];
+    if (inString) {
+      if (char === "\\") i++;
+      else if (char === '"') inString = false;
+    } else if (char === '"') inString = true;
+    else if (char === "[" || char === "{") depth++;
+    else if ((char === "]" || char === "}") && --depth === 0) return i + 1;
+  }
+  return -1;
+}
 
-  body = body.replace(
+// The single parser for annotation exports: the JSON array opened at `start` and
+// the index just past it, or undefined when that array is not valid JSON.
+function parseAnnotationArray(source: string, start: number) {
+  const end = arrayEnd(source, start);
+  if (end < 0) return undefined;
+  const rows = json(source.slice(start, end));
+  return Array.isArray(rows) ? { rows: rows as unknown[], end } : undefined;
+}
+
+// `firstIndex` is where numbering starts: each <pasted_content> block is its own
+// export numbered from 1, matching its :codex-annotation{index="N"} links.
+function pushAnnotations(parts: PromptParts, rows: unknown[], firstIndex: number) {
+  rows.forEach((row, i) => {
+    const entry = isRecord(row) ? row : {};
+    parts.annotations.push({
+      index: firstIndex + i,
+      quote: str(entry.text),
+      comment: str(entry.annotation),
+    });
+  });
+}
+
+// Each extractor removes one kind of attachment from the body and records it in parts.
+type Extractor = (body: string, parts: PromptParts) => string;
+
+const questionReplies: Extractor = (body, parts) =>
+  body.replace(
     /<send_user_message_question_reply>\s*([\s\S]*?)\s*<\/send_user_message_question_reply>/g,
     (whole, source: string) => {
       const value = json(source);
@@ -61,7 +95,7 @@ export function parsePrompt(input: string): PromptParts {
       for (const row of value) {
         if (!isRecord(row)) continue;
         if (str(row.question) || str(row.answer))
-          replies.push({
+          parts.replies.push({
             header: str(row.header) || undefined,
             question: str(row.question),
             answer: str(row.answer),
@@ -71,60 +105,75 @@ export function parsePrompt(input: string): PromptParts {
     },
   );
 
-  body = body.replace(
+// The array must run to the end of the block and every row must carry `text`.
+const pastedAnnotations: Extractor = (body, parts) =>
+  body.replace(
     /<pasted_content\b[^>]*>\s*([\s\S]*?)\s*<\/pasted_content\b[^>]*>/g,
     (whole, source: string) => {
-      const start = source.indexOf("[{");
-      const value = start >= 0 ? json(source.slice(start)) : undefined;
+      const start = source.indexOf(PASTED_ARRAY);
+      const parsed = start >= 0 ? parseAnnotationArray(source, start) : undefined;
       if (
-        !Array.isArray(value) ||
-        !value.length ||
-        !value.every((row) => isRecord(row) && "text" in row)
+        !parsed ||
+        !JSON_WHITESPACE.test(source.slice(parsed.end)) ||
+        !parsed.rows.length ||
+        !parsed.rows.every((row) => isRecord(row) && "text" in row)
       )
         return whole;
-      pushAnnotations(value, 1);
+      pushAnnotations(parts, parsed.rows, 1);
       return "";
     },
   );
 
-  // Bare annotation export: fixed preamble followed by a JSON array of {text, annotation, source}.
-  const preamble = body.indexOf("Each item contains text selected");
-  const jsonStart = preamble >= 0 ? body.indexOf('[{"text"', preamble) : -1;
-  if (jsonStart >= 0) {
-    for (
-      let end = body.lastIndexOf("}]");
-      end > jsonStart;
-      end = body.lastIndexOf("}]", end - 1)
-    ) {
-      const value = json(body.slice(jsonStart, end + 2));
-      if (!Array.isArray(value)) continue;
-      pushAnnotations(value, annotations.length + 1);
-      body = body.slice(0, preamble) + body.slice(end + 2);
-      break;
-    }
-  }
+// Bare annotation export: fixed preamble followed by a JSON array of {text, annotation, source}.
+const bareAnnotationExport: Extractor = (body, parts) => {
+  const preamble = body.indexOf(BARE_EXPORT_PREAMBLE);
+  const start = preamble >= 0 ? body.indexOf(BARE_EXPORT_ARRAY, preamble) : -1;
+  const parsed = start >= 0 ? parseAnnotationArray(body, start) : undefined;
+  if (!parsed || !body.endsWith(BARE_EXPORT_ARRAY_END, parsed.end)) return body;
+  pushAnnotations(parts, parsed.rows, parts.annotations.length + 1);
+  return body.slice(0, preamble) + body.slice(parsed.end);
+};
 
-  // "name.ext: /abs/path.ext" lines; paths may contain spaces, so match up to the same extension.
-  body = body.replace(
-    /(?:#+\s*)?Files mentioned by the user:[ \t]*\n?/gi,
-    "",
-  );
-  body = body.replace(
+const fileMentionHeading: Extractor = (body) =>
+  body.replace(/(?:#+\s*)?Files mentioned by the user:[ \t]*\n?/gi, "");
+
+// "name.ext: /abs/path.ext" lines; paths may contain spaces, so match up to the same extension.
+const filePathLines: Extractor = (body, parts) =>
+  body.replace(
     /(?:^|(?<=\n))[ \t]*(?:#+\s*)?([^\n:]+?\.([A-Za-z0-9]{1,8})):[ \t]*(?:\/|~\/|[A-Za-z]:\\)[^\n]*?\.\2(?=\s|$)[ \t]*:?[ \t]*/g,
     (_whole, name: string) => {
-      files.push({ ext: extOf(name) });
+      parts.files.push({ ext: extOf(name) });
       return "";
     },
   );
-  body = body.replace(/\[Image: source: ([^\]]+)\]/g, (_whole, path: string) => {
-    files.push({ ext: extOf(basename(path)) });
+
+const imageSources: Extractor = (body, parts) =>
+  body.replace(/\[Image: source: ([^\]]+)\]/g, (_whole, path: string) => {
+    parts.files.push({ ext: extOf(basename(path)) });
     return "";
   });
 
-  // Inline directives become tag links (rendered as tags by the timeline).
-  body = body.replace(
+// Inline directives become tag links (rendered as tags by the timeline).
+const annotationLinks: Extractor = (body) =>
+  body.replace(
     /:codex-annotation\{index="(\d+)"\}/g,
     (_whole, n: string) => `[Annotation ${n}](#annotation-${n})`,
   );
-  return { body: body.replace(/\n{3,}/g, "\n\n").trim(), annotations, replies, files };
+
+// Order matters: pasted blocks number their annotations before the bare export
+// continues the count, and links are rewritten only once the JSON is gone.
+const extractors: Extractor[] = [
+  questionReplies,
+  pastedAnnotations,
+  bareAnnotationExport,
+  fileMentionHeading,
+  filePathLines,
+  imageSources,
+  annotationLinks,
+];
+
+export function parsePrompt(input: string): PromptParts {
+  const parts: PromptParts = { body: "", annotations: [], replies: [], files: [] };
+  const body = extractors.reduce((text, extract) => extract(text, parts), input);
+  return { ...parts, body: body.replace(/\n{3,}/g, "\n\n").trim() };
 }
