@@ -2,17 +2,20 @@
 // rehearsal prompt. App owns it so it survives switching away from the arena layout.
 import { useEffect, useState } from "react";
 import type { ShowState } from "../../shared/types.js";
+import {
+  CHAT_PLATFORMS,
+  chatPlatformLabels,
+  type ChatPlatform,
+} from "../../shared/settings.js";
 import { hostRequest } from "../settings/api.js";
 import type { useHostAction } from "../use-host-action.js";
 
 // Only one stop sub-panel is open at a time; "menu" shows just its Chat/End choices.
 export type StopPanel = "closed" | "menu" | "chat" | "end";
-export const chatPlatforms = [
-  ["youtube", "YouTube"],
-  ["twitch", "Twitch"],
-  ["kick", "Kick"],
-] as const;
-export type ChatPlatform = (typeof chatPlatforms)[number][0];
+export type { ChatPlatform };
+export const chatPlatforms = CHAT_PLATFORMS.map(
+  (id) => [id, chatPlatformLabels[id]] as const,
+);
 
 export function useArenaControls(
   state: ShowState | undefined,

@@ -1,5 +1,14 @@
 import type { ActivityKind, SessionConfig } from "./types.js";
 
+// Every chat source the show can read; loops over this replace per-platform copies.
+export const CHAT_PLATFORMS = ["youtube", "twitch", "kick"] as const;
+export type ChatPlatform = (typeof CHAT_PLATFORMS)[number];
+export const chatPlatformLabels: Record<ChatPlatform, string> = {
+  youtube: "YouTube",
+  twitch: "Twitch",
+  kick: "Kick",
+};
+
 // Public display choices hide presentation only; stored activity is retained.
 export interface SessionVisibility {
   hidePreviousRuns?: boolean;
@@ -43,11 +52,9 @@ export interface QuickPreferences {
   managedModels?: Record<string, { model: string; effort?: string }>;
   sessions: SessionConfig[];
   visibility: Record<string, SessionVisibility>;
-  stream: {
+  // One enable flag per chat platform, stored as plain youtube/twitch/kick keys.
+  stream: Record<ChatPlatform, boolean> & {
     mode: "live" | "rehearsal";
-    youtube: boolean;
-    twitch: boolean;
-    kick: boolean;
     collectionMs: number;
     extensionMs: number;
     resultMs: number;

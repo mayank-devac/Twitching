@@ -1,6 +1,10 @@
 import React from "react";
 import type { ShowState } from "../../shared/types.js";
-import type { QuickPreferences } from "../../shared/settings.js";
+import {
+  CHAT_PLATFORMS,
+  chatPlatformLabels,
+  type QuickPreferences,
+} from "../../shared/settings.js";
 
 // Operational controls keep their existing guards; optional explanations stay collapsed.
 export function StreamSettings({
@@ -77,18 +81,14 @@ export function StreamSettings({
           <p className="qs-hint">Reconnect on the next Start or Resume.</p>
         </div>
         <div className="qs-platforms">
-          {(["youtube", "twitch", "kick"] as const).map((key) => (
+          {CHAT_PLATFORMS.map((key) => (
             <label key={key}>
               <input
                 type="checkbox"
                 checked={value[key]}
                 onChange={(e) => change({ ...value, [key]: e.target.checked })}
               />
-              {key === "youtube"
-                ? "YouTube"
-                : key === "twitch"
-                  ? "Twitch"
-                  : "Kick"}
+              {chatPlatformLabels[key]}
             </label>
           ))}
         </div>

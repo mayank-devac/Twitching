@@ -5,6 +5,12 @@ import { z } from "zod";
 import { rehearsalSchema, type LauncherState } from "./control-api.js";
 import { fix, root, type Secrets, type Settings } from "./runtime.js";
 import type { StreamOptions } from "./options.js";
+import {
+  CHAT_PLATFORMS,
+  chatPlatformLabels,
+  type ChatPlatform,
+} from "../../shared/settings.js";
+import { skipFlags } from "../../server/chat-skips.js";
 
 const savedStateRow = z.object({ value: z.string() });
 
@@ -43,7 +49,6 @@ export async function checkLivePreflight(
   runnerMode: "docker" | "native",
   state: LauncherState | undefined,
 ) {
-  let twitchPending = true;
   const { missingLiveSecrets, twitchStatus, ensureYoutubeLiveChatId } =
     await import("../../server/live-platforms.js");
   const missing = missingLiveSecrets(secrets);
@@ -54,34 +59,48 @@ export async function checkLivePreflight(
         ? "Fill the remaining Twitch names, or leave every Twitch field empty to skip Twitch. Edit .env.local in your editor. Do not paste credentials into chat or command-line arguments."
         : "Fill those names in .env.local using your editor, then rerun. Do not paste credentials into chat or command-line arguments.",
     );
-  if (!options.skipYoutube && !secrets.youtube.chat.trim()) {
-    console.log(
-      "YouTube live chat ID is empty; looking up the current broadcast…",
-    );
-    try {
-      const id = await ensureYoutubeLiveChatId();
-      console.log(`OK: using YouTube live chat ID ${id}`);
-    } catch (error) {
-      fix(
-        error instanceof Error
-          ? error.message
-          : "YouTube live chat lookup failed",
-        "Create or schedule a livestream in YouTube Studio so a liveChatId exists, then rerun. Do not paste tokens into chat.",
+  const skipped: Record<ChatPlatform, boolean> = {
+    youtube: options.skipYoutube,
+    twitch: options.skipTwitch,
+    kick: options.skipKick,
+  };
+  // Pre-live checks for each platform the host did not skip.
+  const checks: Record<ChatPlatform, () => Promise<void> | void> = {
+    async youtube() {
+      if (secrets.youtube.chat.trim()) return;
+      console.log(
+        "YouTube live chat ID is empty; looking up the current broadcast…",
       );
-    }
-  } else if (options.skipYoutube)
-    console.log("NOTE: YouTube chat skipped (--skip yt).");
-  if (options.skipTwitch) {
-    twitchPending = false;
-    console.log("NOTE: Twitch chat skipped (--skip twitch).");
-  } else if (twitchStatus().kind === "off") {
-    twitchPending = false;
-    console.log(
-      "NOTE: Twitch is skipped because its .env.local fields are empty.",
-    );
+      try {
+        const id = await ensureYoutubeLiveChatId();
+        console.log(`OK: using YouTube live chat ID ${id}`);
+      } catch (error) {
+        fix(
+          error instanceof Error
+            ? error.message
+            : "YouTube live chat lookup failed",
+          "Create or schedule a livestream in YouTube Studio so a liveChatId exists, then rerun. Do not paste tokens into chat.",
+        );
+      }
+    },
+    twitch() {
+      if (twitchStatus().kind === "off")
+        console.log(
+          "NOTE: Twitch is skipped because its .env.local fields are empty.",
+        );
+    },
+    kick() {
+      checkKickWebhook(settings.kickWebhookUrl);
+    },
+  };
+  for (const platform of CHAT_PLATFORMS) {
+    if (skipped[platform])
+      console.log(
+        `NOTE: ${chatPlatformLabels[platform]} chat skipped (--skip ${skipFlags[platform]}).`,
+      );
+    else await checks[platform]();
   }
-  if (options.skipKick) console.log("NOTE: Kick chat skipped (--skip kick).");
-  else checkKickWebhook(settings.kickWebhookUrl);
+  const twitchPending = !skipped.twitch && twitchStatus().kind !== "off";
   if (!settings.stopObsOnEnd)
     fix(
       "Automatic OBS shutdown is disabled",

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { secrets } from "./config.js";
 import { chatSkips } from "./chat-skips.js";
+import { CHAT_PLATFORMS, type ChatPlatform } from "../shared/settings.js";
 
 const youtubeBroadcasts = "https://www.googleapis.com/youtube/v3/liveBroadcasts";
 // Only liveChatId is read; an unexpected body counts as "no broadcast found".
@@ -32,48 +33,67 @@ export function twitchStatus(
   return { kind: "on" as const };
 }
 
-export function missingLiveSecrets(
-  values: {
-    jev: string;
-    youtube: { access: string; chat: string };
-    twitch: {
-      access: string;
-      client: string;
-      broadcaster: string;
-      user: string;
+type LiveSecretValues = {
+  jev: string;
+  youtube: { access: string; chat: string };
+  twitch: {
+    access: string;
+    client: string;
+    broadcaster: string;
+    user: string;
+  };
+  kick: { access: string; broadcaster: string; client?: string; secret?: string };
+};
+type Field = [name: string, value: string];
+// Fields each enabled platform needs; `missing` lists names that are absent regardless of value.
+const liveRequirements: Record<
+  ChatPlatform,
+  (values: LiveSecretValues) => { required: Field[]; missing?: string[] }
+> = {
+  youtube: (values) => ({
+    required: [["YOUTUBE_ACCESS_TOKEN", values.youtube.access]],
+  }),
+  twitch: (values) => {
+    // An entirely empty Twitch block means "skip Twitch"; a partial one is an error.
+    const status = twitchStatus(values.twitch);
+    if (status.kind === "partial") return { required: [], missing: status.missing };
+    if (status.kind === "off") return { required: [] };
+    return {
+      required: [
+        ["TWITCH_CLIENT_ID", values.twitch.client],
+        ["TWITCH_ACCESS_TOKEN", values.twitch.access],
+        ["TWITCH_BROADCASTER_ID", values.twitch.broadcaster],
+        ["TWITCH_BOT_USER_ID", values.twitch.user],
+      ],
     };
-    kick: { access: string; broadcaster: string; client?: string; secret?: string };
-  } = secrets,
-  skips: {
-    youtube?: boolean;
-    twitch?: boolean;
-    kick?: boolean;
-  } = chatSkips(),
-) {
-  const required: Array<[string, string]> = [["TYPESAFE_API_KEY", values.jev]];
-  if (!skips.kick) {
+  },
+  kick: (values) => {
+    const required: Field[] = [];
     // KICK_CLIENT_ID + KICK_CLIENT_SECRET replace KICK_ACCESS_TOKEN: the server
     // mints the app token itself, so the static token is required only without them.
     if (!(values.kick.client?.trim() && values.kick.secret?.trim()))
       required.push(["KICK_ACCESS_TOKEN", values.kick.access]);
     required.push(["KICK_BROADCASTER_ID", values.kick.broadcaster]);
+    return { required };
+  },
+};
+
+export function missingLiveSecrets(
+  values: LiveSecretValues = secrets,
+  skips: Partial<Record<ChatPlatform, boolean>> = chatSkips(),
+) {
+  const fields: Field[] = [["TYPESAFE_API_KEY", values.jev]];
+  const absent: string[] = [];
+  for (const platform of CHAT_PLATFORMS) {
+    if (skips[platform]) continue;
+    const need = liveRequirements[platform](values);
+    fields.push(...need.required);
+    absent.push(...(need.missing ?? []));
   }
-  if (!skips.youtube) required.push(["YOUTUBE_ACCESS_TOKEN", values.youtube.access]);
-  const twitch = skips.twitch
-    ? { kind: "off" as const }
-    : twitchStatus(values.twitch);
-  if (twitch.kind === "on")
-    required.push(
-      ["TWITCH_CLIENT_ID", values.twitch.client],
-      ["TWITCH_ACCESS_TOKEN", values.twitch.access],
-      ["TWITCH_BROADCASTER_ID", values.twitch.broadcaster],
-      ["TWITCH_BOT_USER_ID", values.twitch.user],
-    );
-  const missing = required
-    .filter(([, value]) => !value.trim())
-    .map(([name]) => name);
-  if (twitch.kind === "partial") missing.push(...twitch.missing);
-  return missing;
+  return [
+    ...fields.filter(([, value]) => !value.trim()).map(([name]) => name),
+    ...absent,
+  ];
 }
 
 export async function resolveYoutubeLiveChatId(
