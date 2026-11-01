@@ -37,7 +37,7 @@ test("legacy single-row tables migrate into documents once and keep their data",
     assert.deepEqual(store.quickSettings(), legacyRows.quick_settings);
     assert.equal(store.state()!.reason, "old");
     const tables = (store.db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]).map((r) => r.name);
-    for (const legacy of Object.keys(legacyRows)) assert.ok(!tables.includes(legacy), legacy);
+    for (const legacy of Object.keys(legacyRows)) assert.ok(tables.includes(legacy), legacy);
     store.saveLastSetup({ ...legacyRows.last_setup, savedAt: 43 } as never);
     store.close();
     // Reopening must not re-run the copy or lose newer writes.

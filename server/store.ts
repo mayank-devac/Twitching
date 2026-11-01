@@ -29,7 +29,7 @@ function migrateRound(round: Round): Round {
 }
 // Single-document settings live in one key -> JSON table. These are the
 // tables they used to occupy (one row each, id=1); the constructor copies any
-// legacy row across once and drops the old table in the same transaction.
+// legacy row across once and keeps the old table as a read-only backup.
 const legacyDocuments = {
   presentation: "presentation",
   last_setup: "last_setup",
@@ -90,8 +90,9 @@ export class Store {
       for (const [key, table] of Object.entries(legacyDocuments)) {
         if (!existing.has(table)) continue;
         // A document already in the new table is newer than the legacy copy.
+        // The legacy table is left in place (never written again), so a failed upgrade
+        // or an older build still finds its data; INSERT OR IGNORE makes reruns no-ops.
         this.db.prepare(`INSERT OR IGNORE INTO documents(key,value) SELECT ?, value FROM ${table} WHERE id=1`).run(key);
-        this.db.exec(`DROP TABLE ${table}`);
       }
     });
   }
