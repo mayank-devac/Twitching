@@ -212,7 +212,7 @@ test("a group exiting before SIGTERM is harmless; denied SIGTERM keeps its recor
     await rm(root, { recursive: true, force: true });
   }
 });
-test("native jobs keep identical task text, use cwd output, and explicitly disable Cursor sandbox", async () => {
+test("native jobs keep identical task text, use cwd output, and keep each CLI sandbox", async () => {
   const root = await mkdtemp(resolve(tmpdir(), "stram-native-"));
   const store = new Store(":memory:");
   const host = new MetadataHost(store, root);
@@ -243,7 +243,12 @@ test("native jobs keep identical task text, use cwd output, and explicitly disab
       },
       1,
     );
-    const codex = await host.create("codex", 1, ["codex", "exec", prompt]);
+    const codex = await host.create("codex", 1, [
+      "codex",
+      "exec",
+      "--dangerously-bypass-approvals-and-sandbox",
+      prompt,
+    ]);
     const cursor = await host.create("cursor", 1, [
       "cursor-agent",
       "--print",
@@ -261,7 +266,9 @@ test("native jobs keep identical task text, use cwd output, and explicitly disab
       entries.get(codex.name)!.command.at(-1)!,
       /\.\/prompt_1\.html/,
     );
-    assert.ok(entries.get(cursor.name)!.command.includes("disabled"));
+    assert.ok(!entries.get(cursor.name)!.command.some((arg) => arg.startsWith("--sandbox")));
+    assert.ok(!entries.get(codex.name)!.command.includes("--dangerously-bypass-approvals-and-sandbox"));
+    assert.ok(entries.get(codex.name)!.command.includes("--sandbox=workspace-write"));
     assert.equal(
       entries.get(cursor.name)!.env?.HOME,
       resolve(cursor.dir, ".cli-home"),

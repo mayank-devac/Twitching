@@ -45,7 +45,6 @@ interface Prepared {
 export class NativeHost extends Docker {
   override readonly executionBoundary = "native" as const;
   private prepared = new Map<string, Prepared>();
-  private cursorSandboxOption = false;
   constructor(
     private nativeStore: Store,
     private nativeRoot: string,
@@ -146,14 +145,8 @@ export class NativeHost extends Docker {
       );
     if (agents.includes("codex"))
       await this.capture("codex", ["codex", "--version"]);
-    if (!agents.includes("cursor")) return;
-    await this.capture("cursor", ["cursor-agent", "--version"]);
-    const help = await this.capture("cursor", ["cursor-agent", "--help"]);
-    this.cursorSandboxOption = help.includes("--sandbox");
-    if (!this.cursorSandboxOption)
-      throw new Error(
-        "Update Cursor CLI: native mode requires its --sandbox option",
-      );
+    if (agents.includes("cursor"))
+      await this.capture("cursor", ["cursor-agent", "--version"]);
   }
   override async create(
     agent: Agent,
@@ -175,12 +168,14 @@ export class NativeHost extends Docker {
         "Native mode is not confirmed. Run ./start_stream.sh and type NATIVE when asked.",
       );
     }
-    let args = command.slice();
-    if (coding && agent === "cursor") {
-      if (!this.cursorSandboxOption)
-        throw new Error("Native Cursor sandbox support was not checked");
-      args.splice(args.length - 1, 0, "--sandbox", "disabled");
-    }
+    // Native runs have no container, so each CLI keeps its own sandbox:
+    // Cursor runs with its default sandbox, and Codex swaps the Docker-only
+    // bypass flag for a workspace-write sandbox rooted at the round folder.
+    const args = command.map((arg) =>
+      coding && agent === "codex" && arg === "--dangerously-bypass-approvals-and-sandbox"
+        ? "--sandbox=workspace-write"
+        : arg,
+    );
     const workspace =
       dir ?? (await this.workspace({ cli: agent, round, session }));
     // Keep task instructions identical across native agents; the fixed output is relative to cwd.
