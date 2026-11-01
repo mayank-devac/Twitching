@@ -4,7 +4,7 @@ import { presentationRoutes } from "./presentation-http.js";
 import { lstat, realpath } from "node:fs/promises";
 import { settingsRoutes, type SettingsServices } from "./settings-http.js";
 import { createServer } from "node:http";
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
 import express from "express";
 import { WebSocketServer, WebSocket } from "ws";
@@ -15,6 +15,7 @@ import { overlayPatches } from "../shared/overlay-stream.js";
 import type { ShowState } from "../shared/types.js";
 import type { SnapshotMessage, UpdateMessage } from "../shared/server-message.js";
 import { sessionRoutes } from "./sessions/http.js";
+import { hostCheck, hostOnly, HttpError, routeAction } from "./http-kit.js";
 import type { Sessions } from "./sessions/service.js";
 const requestSchema = z.object({
   action: z.enum([
@@ -91,25 +92,7 @@ export function makeHttp(
   };
   app.get("/api/state", (_req, res) => res.json(publicState()));
   app.get("/api/boot", (_req, res) => res.json(options.boot ?? {}));
-  const hostAuthorized = (req: express.Request) => {
-    const token = String(req.headers["x-host-token"] ?? "");
-    const cookie = String(req.headers.cookie ?? "")
-      .split(";")
-      .map((c) => c.trim())
-      .find((c) => c.startsWith("arena_host="))
-      ?.slice(11);
-    if (
-      cookie !== csrf ||
-      token.length !== csrf.length ||
-      !timingSafeEqual(Buffer.from(token), Buffer.from(csrf))
-    )
-      return false;
-    if (req.headers.origin) return req.headers.origin === origin;
-    // Same-origin GET leaves Origin off. POST still has to send it.
-    if (req.method !== "GET" && req.method !== "HEAD") return false;
-    const site = req.headers["sec-fetch-site"];
-    return !site || ["same-origin", "none"].includes(String(site));
-  };
+  const guard = hostOnly(hostCheck(csrf, origin));
   app.get("/api/host", (req, res) => {
     if (
       req.headers["sec-fetch-site"] &&
@@ -126,86 +109,62 @@ export function makeHttp(
     });
     res.json({ csrf });
   });
-  app.get("/api/host-state", (req, res) => {
-    if (!hostAuthorized(req)) {
-      res
-        .status(403)
-        .json({ error: "Use the local control panel to operate the show" });
-      return;
-    }
+  app.get("/api/host-state", guard("Use the local control panel to operate the show"), (_req, res) => {
     res.json({ ...controller.hostSnapshot(), presentation: options.presentation?.get(), experience: options.sessions?.experience,
       sharedSession: options.sessions?.snapshot(controller.snapshot()).sharedSession, sharedOverlay: options.sessions?.snapshot(controller.snapshot()).sharedOverlay });
   });
   // Privacy actions authenticate before parsing, and never touch the running controller.
-  app.post("/api/presentation", (req, res, next) => {
-    if (!hostAuthorized(req)) { res.status(403).json({ error: "Use local host controls" }); return; }
-    next();
-  }, express.json({ limit: "2kb" }), (req, res) => {
+  app.post("/api/presentation", guard("Use local host controls"), express.json({ limit: "2kb" }), routeAction((req) => {
     const input = presentationAction.safeParse(req.body);
-    if (!input.success || !options.presentation) { res.status(400).json({ error: "Invalid presentation action" }); return; }
-    try { res.json(options.presentation.act(input.data)); }
-    catch (error) { res.status(409).json({ error: error instanceof PresentationConflict ? error.message : "Presentation was not saved. Retry before relying on privacy." }); }
-  });
-  const rehearsal = options.quick && options.presentation ? presentationRoutes(app, controller, options.quick, options.presentation, options.sessions, hostAuthorized) : undefined;
+    if (!input.success || !options.presentation) throw new HttpError(400, "Invalid presentation action");
+    return options.presentation.act(input.data);
+  }, { status: 409, failed: "Presentation was not saved. Retry before relying on privacy.", expose: (error) => error instanceof PresentationConflict }));
+  const rehearsal = options.quick && options.presentation ? presentationRoutes(app, controller, options.quick, options.presentation, options.sessions, guard) : undefined;
   if (options.sessions && rehearsal) options.sessions.requirePresentationRehearsal = rehearsal;
   // Settings routes share the existing host cookie and CSRF token checks.
   if (options.quick)
-    settingsRoutes(app, controller, options.quick, hostAuthorized);
+    settingsRoutes(app, controller, options.quick, guard);
   if (options.sessions)
-    sessionRoutes(app, options.sessions, hostAuthorized, options.openObs ?? (async () => { throw new Error("Open OBS manually"); }), (id) => { const p = options.presentation?.get(id); return !!(p?.hidden || p?.breakActive); }, rehearsal, () => options.presentation?.selections());
-  app.post("/api/action", express.json({ limit: "2kb" }), async (req, res) => {
-    if (!hostAuthorized(req)) {
-      res
-        .status(403)
-        .json({ error: "Use the local control panel to operate the show" });
-      return;
-    }
+    sessionRoutes(app, options.sessions, guard, options.openObs ?? (async () => { throw new Error("Open OBS manually"); }), (id) => { const p = options.presentation?.get(id); return !!(p?.hidden || p?.breakActive); }, rehearsal, () => options.presentation?.selections());
+  // Body parsing stays ahead of the guard here, as before, so malformed JSON keeps its 400.
+  app.post("/api/action", express.json({ limit: "2kb" }), guard("Use the local control panel to operate the show"), routeAction(async (req) => {
     const parsed = requestSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: "Invalid control action" });
-      return;
-    }
+    if (!parsed.success) throw new HttpError(400, "Invalid control action");
     const { action, id, text, choice, youtube, twitch, kick } = parsed.data;
-    try {
-      if (["start", "resume", "rehearsal-task", "suggest"].includes(action) && options.sessions?.experience !== undefined && options.sessions.experience !== "arena")
-        throw new Error("Choose Existing prompt arena in the welcome dialog first");
-      if ((action === "start" || action === "resume") && controller.state?.mode === "live") rehearsal?.("arena");
-      if (action === "confirm-rehearsal") rehearsal?.("arena");
-      if (action === "start") await controller.start();
-      else if (action === "pause") controller.pause();
-      else if (action === "resume") await controller.resume();
-      else if (action === "skip") await controller.skip();
-      else if (action === "stop") await controller.stop();
-      else if (action === "stop-choice") {
-        if (!choice) throw new Error("Pick chat or end-stream");
-        await controller.hostChoice(choice, { youtube, twitch, kick });
-      } else if (action === "reject") {
-        if (!id) throw new Error("Candidate ID required");
-        controller.reject(id);
-      } else if (action === "confirm-rehearsal") controller.confirmRehearsal();
-      else if (action === "rehearsal-task") controller.prepareRehearsal(text);
-      else if (action === "suggest") {
-        if (controller.state.mode !== "rehearsal")
-          throw new Error(
-            "Test suggestions are available only in private rehearsal mode",
-          );
-        await controller.ingest({
-          id: randomBytes(12).toString("hex"),
-          platform: "youtube",
-          authorId: "host-rehearsal",
-          author: "Host test",
-          text: text ?? "",
-          timestamp: Date.now(),
-          membership: { verified: false, member: false, gift: false },
-        });
-      }
-      res.json({ ok: true });
-    } catch (error) {
-      res.status(409).json({
-        error: error instanceof Error ? error.message : "Action failed",
+    if (["start", "resume", "rehearsal-task", "suggest"].includes(action) && options.sessions?.experience !== undefined && options.sessions.experience !== "arena")
+      throw new Error("Choose Existing prompt arena in the welcome dialog first");
+    if ((action === "start" || action === "resume") && controller.state?.mode === "live") rehearsal?.("arena");
+    if (action === "confirm-rehearsal") rehearsal?.("arena");
+    if (action === "start") await controller.start();
+    else if (action === "pause") controller.pause();
+    else if (action === "resume") await controller.resume();
+    else if (action === "skip") await controller.skip();
+    else if (action === "stop") await controller.stop();
+    else if (action === "stop-choice") {
+      if (!choice) throw new Error("Pick chat or end-stream");
+      await controller.hostChoice(choice, { youtube, twitch, kick });
+    } else if (action === "reject") {
+      if (!id) throw new Error("Candidate ID required");
+      controller.reject(id);
+    } else if (action === "confirm-rehearsal") controller.confirmRehearsal();
+    else if (action === "rehearsal-task") controller.prepareRehearsal(text);
+    else if (action === "suggest") {
+      if (controller.state.mode !== "rehearsal")
+        throw new Error(
+          "Test suggestions are available only in private rehearsal mode",
+        );
+      await controller.ingest({
+        id: randomBytes(12).toString("hex"),
+        platform: "youtube",
+        authorId: "host-rehearsal",
+        author: "Host test",
+        text: text ?? "",
+        timestamp: Date.now(),
+        membership: { verified: false, member: false, gift: false },
       });
     }
-  });
+    return { ok: true };
+  }, { status: 409, failed: "Action failed" }));
   // One fixed GIF route keeps the repository and other assets outside static serving.
   app.get("/media/break-visual.gif", async (_req, res) => {
     const path = resolve(options.root, "assets/break-visual.gif");

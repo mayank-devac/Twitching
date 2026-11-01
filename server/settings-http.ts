@@ -9,6 +9,7 @@ import { validateModel } from "./cli/index.js";
 import type { CliModel } from "./cli/types.js";
 import type { Store } from "./store.js";
 import type { BreakMedia } from "./break-media.js";
+import { HttpError, routeAction, type HostOnly } from "./http-kit.js";
 
 export interface SettingsServices {
   preferences: QuickSettings;
@@ -23,7 +24,7 @@ export function settingsRoutes(
   app: express.Express,
   controller: Controller,
   services: SettingsServices,
-  authorized: (req: express.Request) => boolean,
+  hostOnly: HostOnly,
 ) {
   const { preferences, media, store } = services;
   app.use(
@@ -34,15 +35,7 @@ export function settingsRoutes(
       "/api/break-media",
       "/api/quick-action",
     ],
-    (req, res, next) => {
-      if (!authorized(req)) {
-        res
-          .status(403)
-          .json({ error: "Open the local control panel to use settings" });
-        return;
-      }
-      next();
-    },
+    hostOnly("Open the local control panel to use settings"),
   );
   // Concurrent refreshes share a probe instead of spawning duplicate CLI processes.
   const probes = new Map<Agent, Promise<CliModel[]>>();
@@ -55,90 +48,73 @@ export function settingsRoutes(
     return pending;
   };
   app.get("/api/settings", (_req, res) => res.json(preferences.get()));
-  app.get("/api/models/:cli", async (req, res) => {
+  app.get("/api/models/:cli", routeAction(async (req) => {
     const cli = z.enum(["codex", "cursor"]).safeParse(req.params.cli);
-    if (!cli.success) {
-      res.status(400).json({ error: "Unsupported CLI" });
-      return;
-    }
-    try {
-      const boundary = z.enum(["docker", "native"]).optional().parse(req.query.runner);
-      res.json({ models: boundary ? await services.discover(cli.data, boundary) : await discover(cli.data) });
-    } catch {
-      res.status(409).json({
-        error:
-          "Model discovery failed. Check that this CLI is installed and signed in through the arena startup flow, then retry.",
-      });
-    }
-  });
+    if (!cli.success) throw new HttpError(400, "Unsupported CLI");
+    const boundary = z.enum(["docker", "native"]).optional().parse(req.query.runner);
+    return { models: boundary ? await services.discover(cli.data, boundary) : await discover(cli.data) };
+  }, {
+    status: 409,
+    // Discovery errors can carry CLI output, so none of them is shown.
+    expose: () => false,
+    failed: "Model discovery failed. Check that this CLI is installed and signed in through the arena startup flow, then retry.",
+  }));
   app.put(
     "/api/settings",
     express.json({ limit: "24kb" }),
-    async (req, res) => {
+    routeAction(async (req) => {
       const runner = z.enum(["docker", "native"]).optional().safeParse(req.query.runner);
-      if (!runner.success) { res.status(400).json({ error: "Invalid runner" }); return; }
+      if (!runner.success) throw new HttpError(400, "Invalid runner");
       const parsed = saveSettingsSchema.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({
-          error:
-            "Invalid settings. Check text lengths, timings and session choices.",
-        });
-        return;
-      }
-      try {
-        const { revision, value } = parsed.data;
-        const old = preferences.get();
-        if (revision !== old.revision)
-          throw new Error(
-            "Settings changed in another tab. Reload settings before saving.",
-          );
-        // Visibility/media-only saves never start a CLI discovery probe.
-        if (
-          JSON.stringify(value.sessions) !== JSON.stringify(old.value.sessions)
-        ) {
-          for (const cli of new Set(value.sessions.map((s) => s.cli))) {
-            let models: CliModel[];
-            try {
-              models = runner.data ? await services.discover(cli, runner.data) : await discover(cli);
-            } catch {
-              throw new Error(
-                "Could not verify installed models. Check CLI login and retry; no settings were saved.",
-              );
-            }
-            for (const session of value.sessions.filter((s) => s.cli === cli))
-              validateModel(session, models);
+      if (!parsed.success)
+        throw new HttpError(400, "Invalid settings. Check text lengths, timings and session choices.");
+      const { revision, value } = parsed.data;
+      const old = preferences.get();
+      if (revision !== old.revision)
+        throw new Error(
+          "Settings changed in another tab. Reload settings before saving.",
+        );
+      // Visibility/media-only saves never start a CLI discovery probe.
+      if (
+        JSON.stringify(value.sessions) !== JSON.stringify(old.value.sessions)
+      ) {
+        for (const cli of new Set(value.sessions.map((s) => s.cli))) {
+          let models: CliModel[];
+          try {
+            models = runner.data ? await services.discover(cli, runner.data) : await discover(cli);
+          } catch {
+            throw new Error(
+              "Could not verify installed models. Check CLI login and retry; no settings were saved.",
+            );
           }
+          for (const session of value.sessions.filter((s) => s.cli === cli))
+            validateModel(session, models);
         }
-        // Each managed conversation owns its future model, independent of an arena slot or another conversation.
-        for (const [id, selection] of Object.entries(value.managedModels ?? {})) {
-          if (JSON.stringify(selection) === JSON.stringify(old.value.managedModels?.[id])) continue;
-          const conversation = store.conversation(id);
-          if (conversation?.source !== "managed" || !conversation.config) throw new Error("Managed session no longer exists");
-          validateModel({ ...conversation.config, ...selection }, await services.discover(conversation.cli, conversation.runner));
-        }
-        for (const kind of ["audio", "visual"] as const) {
-          const id = value.media[kind];
-          if (id) {
-            const asset = await media.path(id).catch(() => {
-              throw new Error(
-                "Selected media is missing or unsafe. Choose another file or the original fallback.",
-              );
-            });
-            if (!asset.type.startsWith(kind === "audio" ? "audio/" : "image/"))
-              throw new Error("Choose the correct media type");
-          }
-        }
-        controller.assertSettingsChange(value);
-        const saved = preferences.save(revision, value);
-        controller.settingsChanged();
-        res.json(saved);
-      } catch (error) {
-        res.status(409).json({
-          error:
-            error instanceof Error ? error.message : "Settings were not saved",
-        });
       }
-    },
+      // Each managed conversation owns its future model, independent of an arena slot or another conversation.
+      for (const [id, selection] of Object.entries(value.managedModels ?? {})) {
+        if (JSON.stringify(selection) === JSON.stringify(old.value.managedModels?.[id])) continue;
+        const conversation = store.conversation(id);
+        if (conversation?.source !== "managed" || !conversation.config) throw new Error("Managed session no longer exists");
+        validateModel({ ...conversation.config, ...selection }, await services.discover(conversation.cli, conversation.runner));
+      }
+      for (const kind of ["audio", "visual"] as const) {
+        const id = value.media[kind];
+        if (id) {
+          const asset = await media.path(id).catch(() => {
+            throw new Error(
+              "Selected media is missing or unsafe. Choose another file or the original fallback.",
+            );
+          });
+          if (!asset.type.startsWith(kind === "audio" ? "audio/" : "image/"))
+            throw new Error("Choose the correct media type");
+        }
+      }
+      controller.assertSettingsChange(value);
+      const saved = preferences.save(revision, value);
+      controller.settingsChanged();
+      return saved;
+    }, { status: 409, failed: "Settings were not saved" }),
   );
   app.get("/api/history", (req, res) => {
     const before =
@@ -151,27 +127,19 @@ export function settingsRoutes(
     // Reuse the controller redactor before any historical text reaches the host browser.
     res.json(controller.safeHistory(page));
   });
-  app.get("/api/break-media", async (_req, res) => {
-    try {
-      res.json({
-        files: await media.list(),
-        defaults: {
-          audio: {
-            name: basename(services.defaults?.audio ?? "break.mp3"),
-            url: "/media/break.mp3",
-          },
-          visual: {
-            name: "break-visual.gif",
-            url: "/media/break-visual.gif",
-          },
-        },
-      });
-    } catch {
-      res.status(409).json({
-        error: "Media library unavailable. Check its directory permissions.",
-      });
-    }
-  });
+  app.get("/api/break-media", routeAction(async () => ({
+    files: await media.list(),
+    defaults: {
+      audio: {
+        name: basename(services.defaults?.audio ?? "break.mp3"),
+        url: "/media/break.mp3",
+      },
+      visual: {
+        name: "break-visual.gif",
+        url: "/media/break-visual.gif",
+      },
+    },
+  }), { status: 409, expose: () => false, failed: "Media library unavailable. Check its directory permissions." }));
   // Reject a second upload before buffering its body in memory.
   let uploading = false;
   app.post(
@@ -190,34 +158,23 @@ export function settingsRoutes(
       next();
     },
     express.raw({ type: "application/octet-stream", limit: "12mb" }),
-    async (req, res) => {
-      if (!Buffer.isBuffer(req.body)) {
-        res.status(400).json({ error: "Send a media file" });
-        return;
-      }
+    routeAction(async (req) => {
+      if (!Buffer.isBuffer(req.body)) throw new HttpError(400, "Send a media file");
+      let name = "";
       try {
-        let name = "";
-        try {
-          name = decodeURIComponent(
-            String(req.headers["x-file-name"] ?? "").slice(0, 1000),
-          );
-        } catch {
-          res.status(400).json({ error: "Invalid filename" });
-          return;
-        }
-        res.json(await media.upload(req.body, name));
-      } catch (error) {
-        res.status(400).json({
-          error:
-            error instanceof Error &&
-            /^(Use |Invalid |Media |Maximum |Another |Unsafe )/.test(
-              error.message,
-            )
-              ? error.message
-              : "Upload failed. Check media storage permissions and available space.",
-        });
+        name = decodeURIComponent(
+          String(req.headers["x-file-name"] ?? "").slice(0, 1000),
+        );
+      } catch {
+        throw new HttpError(400, "Invalid filename");
       }
-    },
+      return media.upload(req.body, name);
+    }, {
+      status: 400,
+      // Only the library's own validation messages are shown; filesystem errors can name paths.
+      expose: (error) => /^(Use |Invalid |Media |Maximum |Another |Unsafe )/.test(error.message),
+      failed: "Upload failed. Check media storage permissions and available space.",
+    }),
   );
   // Approved assets are available to the overlay; no runtime directory is a static root.
   app.get("/media/break/:id", async (req, res) => {
@@ -252,30 +209,18 @@ export function settingsRoutes(
   app.post(
     "/api/quick-action",
     express.json({ limit: "4kb" }),
-    async (req, res) => {
+    routeAction(async (req) => {
       const parsed = action.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({ error: "Invalid action" });
-        return;
-      }
-      try {
-        const value = parsed.data;
-        if (value.action === "break")
-          await controller.manualBreak(value.durationMs, value.immediate);
-        else if (value.action === "end-break")
-          controller.endManualBreak();
-        else if (value.action === "edit-prompt")
-          controller.editPrepared(value.version, value.text);
-        else await controller.stopStream();
-        res.json({ ok: true });
-      } catch (error) {
-        res.status(409).json({
-          error:
-            error instanceof Error
-              ? error.message
-              : "Action failed; check OBS and runner status",
-        });
-      }
-    },
+      if (!parsed.success) throw new HttpError(400, "Invalid action");
+      const value = parsed.data;
+      if (value.action === "break")
+        await controller.manualBreak(value.durationMs, value.immediate);
+      else if (value.action === "end-break")
+        controller.endManualBreak();
+      else if (value.action === "edit-prompt")
+        controller.editPrepared(value.version, value.text);
+      else await controller.stopStream();
+      return { ok: true };
+    }, { status: 409, failed: "Action failed; check OBS and runner status" }),
   );
 }

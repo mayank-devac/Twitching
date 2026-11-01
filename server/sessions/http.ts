@@ -1,6 +1,7 @@
 import express from "express";
 import { z } from "zod";
 import type { Sessions } from "./service.js";
+import { routeAction, type HostOnly } from "../http-kit.js";
 
 const identifier = z
   .string()
@@ -71,35 +72,15 @@ const action = z.discriminatedUnion("action", [
 export function sessionRoutes(
   app: express.Express,
   sessions: Sessions,
-  authorized: (req: express.Request) => boolean,
+  hostOnly: HostOnly,
   openObs: () => Promise<void>,
   hidden = (_overlay = "default") => false,
   rehearsal?: (context: string) => void,
   presentations?: () => import("../../shared/sessions.js").OverlayHostDocument["presentation"],
 ) {
-  app.use("/api/sessions", (req, res, next) => {
-    if (!authorized(req)) {
-      res.status(403).json({ error: "Use the local welcome dialog" });
-      return;
-    }
-    next();
-  });
-  const respond =
-    (operation: (req: express.Request) => Promise<unknown>) =>
-    async (req: express.Request, res: express.Response) => {
-      try {
-        res.json(await operation(req));
-      } catch (error) {
-        res.status(409).json({
-          error:
-            error instanceof z.ZodError
-              ? "Invalid session request"
-              : error instanceof Error
-                ? error.message
-                : "Session request failed",
-        });
-      }
-    };
+  app.use("/api/sessions", hostOnly("Use the local welcome dialog"));
+  const respond = (operation: (req: express.Request) => unknown) =>
+    routeAction(operation, { status: 409, invalid: "Invalid session request", failed: "Session request failed" });
   app.get(
     "/api/sessions/readiness",
     respond(() => sessions.readiness()),

@@ -8,6 +8,7 @@ import type { Sessions } from "./sessions/service.js";
 import { validateModel } from "./cli/index.js";
 import type { OverlayDefinition } from "../shared/sessions.js";
 import { preferencesSchema } from "./quick-settings.js";
+import { routeAction, type HostOnly } from "./http-kit.js";
 
 // Rehearsal confirmations expire with relevant public choices, not harmless timing edits.
 export function presentationRoutes(
@@ -16,7 +17,7 @@ export function presentationRoutes(
   services: SettingsServices,
   presentation: PresentationControls,
   sessions: Sessions | undefined,
-  authorized: (req: express.Request) => boolean,
+  hostOnly: HostOnly,
 ) {
   const { store, preferences } = services;
   const confirmations = new Map<string, string>();
@@ -55,31 +56,9 @@ export function presentationRoutes(
       )
       .digest("hex");
   };
-  app.use(["/api/rehearsal", "/api/last-setup"], (req, res, next) => {
-    if (!authorized(req)) {
-      res.status(403).json({ error: "Use local host controls" });
-      return;
-    }
-    next();
-  });
-  const respond =
-    (operation: (req: express.Request) => unknown | Promise<unknown>) =>
-    async (req: express.Request, res: express.Response) => {
-      try {
-        res.json(await operation(req));
-      } catch (error) {
-        res
-          .status(409)
-          .json({
-            error:
-              error instanceof z.ZodError
-                ? "Invalid setup or rehearsal choices"
-                : error instanceof Error
-                  ? error.message
-                  : "Request failed",
-          });
-      }
-    };
+  app.use(["/api/rehearsal", "/api/last-setup"], hostOnly("Use local host controls"));
+  const respond = (operation: (req: express.Request) => unknown) =>
+    routeAction(operation, { status: 409, invalid: "Invalid setup or rehearsal choices", failed: "Request failed" });
   const hiddenFor = (context: string) => {
     if (context === "arena") return presentation.get("default").hidden;
     const outputs = sessions?.overlays.host().overlays.filter((output) => output.published && output.sessionIds.includes(context)) ?? [];
