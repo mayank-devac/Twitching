@@ -45,6 +45,9 @@ export const secrets = {
   kick: {
     access: process.env.KICK_ACCESS_TOKEN ?? "",
     broadcaster: process.env.KICK_BROADCASTER_ID ?? "",
+    // Optional: when both are set, the app token is minted and refreshed automatically.
+    client: process.env.KICK_CLIENT_ID ?? "",
+    secret: process.env.KICK_CLIENT_SECRET ?? "",
   },
   obs: process.env.OBS_PASSWORD ?? "",
 };

@@ -422,11 +422,90 @@ export class TwitchChat {
     for (const socket of this.sockets) socket.close();
   }
 }
+type KickAuth = {
+  access: string;
+  broadcaster: string;
+  client?: string;
+  secret?: string;
+};
+// Kick app access token. With KICK_CLIENT_ID + KICK_CLIENT_SECRET it is minted
+// via the client-credentials grant and kept in memory only (never written to
+// disk or logged); otherwise the static KICK_ACCESS_TOKEN is used unchanged.
+export class KickToken {
+  private token = "";
+  private expiresAt = 0;
+  private pending?: Promise<string>;
+  private retryAt = 0;
+  private backoff = 1000;
+  constructor(
+    private auth: Pick<KickAuth, "access" | "client" | "secret">,
+    private fetchImpl: typeof fetch = fetch,
+    private now: () => number = Date.now,
+  ) { }
+  get usesClientCredentials() {
+    return !!(this.auth.client?.trim() && this.auth.secret?.trim());
+  }
+  get configured() {
+    return this.usesClientCredentials || !!this.auth.access;
+  }
+  // Current minted value, so the redactor can hide it; empty until fetched.
+  current() {
+    return this.token;
+  }
+  async get(force = false): Promise<string> {
+    if (!this.usesClientCredentials) return this.auth.access;
+    // Refresh a minute early so a request never races the expiry.
+    if (!force && this.token && this.now() < this.expiresAt - 60000)
+      return this.token;
+    this.pending ??= this.refresh().finally(() => {
+      this.pending = undefined;
+    });
+    return this.pending;
+  }
+  private async refresh() {
+    // Same 1s..30s doubling backoff as the chat reconnect loops, so a bad
+    // secret or an id.kick.com outage cannot turn into a request storm.
+    if (this.now() < this.retryAt)
+      throw new Error("Kick token refresh is backing off; try again shortly");
+    try {
+      const response = await this.fetchImpl("https://id.kick.com/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "client_credentials",
+          client_id: this.auth.client!.trim(),
+          client_secret: this.auth.secret!.trim(),
+        }).toString(),
+        signal: AbortSignal.timeout(10000),
+      });
+      // Only the status is reported; the body may echo credentials.
+      if (!response.ok)
+        throw new Error(`Kick token request failed (${response.status})`);
+      const body = (await response.json()) as {
+        access_token?: unknown;
+        expires_in?: unknown;
+      };
+      if (typeof body.access_token !== "string" || !body.access_token)
+        throw new Error("Kick token response had no access token");
+      const seconds = Number(body.expires_in);
+      this.token = body.access_token;
+      this.expiresAt =
+        this.now() + (Number.isFinite(seconds) && seconds > 0 ? seconds : 3600) * 1000;
+      this.backoff = 1000;
+      this.retryAt = 0;
+      return this.token;
+    } catch (error) {
+      this.retryAt = this.now() + this.backoff;
+      this.backoff = Math.min(30000, this.backoff * 2);
+      throw error;
+    }
+  }
+}
 export class KickChat {
   private server?: Server;
   private publicKey = "";
   constructor(
-    private auth: { access: string; broadcaster: string },
+    private auth: KickAuth,
     private port: number,
     private host: string,
     private webhookUrl: string,
@@ -434,17 +513,19 @@ export class KickChat {
     private receive: Receive,
     private status: Status,
     private since: () => number,
+    private token = new KickToken(auth),
+    private fetchImpl: typeof fetch = fetch,
   ) { }
   async start() {
     if (
-      !this.auth.access ||
+      !this.token.configured ||
       !this.auth.broadcaster ||
       !this.webhookUrl.startsWith("https://")
     )
       throw new Error(
-        "Kick token, broadcaster ID and HTTPS webhook URL are required",
+        "Kick token (or client ID + secret), broadcaster ID and HTTPS webhook URL are required",
       );
-    const key = await fetch("https://api.kick.com/public/v1/public-key", {
+    const key = await this.fetchImpl("https://api.kick.com/public/v1/public-key", {
       signal: AbortSignal.timeout(10000),
     });
     if (!key.ok) throw new Error("Kick verification key unavailable");
@@ -521,12 +602,11 @@ export class KickChat {
       this.server!.once("error", reject);
       this.server!.listen(this.port, this.host, resolve);
     });
-    const response = await fetch(
-      "https://api.kick.com/public/v1/events/subscriptions",
-      {
+    const subscribe = async (force = false) =>
+      this.fetchImpl("https://api.kick.com/public/v1/events/subscriptions", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${this.auth.access}`,
+          Authorization: `Bearer ${await this.token.get(force)}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -539,8 +619,17 @@ export class KickChat {
           method: "webhook",
         }),
         signal: AbortSignal.timeout(10000),
-      },
-    );
+      });
+    let response: Response;
+    try {
+      response = await subscribe();
+      // A minted token can be revoked early; refresh once and retry on 401.
+      if (response.status === 401 && this.token.usesClientCredentials)
+        response = await subscribe(true);
+    } catch (error) {
+      this.stop();
+      throw error;
+    }
     if (!response.ok && response.status !== 409) {
       this.stop();
       throw new Error(`Kick subscription failed (${response.status})`);

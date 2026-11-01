@@ -18,7 +18,7 @@ import { Previews } from "./preview.js";
 import { Filter } from "./filter.js";
 import { Jev } from "./jev.js";
 import { Controller, type ChatPlatforms } from "./controller.js";
-import { YouTubeChat, TwitchChat, KickChat } from "./chat.js";
+import { YouTubeChat, TwitchChat, KickChat, KickToken } from "./chat.js";
 import { Obs } from "./obs.js";
 import { makeHttp } from "./http.js";
 import { BrowserSandbox } from "./browser-sandbox.js";
@@ -120,9 +120,22 @@ const privateValues = [
   secrets.twitch.refresh,
   secrets.twitch.secret,
   secrets.kick.access,
+  secrets.kick.secret,
   secrets.obs,
 ];
-const clean = redactor(privateValues, root);
+const kickToken = new KickToken(secrets.kick);
+const mintedKickTokens: string[] = [];
+let redactKnown = redactor(privateValues, root);
+// The Kick app token is minted at runtime, so rebuild the redactor whenever it
+// rotates; earlier tokens stay redacted too.
+const clean: typeof redactKnown = (value, limit, streaming) => {
+  const live = kickToken.current();
+  if (live && !mintedKickTokens.includes(live)) {
+    mintedKickTokens.push(live);
+    redactKnown = redactor([...privateValues, ...mintedKickTokens], root);
+  }
+  return redactKnown(value, limit, streaming);
+};
 const presentation = new PresentationControls(store, clean);
 // Persist running elapsed time periodically; a restart restores the last checkpoint paused.
 const presentationCheckpoint = setInterval(() => {
@@ -178,6 +191,7 @@ const kick = new KickChat(
   receive,
   connection,
   since,
+  kickToken,
 );
 const obs = new Obs(
   settings.obsUrl,

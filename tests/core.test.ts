@@ -12,6 +12,8 @@ import {
   kickMessage,
   twitchMessage,
   validKickSignature,
+  KickChat,
+  KickToken,
 } from "../server/chat.js";
 import { generateKeyPairSync, sign } from "node:crypto";
 import type { Activity, ChatMessage, Evaluation } from "../shared/types.js";
@@ -767,4 +769,81 @@ test("Kick verifies exact bytes, timestamps and signatures", () => {
     validKickSignature(pem, raw, { id: "event", timestamp, signature }, 600000),
     false,
   );
+});
+test("Kick client credentials mint, cache, refresh early and back off without network", async () => {
+  let now = 0;
+  const calls: string[] = [];
+  let fail = false;
+  const fetchImpl = (async (url: string, init: RequestInit) => {
+    calls.push(String(init.body));
+    assert.equal(url, "https://id.kick.com/oauth/token");
+    if (fail) return new Response("{}", { status: 500 });
+    return Response.json({ access_token: `minted-${calls.length}`, expires_in: 3600 });
+  }) as unknown as typeof fetch;
+  const token = new KickToken(
+    { access: "static-token", client: "client-id", secret: "client-secret" },
+    fetchImpl,
+    () => now,
+  );
+  assert.equal(token.current(), "");
+  assert.equal(await token.get(), "minted-1");
+  assert.match(calls[0], /grant_type=client_credentials/);
+  assert.match(calls[0], /client_id=client-id/);
+  assert.match(calls[0], /client_secret=client-secret/);
+  now = 3600_000 - 120_000;
+  assert.equal(await token.get(), "minted-1");
+  now = 3600_000 - 30_000;
+  assert.equal(await token.get(), "minted-2");
+  assert.equal(token.current(), "minted-2");
+  fail = true;
+  await assert.rejects(token.get(true), /failed \(500\)/);
+  await assert.rejects(token.get(true), /backing off/);
+  assert.equal(calls.length, 3);
+  now += 1000;
+  fail = false;
+  assert.equal(await token.get(true), "minted-4");
+});
+test("Kick without client credentials keeps using KICK_ACCESS_TOKEN", async () => {
+  const token = new KickToken({ access: "static-token", client: "id", secret: "" }, (() => {
+    throw new Error("no network expected");
+  }) as unknown as typeof fetch);
+  assert.equal(token.usesClientCredentials, false);
+  assert.equal(await token.get(), "static-token");
+  assert.equal(token.current(), "");
+});
+test("Kick subscription refreshes the minted token once after a 401", async () => {
+  const store = new Store(":memory:");
+  const seen: string[] = [];
+  let minted = 0;
+  const fetchImpl = (async (url: string, init?: RequestInit) => {
+    if (url.endsWith("/public-key"))
+      return Response.json({ data: { public_key: "-----BEGIN PUBLIC KEY-----x" } });
+    if (url.startsWith("https://id.kick.com/"))
+      return Response.json({ access_token: `minted-${++minted}`, expires_in: 3600 });
+    const auth = new Headers(init?.headers).get("authorization") ?? "";
+    seen.push(auth);
+    return new Response(null, { status: auth === "Bearer minted-1" ? 401 : 204 });
+  }) as unknown as typeof fetch;
+  const auth = { access: "", broadcaster: "42", client: "id", secret: "secret" };
+  const statuses: string[] = [];
+  const kick = new KickChat(
+    auth,
+    0,
+    "127.0.0.1",
+    "https://example.test/kick",
+    store,
+    () => {},
+    (_platform, status) => statuses.push(status),
+    () => 0,
+    new KickToken(auth, fetchImpl),
+    fetchImpl,
+  );
+  try {
+    await kick.start();
+    assert.deepEqual(seen, ["Bearer minted-1", "Bearer minted-2"]);
+    assert.deepEqual(statuses, ["Subscribed; waiting for signed events"]);
+  } finally {
+    kick.stop();
+    store.close();
+  }
 });

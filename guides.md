@@ -135,8 +135,20 @@ Prompt Arena can use a Kick **App Access Token**. This is the simpler server-to-
    Put that exact URL in `settings.json` as `kickWebhookUrl`. Do not enter `localhost` in the webhook field because Kick's servers cannot reach your Mac through localhost. Do not expose ports `3210`, `3211`, or `3213`.
 8. Save the app, then copy the **Client ID** and **Client Secret**. The Client Secret is private; never paste it into chat or commit it to Git.
 
-### 2. Generate an App Access Token
+### 2. Let the server refresh the token automatically (recommended)
 
+App access tokens expire. To avoid regenerating one by hand, open `.env.local` in your editor and add the Client ID and Client Secret from step 1:
+
+```text
+KICK_CLIENT_ID=paste_the_client_id_here
+KICK_CLIENT_SECRET=paste_the_client_secret_here
+```
+
+When both are set, the server requests an App Access Token from `https://id.kick.com/oauth/token` (client-credentials grant) at startup, keeps it in memory only, refreshes it shortly before it expires and once more if Kick answers `401 Unauthorized`. The token is never written to disk or logged, and both the Client Secret and the live token are redacted from anything shown on stream. `KICK_ACCESS_TOKEN` can then stay empty. You still need a token once, in the same terminal, to look up the broadcaster ID in step 4, so run step 3 anyway but skip pasting the token into `.env.local`.
+
+### 3. Generate an App Access Token manually
+
+Use this if you prefer not to store the Client Secret in `.env.local`, and to look up the broadcaster ID below.
 Run these commands in Mac Terminal. Pasted values are kept in temporary shell variables; the Client Secret is hidden while typing:
 
 ```sh
@@ -157,7 +169,7 @@ echo 'Kick access token copied to clipboard.'
 unset kick_client_secret kick_token_response
 ```
 
-Open `.env.local` in your editor and paste the copied token:
+If you did not set `KICK_CLIENT_ID` and `KICK_CLIENT_SECRET`, open `.env.local` in your editor and paste the copied token:
 
 ```text
 KICK_ACCESS_TOKEN=paste_the_token_here
@@ -169,7 +181,7 @@ Do not run `echo $kick_access_token`, because that prints the secret to the term
 printf '' | pbcopy
 ```
 
-### 3. Get the broadcaster ID for `kick.com/lofies`
+### 4. Get the broadcaster ID for `kick.com/lofies`
 
 With `kick_access_token` still available in the same terminal, run:
 
@@ -194,7 +206,7 @@ Clean the remaining temporary values:
 unset kick_client_id kick_access_token kick_channel_response
 ```
 
-App access tokens expire. If Kick later returns `401 Unauthorized`, repeat the token-generation step and replace `KICK_ACCESS_TOKEN` in `.env.local`.
+With `KICK_CLIENT_ID` and `KICK_CLIENT_SECRET` set, expired tokens are replaced automatically. Without them, if Kick later returns `401 Unauthorized`, repeat step 3 and replace `KICK_ACCESS_TOKEN` in `.env.local`.
 
 Kick references: [App setup](https://github.com/KickEngineering/KickDevDocs/blob/main/getting-started/kick-apps-setup.md), [OAuth token flow](https://github.com/KickEngineering/KickDevDocs/blob/main/getting-started/generating-tokens-oauth2-flow.md), and [Channels API](https://api.kick.com/swagger/doc.yaml).
 
