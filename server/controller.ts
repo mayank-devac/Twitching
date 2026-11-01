@@ -591,8 +591,10 @@ export class Controller extends EventEmitter {
     };
     this.syncCollection();
   }
+  // Runner activity is already redacted at its source (accumulated text, never
+  // a fragment; see PairRunner.launch), and the redactor is idempotent, so a
+  // second full pass here would only repeat work on every streamed delta.
   private activity(event: Activity) {
-    event = { ...event, text: this.clean(event.text, Infinity) };
     const index = this.state.events.findIndex((e) => e.id === event.id);
     if (index >= 0) {
       if (this.state.events[index].text === event.text) return;

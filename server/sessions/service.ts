@@ -450,10 +450,12 @@ export class Sessions extends EventEmitter {
       .map((i) => `${i.kind}: ${i.text}`)
       .join("\n")
       .slice(-24000);
-    const add = (item: TimelineItem) => {
+    // Host text and composed labels are redacted here; activity text passes
+    // redacted=true because the runner already redacted its accumulated text.
+    const add = (item: TimelineItem, redacted = false) => {
       this.store.conversationItem(id, {
         ...item,
-        text: this.clean(item.text, Infinity),
+        text: redacted ? item.text : this.clean(item.text, Infinity),
       });
     };
     add({ id: `${run}:prompt`, run, kind: "prompt", text, at: now });
@@ -504,18 +506,16 @@ export class Sessions extends EventEmitter {
             // Host-only command lanes remain private unless explicitly selected; read contents are never published.
             if (event.lane && !(event.lane === "read" && event.publicFile))
               return;
+            const label = event.lane === "read"
+              ? `Read ${event.publicFile}`
+              : event.kind === "complete" ? "Agent finished" : undefined;
             add({
               id: `${run}:${event.id}`,
               run,
               at: event.at,
               kind: event.lane === "read" ? "read" : event.kind,
-              text:
-                event.lane === "read"
-                  ? `Read ${event.publicFile}`
-                  : event.kind === "complete"
-                    ? "Agent finished"
-                    : event.text,
-            });
+              text: label ?? event.text,
+            }, label === undefined);
             c.status = "running";
             c.updatedAt = Date.now();
             this.store.saveConversation(c);

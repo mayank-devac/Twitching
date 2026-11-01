@@ -54,6 +54,14 @@ export class JsonLines {
     }
   }
 }
+// Events validated by parseValidatedCliEvent; receive() trusts these instead of
+// running the zod schema a second time on every streamed line.
+const validated = new WeakSet<object>();
+export function parseValidatedCliEvent(value: unknown) {
+  const event = parseCliEvent(value);
+  if (event) validated.add(event);
+  return event;
+}
 export class ActivityAdapter {
   successful = false;
   failure?: string;
@@ -111,8 +119,11 @@ export class ActivityAdapter {
     this.shown.set(key, next);
     this.emit(this.make(kind, next, key));
   }
+  // Raw values (replay, tests) are still validated; the runner's events were
+  // validated once already by parseValidatedCliEvent.
   receive(value: unknown) {
-    const e = parseCliEvent(value);
+    const e = value !== null && typeof value === "object" && validated.has(value)
+      ? value as CliEvent : parseCliEvent(value);
     if (!e) return;
     if (this.agent === "codex") this.codex(e);
     else this.cursor(e);

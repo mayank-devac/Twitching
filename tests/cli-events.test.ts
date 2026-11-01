@@ -23,3 +23,12 @@ test("validated events select only the correct CLI's edit trigger", () => {
   assert.equal(cliAdapters.codex.edited(cursor), false);
   assert.ok(parseCliEvent({ type: "turn.completed", error: null }));
 });
+test("runner-validated events and raw values produce the same activity", async () => {
+  const { parseValidatedCliEvent } = await import("../server/activity.js");
+  const raw = { type: "item.completed", item: { id: "m", type: "agent_message", text: "hello" } };
+  const fromRaw: Activity[] = [], fromParsed: Activity[] = [];
+  new ActivityAdapter("codex", 1, (text) => text, (e) => fromRaw.push(e), () => 1).receive(raw);
+  new ActivityAdapter("codex", 1, (text) => text, (e) => fromParsed.push(e), () => 1).receive(parseValidatedCliEvent(raw));
+  assert.deepEqual(fromParsed, fromRaw);
+  assert.equal(parseValidatedCliEvent({ type: "assistant", message: { content: "private-invalid" } }), undefined);
+});

@@ -1,4 +1,3 @@
-import { parseCliEvent } from "./cli/events.js";
 import { randomUUID } from "node:crypto";
 import type {
   Activity,
@@ -8,7 +7,7 @@ import type {
   SessionOptions,
   Task,
 } from "../shared/types.js";
-import { JsonLines } from "./activity.js";
+import { JsonLines, parseValidatedCliEvent } from "./activity.js";
 import { Docker } from "./docker.js";
 import { failureKind } from "./redact.js";
 import { configuredSessions, sessionLabel } from "../shared/types.js";
@@ -30,6 +29,8 @@ export interface PairRunner {
   recover(): Promise<void>;
   preflight(): Promise<string[]>;
   quota(): Promise<{ remainingPercent: number; resetsAt: number }>;
+  // emit receives only redacted text: activity adapters redact the accumulated
+  // text and diffs are built from redacted files, so consumers need not redo it.
   launch(
     round: number,
     task: Task,
@@ -227,7 +228,8 @@ export class CliRunner implements PairRunner {
     };
     const lines = new JsonLines(
       (value) => {
-        const e = parseCliEvent(value);
+        // Parse once; the adapter recognises the validated event and skips re-parsing.
+        const e = parseValidatedCliEvent(value);
         if (!e) return;
         adapter.receive(e);
         if (this.options.experience !== "session" && cliAdapters[session.cli].edited(e)) void diffs.capture();
