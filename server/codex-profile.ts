@@ -28,7 +28,7 @@ plugins = false
 hooks = false
 `;
 
-export async function seedArenaCodexLogin(
+async function seedArenaCodexLogin(
   root: string,
   realHome = process.env.HOME,
 ) {

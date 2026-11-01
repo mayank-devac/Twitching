@@ -3,7 +3,7 @@ import { z } from "zod";
 import { JsonLines } from "./activity.js";
 
 // Caller-facing error texts. Raw provider errors never leave this client.
-export interface CodexAppServerMessages {
+interface CodexAppServerMessages {
   rejected: string; // the server answered with a JSON-RPC error
   closed: string; // the process exited before answering
   failed?: string; // the process could not start (defaults to closed)
@@ -11,7 +11,7 @@ export interface CodexAppServerMessages {
   timeout(method: string): string;
   refused: string; // reply text for server-initiated requests
 }
-export interface CodexAppServerOptions {
+interface CodexAppServerOptions {
   messages: CodexAppServerMessages;
   timeoutMs?: number;
   maxLine?: number;

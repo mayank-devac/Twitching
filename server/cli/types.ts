@@ -2,7 +2,7 @@ import type { CliEvent } from "./events.js";
 import type { Activity, Agent, SessionConfig } from "../../shared/types.js";
 import type { Docker } from "../docker.js";
 
-export interface CliActivity {
+interface CliActivity {
   successful: boolean;
   failure?: string;
   receive(event: CliEvent): void;
@@ -15,7 +15,7 @@ export interface CliModel {
   id: string;
   efforts: string[];
 }
-export type Clean = (
+type Clean = (
   text: string,
   limit?: number,
   streaming?: boolean,

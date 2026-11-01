@@ -82,7 +82,7 @@ export async function fingerprintFile(path: string, root: string) {
   await assertInside(path, root);
   return createHash("sha256").update(await readFile(path)).digest("hex");
 }
-export type LoginEntryFilter = (path: string, directory: boolean) => boolean;
+type LoginEntryFilter = (path: string, directory: boolean) => boolean;
 export async function loginFiles(
   home: string,
   roots: readonly string[],

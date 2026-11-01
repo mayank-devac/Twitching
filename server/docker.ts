@@ -62,8 +62,8 @@ const rateLimits = z.object({
   rateLimits: usageBucket.nullish(),
   rateLimitsByLimitId: z.record(z.string(), usageBucket.nullish()).nullish(),
 });
-export type CodexModel = z.output<typeof modelPage>["data"][number];
-export interface CodexInfo {
+type CodexModel = z.output<typeof modelPage>["data"][number];
+interface CodexInfo {
   account?: string;
   models: CodexModel[];
   limits: z.output<typeof rateLimits>;
@@ -83,7 +83,7 @@ export interface RunApproval {
   nativeApproved?: boolean;
 }
 
-export interface DockerOptions {
+interface DockerOptions {
   root: string;
   image: string;
 }

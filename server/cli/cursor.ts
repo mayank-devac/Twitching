@@ -2,7 +2,7 @@ import { ActivityAdapter } from "../activity.js";
 import { missingLoginError } from "../cli-startup-repair.js";
 import type { CliAdapter, CliModel } from "./types.js";
 // Cursor prints one model ID at the beginning of each listing row.
-export function cursorModels(output: string): CliModel[] {
+function cursorModels(output: string): CliModel[] {
   const models = output
     .replace(/\x1b\[[0-9;]*m/g, "")
     .split("\n")
