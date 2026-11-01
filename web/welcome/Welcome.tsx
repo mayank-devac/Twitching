@@ -382,8 +382,9 @@ export function Welcome({
     await perform(async () => {
       if (!(await switchPath(path))) return;
       if (path === "arena") {
+        // switchPath("arena") above already handed the arena over (the server's
+        // arena action is idempotent and does not read settings), so only save.
         await save();
-        await request("/api/sessions/action", { action: "arena" });
         await remember("arena");
         location.assign("/control");
         return;
