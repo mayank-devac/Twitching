@@ -21,6 +21,8 @@ export interface PromptParts {
 }
 
 const str = (value: unknown) => (typeof value === "string" ? value : "");
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
 const extOf = (name: string) =>
   (/\.([A-Za-z0-9]{1,8})$/.exec(name.trim())?.[1] ?? "file").toUpperCase();
 const basename = (path: string) => path.split(/[\\/]/).pop() ?? path;
@@ -38,15 +40,17 @@ export function parsePrompt(input: string): PromptParts {
   const annotations: PromptAnnotation[] = [];
   const replies: PromptReply[] = [];
   const files: PromptFile[] = [];
-  const pushAnnotations = (rows: unknown[]) => {
-    for (const row of rows) {
-      const entry = (row ?? {}) as Record<string, unknown>;
+  // `firstIndex` is where numbering starts: each <pasted_content> block is its own
+  // export numbered from 1, matching its :codex-annotation{index="N"} links.
+  const pushAnnotations = (rows: unknown[], firstIndex: number) => {
+    rows.forEach((row, i) => {
+      const entry = isRecord(row) ? row : {};
       annotations.push({
-        index: annotations.length + 1,
+        index: firstIndex + i,
         quote: str(entry.text),
         comment: str(entry.annotation),
       });
-    }
+    });
   };
 
   body = body.replace(
@@ -54,8 +58,8 @@ export function parsePrompt(input: string): PromptParts {
     (whole, source: string) => {
       const value = json(source);
       if (!Array.isArray(value)) return whole;
-      for (const entry of value) {
-        const row = (entry ?? {}) as Record<string, unknown>;
+      for (const row of value) {
+        if (!isRecord(row)) continue;
         if (str(row.question) || str(row.answer))
           replies.push({
             header: str(row.header) || undefined,
@@ -75,10 +79,10 @@ export function parsePrompt(input: string): PromptParts {
       if (
         !Array.isArray(value) ||
         !value.length ||
-        !value.every((row) => row && typeof row === "object" && "text" in row)
+        !value.every((row) => isRecord(row) && "text" in row)
       )
         return whole;
-      pushAnnotations(value);
+      pushAnnotations(value, 1);
       return "";
     },
   );
@@ -94,7 +98,7 @@ export function parsePrompt(input: string): PromptParts {
     ) {
       const value = json(body.slice(jsonStart, end + 2));
       if (!Array.isArray(value)) continue;
-      pushAnnotations(value);
+      pushAnnotations(value, annotations.length + 1);
       body = body.slice(0, preamble) + body.slice(end + 2);
       break;
     }
