@@ -170,7 +170,10 @@ Architecture and tech debt (bigger refactors)
 │ A10 │ Visibility filtering and activity projection are implemented twice. Privacy rules are involved.         │ A shared/visibility.ts used by both the arena and session paths.                         │
 ├─────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ A11 │ Each chat platform is spelled out as its own boolean in about 12 places, and the reconnect logic is     │ Record<ChatPlatform, boolean>, a ChatSource interface and one shared Backoff helper.     │
-│     │ copied 3 times.                                                                                                                                                          │
+│     │ copied 3 times. (VERIFIED DONE 2026-11: chat/source.ts ChatSource + startChatSources,                    │                                                                                          │
+│     │ shared chat/backoff.ts Backoff+Reconnect used by all 3 clients. LEFTOVER: skipYoutube/                   │                                                                                          │
+│     │ skipTwitch/skipKick booleans in scripts/stream/options.ts, show.ts, startup-config.ts;                   │                                                                                          │
+│     │ !skip* triples in server/index.ts:106-108,124-126,305-307.)                                              │                                                                                          │
 ├─────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────┤
 │ A12 │ ShowState is a bag of about 30 optional fields, and the session overlay fakes an adiscriminated union on phase, and a split socket payload.                              │
 │     │ the socket.                                                                                             │                                                                                          │
