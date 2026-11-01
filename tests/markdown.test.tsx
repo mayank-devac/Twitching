@@ -25,9 +25,11 @@ test("agent response renders a safe, readable GFM table", () => {
     </ReactMarkdown>,
   );
   assert.match(html, /class="markdown-table-scroll"[^>]*tabindex="0"/);
-  assert.match(html, /<table>[\s\S]*<th align="left">Session<\/th>/);
-  assert.match(html, /<td align="center"><strong>Codex<\/strong><\/td>/);
-  assert.match(html, /<td align="right"><code>gpt-6<\/code><\/td>/);
+  // react-markdown 10 (hast-util-to-jsx-runtime) maps the obsolete `align`
+  // attribute to an inline text-align style, so column alignment is kept.
+  assert.match(html, /<table>[\s\S]*<th style="text-align:left">Session<\/th>/);
+  assert.match(html, /<td style="text-align:center"><strong>Codex<\/strong><\/td>/);
+  assert.match(html, /<td style="text-align:right"><code>gpt-6<\/code><\/td>/);
   assert.match(html, /<pre><code[^>]*>\| Plain \| code \|/);
   assert.equal((html.match(/<table>/g) ?? []).length, 1);
   assert.doesNotMatch(html, /<script|<img|pixel\.png/);
