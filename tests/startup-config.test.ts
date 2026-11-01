@@ -6,6 +6,8 @@ import {
 import { chooseSessions, parseSessionSpec } from "../scripts/session-selection.js";
 import { fetchBoot, sameBoot } from "../scripts/boot-client.js";
 import { controlOrigin } from "../shared/boot.js";
+import { parseStreamOptions } from "../scripts/stream/options.js";
+import { parseLauncherState, showIsBusy } from "../scripts/stream/control-api.js";
 
 // Public fixture only; importing the parser must never load .env.local.
 const raw = {
@@ -84,4 +86,35 @@ test("launcher boot handshake validates the identity and brackets IPv6 hosts", a
   assert.deepEqual(await fetchBoot("http://x", 10, reply(identity, 500)), {});
   assert.equal(sameBoot(identity, { ...identity }), true);
   assert.equal(sameBoot(identity, { ...identity, startedAt: 6 }), false);
+});
+
+test("guided launcher flags parse into one options record", () => {
+  const saved = { ...process.env };
+  try {
+    const options = parseStreamOptions("check", [
+      "--codex", "--mode", "live", "--chat", "yt", "--chat", "kick", "--skip", "kick", "--verify",
+    ]);
+    assert.equal(options.command, "check");
+    assert.equal(options.singleAgent, "codex");
+    assert.equal(options.mode, "live");
+    assert.equal(options.verify, true);
+    assert.deepEqual(
+      [options.skipYoutube, options.skipTwitch, options.skipKick],
+      [false, true, true],
+    );
+    assert.equal(process.env.ARENA_SINGLE_AGENT, "codex");
+  } finally {
+    for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
+    Object.assign(process.env, saved);
+  }
+});
+
+test("launcher state reads only the fields it needs and treats odd shapes as busy", () => {
+  const idle = parseLauncherState({ status: "paused", reason: "x", extra: 1, round: { attempts: { a: { status: "done" } } } });
+  assert.equal(idle?.status, "paused");
+  assert.equal(showIsBusy(idle), false);
+  assert.equal(showIsBusy(parseLauncherState({ status: "paused", round: { attempts: { a: { status: "running" } } } })), true);
+  assert.equal(showIsBusy(parseLauncherState({ status: "running" })), true);
+  assert.equal(parseLauncherState({ reason: "no status" }), undefined);
+  assert.equal(showIsBusy(undefined), true);
 });
