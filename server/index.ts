@@ -12,7 +12,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { access, mkdir } from "node:fs/promises";
 import { settings, root, secrets, housePrompts } from "./config.js";
 import { Store } from "./store.js";
-import { redactor, credentialGuard } from "./redact.js";
+import { credentialGuard } from "./redact.js";
+import { createRedactor } from "./secrets.js";
 import { Docker } from "./docker.js";
 import { CliRunner } from "./runner.js";
 import { Previews } from "./preview.js";
@@ -139,31 +140,9 @@ const applyPreferences = (value: QuickPreferences) => {
 };
 applyPreferences(preferences.get().value);
 const media = new BreakMedia(root, store);
-const privateValues = [
-  secrets.jev,
-  secrets.youtube.access,
-  secrets.youtube.refresh,
-  secrets.youtube.secret,
-  secrets.twitch.access,
-  secrets.twitch.refresh,
-  secrets.twitch.secret,
-  secrets.kick.access,
-  secrets.kick.secret,
-  secrets.obs,
-];
 const kickToken = new KickToken(secrets.kick);
-const mintedKickTokens: string[] = [];
-let redactKnown = redactor(privateValues, root);
-// The Kick app token is minted at runtime, so rebuild the redactor whenever it
-// rotates; earlier tokens stay redacted too.
-const clean: typeof redactKnown = (value, limit, streaming) => {
-  const live = kickToken.current();
-  if (live && !mintedKickTokens.includes(live)) {
-    mintedKickTokens.push(live);
-    redactKnown = redactor([...privateValues, ...mintedKickTokens], root);
-  }
-  return redactKnown(value, limit, streaming);
-};
+// The Kick app token is minted at runtime; createRedactor hides every token it has seen.
+const { clean, privateValues } = createRedactor(secrets, root, () => kickToken.current());
 const presentation = new PresentationControls(store, clean);
 // Persist running elapsed time periodically; a restart restores the last checkpoint paused.
 const presentationCheckpoint = setInterval(() => {

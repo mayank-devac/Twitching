@@ -389,10 +389,11 @@ export class Controller extends EventEmitter {
     if (
       this.state.mode === "live" &&
       !this.usingPlaylist() &&
-      this.options.runnerMode === "native"
+      this.options.runnerMode === "native" &&
+      !this.options.allowNativeLiveChat
     )
       throw new Error(
-        "Live chat rounds need the Docker runner; native mode is for private rehearsal and sessions.",
+        "Live chat rounds need the Docker runner. Native live shows use the host prompt list unless you start with --allow-native-chat.",
       );
     if (
       this.state.mode === "live" &&

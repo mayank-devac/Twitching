@@ -249,7 +249,7 @@ Failures print specific fixes. Interactive checks offer image builds, network se
 - **Consent:** Type `NATIVE` through `start_stream.sh`
 - **Lifetime:** `ARENA_NATIVE_APPROVED` applies only to the launched app process; never saved in settings
 - **Coding sessions:** Without the launcher approval, each managed native session asks for its own consent; it is kept in memory for that conversation only and asked again after a restart
-- **Live chat:** Refused on the native runner, because viewer prompts would run as your user. Live native shows are limited to the host's prompt list
+- **Live chat:** Native mode defaults to host prompts only; live chat is disabled unless explicitly enabled. Enable it with `--allow-native-chat` and confirm `NATIVE CHAT`; viewer prompts then run with your local-user permissions, so only do this if you fully trust the environment. The opt-in lasts for that launch and is never saved
 - **Direct app start:** Cannot launch native coding jobs without confirmation
 - **Codex login:** Private arena login
 - **Cursor login:** Native subscription login; CLI must expose `--sandbox`

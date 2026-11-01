@@ -127,8 +127,8 @@ export function makeHttp(
     settingsRoutes(app, controller, options.quick, guard);
   if (options.sessions)
     sessionRoutes(app, options.sessions, guard, options.openObs ?? (async () => { throw new Error("Open OBS manually"); }), (id) => { const p = options.presentation?.get(id); return !!(p?.hidden || p?.breakActive); }, rehearsal, () => options.presentation?.selections());
-  // Body parsing stays ahead of the guard here, as before, so malformed JSON keeps its 400.
-  app.post("/api/action", express.json({ limit: "2kb" }), guard("Use the local control panel to operate the show"), routeAction(async (req) => {
+  // The guard runs before body parsing, so an unauthenticated caller gets 403 and never has a body read.
+  app.post("/api/action", guard("Use the local control panel to operate the show"), express.json({ limit: "2kb" }), routeAction(async (req) => {
     const parsed = requestSchema.safeParse(req.body);
     if (!parsed.success) throw new HttpError(400, "Invalid control action");
     const { action, id, text, choice, youtube, twitch, kick } = parsed.data;

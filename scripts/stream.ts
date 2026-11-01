@@ -4,7 +4,7 @@ import {
   selectStartupSessions,
   startupConfigurationId,
 } from "../server/startup-config.js";
-import { redactor } from "../server/redact.js";
+import { createRedactor } from "../server/secrets.js";
 import { controlOrigin } from "../shared/boot.js";
 import { rootIdentity } from "./boot-client.js";
 import { chooseSessions } from "./session-selection.js";
@@ -99,15 +99,7 @@ try {
   const { NativeHost } = await import("../server/native-host.js");
   const { CliRunner } = await import("../server/runner.js");
   const { Obs } = await import("../server/obs.js");
-  const privateValues = [
-    secrets.jev,
-    ...Object.values(secrets.youtube),
-    ...Object.values(secrets.twitch),
-    secrets.kick.access,
-    secrets.kick.secret,
-    secrets.obs,
-  ];
-  const clean = redactor(privateValues, root);
+  const { clean, privateValues } = createRedactor(secrets, root);
   launcher.safeMessage = clean;
   const store = new Store(":memory:");
   const docker = new Docker(store, { root, image: settings.agentImage });

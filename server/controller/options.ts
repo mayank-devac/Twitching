@@ -10,6 +10,8 @@ export interface ControllerOptions {
   jevCriteria?: string;
   mode: "live" | "rehearsal";
   runnerMode?: RunnerMode;
+  // Explicit opt-in: viewer chat prompts may run on the native runner. Defaults to off.
+  allowNativeLiveChat?: boolean;
   sessions?: SessionConfig[];
   singleAgent?: Agent;
   codexModel: string;

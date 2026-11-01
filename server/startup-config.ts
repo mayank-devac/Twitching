@@ -64,6 +64,9 @@ export const startupSchema = z.object({
     .default(skipRecord(true)),
   promptFile: z.string().min(1).default(DEFAULT_PROMPT_FILE),
   promptPlaylist: z.boolean().default(false),
+  // Process-lifetime opt-in (ARENA_NATIVE_LIVE_CHAT), never read from settings.json:
+  // lets viewer chat prompts run on the native runner as the host user.
+  allowNativeLiveChat: z.boolean().default(false),
 });
 export type StartupSettings = z.infer<typeof startupSchema>;
 export function normalizeStartup(
@@ -108,6 +111,7 @@ export function resolveStartup(
       // Chat collection is opt-in; explicit startup flags and saved file choices still win.
       skips: startupSkips(raw, env, promptPlaylist),
       promptPlaylist,
+      allowNativeLiveChat: env.ARENA_NATIVE_LIVE_CHAT === "1",
     },
     root,
   );

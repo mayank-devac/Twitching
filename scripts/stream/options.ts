@@ -18,6 +18,7 @@ Interactive start also offers session/model selection from installed CLIs.
 --skip yt, --skip twitch and --skip kick omit those chat connections in live mode. Repeat --skip for each.
 --prompts runs tasks from prompts.txt (or settings.promptFile) for the selected CLIs, then ends the show. OBS only; chat is skipped.
 If that file already has tasks, prompt-list mode is used unless you pass --no-prompts.
+Native mode defaults to host prompts only; live chat is disabled unless explicitly enabled with --allow-native-chat (viewer prompts then run with your local-user permissions).
 --verify explicitly runs type checks, tests, fixture replay, build and (Docker mode) isolation tests.
 Without --verify, checks use saved CLI logins/models/quota and a temporary isolated preview.
 Check never starts a broadcast or coding round. Native agents still require Docker previews.
@@ -33,6 +34,8 @@ export interface StreamOptions {
   skips: Record<ChatPlatform, boolean>;
   forcePrompts: boolean;
   ignorePrompts: boolean;
+  // Explicit opt-in for viewer chat on the native runner; off unless --allow-native-chat.
+  allowNativeChat: boolean;
   singleAgent?: Agent;
   requestedSessions: SessionConfig[];
 }
@@ -58,6 +61,7 @@ export function parseStreamOptions(
     skips: skipRecord(true),
     forcePrompts: false,
     ignorePrompts: false,
+    allowNativeChat: false,
     requestedSessions: [],
   };
   const setSkip = (value: string, skip: boolean) => {
@@ -93,6 +97,7 @@ export function parseStreamOptions(
       options.mode = args[++i] as StreamOptions["mode"];
     else if (args[i] === "--runner" && (RUNNER_MODES as readonly string[]).includes(args[i + 1] ?? ""))
       options.runnerMode = args[++i] as StreamOptions["runnerMode"];
+    else if (args[i] === "--allow-native-chat") options.allowNativeChat = true;
     else if (args[i] === "--prompts") options.forcePrompts = true;
     else if (args[i] === "--no-prompts") options.ignorePrompts = true;
     else if (args[i] === "--chat" && args[i + 1]) {

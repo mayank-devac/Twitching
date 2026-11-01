@@ -48,6 +48,8 @@ async function launchApp(show: ShowStart) {
       ARENA_RUNNER: show.runnerMode,
       ARENA_SINGLE_AGENT: options.singleAgent ?? "",
       ARENA_NATIVE_APPROVED: show.runnerMode === "native" ? "1" : "0",
+      ARENA_NATIVE_LIVE_CHAT:
+        show.runnerMode === "native" && options.allowNativeChat ? "1" : "0",
       ARENA_PROMPTS: settings.promptPlaylist ? "1" : "0",
       ARENA_NO_PROMPTS: options.ignorePrompts ? "1" : "0",
       ...skipEnvRecord(options.skips),
@@ -115,6 +117,19 @@ export async function startShow(show: ShowStart) {
         "Native mode was not confirmed",
         "Use Docker mode, or rerun and explicitly confirm NATIVE.",
       );
+    if (options.allowNativeChat) {
+      console.log(
+        "\nNATIVE CHAT WARNING: viewer chat prompts will run with your local-user permissions. Only enable this if you fully trust the environment.",
+      );
+      if (
+        (await question("Type NATIVE CHAT to allow live chat on the native runner: ")) !==
+        "NATIVE CHAT"
+      )
+        fix(
+          "Native live chat was not confirmed",
+          "Rerun without --allow-native-chat for host prompts only, or confirm NATIVE CHAT.",
+        );
+    }
   }
   if (
     mode === "live" &&

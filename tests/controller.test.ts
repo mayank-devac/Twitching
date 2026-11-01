@@ -385,7 +385,7 @@ test("public mode is gated on private rehearsal and authentication failure pause
 });
 test("live chat rounds refuse the native runner; rehearsal still starts", async () => {
   const store = new Store(":memory:");
-  const make = (mode: "live" | "rehearsal") => {
+  const make = (mode: "live" | "rehearsal", allowNativeLiveChat = false) => {
     const controller = new Controller(
       store,
       new Filter([]),
@@ -397,7 +397,7 @@ test("live chat rounds refuse the native runner; rehearsal still starts", async 
       new FakeRunner(),
       { validate: async (a, r) => `http://127.0.0.1:3211/page/${a}/${r}` },
       { start: async () => {}, startChats: async () => {}, stop: () => {}, preflight: async () => [], stopBroadcast: async () => {} },
-      { ...options, mode, runnerMode: "native" },
+      { ...options, mode, runnerMode: "native", allowNativeLiveChat },
       (text) => text,
       () => 1000,
     );
@@ -407,6 +407,10 @@ test("live chat rounds refuse the native runner; rehearsal still starts", async 
   };
   try {
     await assert.rejects(make("live").start(), /need the Docker runner/);
+    const optedIn = make("live", true);
+    await optedIn.start();
+    await optedIn.stop("test cleanup", false);
+    await new Promise((r) => setImmediate(r));
     const rehearsal = make("rehearsal");
     await rehearsal.start();
     await rehearsal.stop("test cleanup", false);
