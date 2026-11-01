@@ -3,13 +3,12 @@ import { startupConfigurationId } from "./startup-config.js";
 import { QuickSettings, defaultCriteria } from "./quick-settings.js";
 import { BreakMedia } from "./break-media.js";
 import { defaultVisibility } from "../shared/settings.js";
-import type { QuickPreferences } from "../shared/settings.js";
+import type { ChatPlatform, QuickPreferences } from "../shared/settings.js";
 import { configuredSessions } from "../shared/types.js";
 import { resolve } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { access, mkdir } from "node:fs/promises";
 import { settings, root, secrets, housePrompts } from "./config.js";
-import { ensureYoutubeLiveChatId, twitchStatus } from "./live-platforms.js";
 import { Store } from "./store.js";
 import { redactor, credentialGuard } from "./redact.js";
 import { Docker } from "./docker.js";
@@ -18,7 +17,14 @@ import { Previews } from "./preview.js";
 import { Filter } from "./filter.js";
 import { Jev } from "./jev.js";
 import { Controller, roundSessionCount, type ChatPlatforms } from "./controller.js";
-import { YouTubeChat, TwitchChat, KickChat, KickToken } from "./chat.js";
+import {
+  YouTubeChat,
+  TwitchChat,
+  KickChat,
+  KickToken,
+  startChatSources,
+  stopChatSources,
+} from "./chat.js";
 import { Obs } from "./obs.js";
 import { makeHttp, urlHost } from "./http.js";
 import { BrowserSandbox } from "./browser-sandbox.js";
@@ -248,64 +254,9 @@ const obs = new Obs(
   },
   (active) => controller?.setReconnecting(active),
 );
-async function startSelectedChats(platforms: {
-  youtube: boolean;
-  twitch: boolean;
-  kick: boolean;
-}) {
-  const skips = {
-    youtube: !platforms.youtube,
-    twitch: !platforms.twitch,
-    kick: !platforms.kick,
-  };
-  if (skips.youtube) {
-    if (controller.state.connections.youtube !== "Connected")
-      connection("youtube", "Skipped");
-  } else if (
-    !["Connected", "Connecting"].includes(
-      controller.state.connections.youtube ?? "",
-    )
-  ) {
-    await ensureYoutubeLiveChatId();
-    youtube.start();
-  }
-  const twitchChat = skips.twitch ? { kind: "off" as const } : twitchStatus();
-  if (twitchChat.kind === "partial")
-    throw new Error(
-      `Twitch is partially filled. Add ${twitchChat.missing.join(", ")} or leave every Twitch field empty to skip Twitch.`,
-    );
-  if (twitchChat.kind === "on") {
-    if (
-      !["Connected", "Connecting"].includes(
-        controller.state.connections.twitch ?? "",
-      )
-    )
-      twitch.start();
-  } else if (controller.state.connections.twitch !== "Connected")
-    connection("twitch", "Skipped");
-  if (skips.kick) {
-    if (controller.state.connections.kick !== "Connected")
-      connection("kick", "Skipped");
-  } else if (controller.state.connections.kick !== "Connected")
-    await kick.start();
-  const deadline = Date.now() + 15000;
-  while (Date.now() < deadline) {
-    const youtubeReady =
-      skips.youtube || controller.state.connections.youtube === "Connected";
-    const twitchReady =
-      twitchChat.kind !== "on" ||
-      controller.state.connections.twitch === "Connected";
-    if (youtubeReady && twitchReady) break;
-    await new Promise((r) => setTimeout(r, 200));
-  }
-  if (!skips.youtube && controller.state.connections.youtube !== "Connected")
-    throw new Error("YouTube did not confirm a chat connection");
-  if (
-    twitchChat.kind === "on" &&
-    controller.state.connections.twitch !== "Connected"
-  )
-    throw new Error("Twitch did not confirm a chat connection");
-}
+const chatSources = { youtube, twitch, kick };
+const startSelectedChats = (platforms: Partial<Record<ChatPlatform, boolean>>) =>
+  startChatSources(chatSources, platforms, () => controller.state.connections, connection);
 const integrations = {
   async preflight() {
     await preview.ready();
@@ -369,12 +320,7 @@ const integrations = {
     });
   },
   stop() {
-    youtube.stop();
-    twitch.stop();
-    kick.stop();
-    // Closed connections must not look Connected when the selected chats restart.
-    for (const platform of ["youtube", "twitch", "kick"])
-      connection(platform, "Stopped");
+    stopChatSources(chatSources, connection);
   },
   stopBroadcast() {
     return obs.stop(true);
