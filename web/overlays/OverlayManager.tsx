@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import {
   MAX_OVERLAYS,
   MAX_OVERLAY_SESSIONS,
@@ -21,6 +21,17 @@ export function OverlayManager({
   const [name, setName] = useState("");
   const [copied, setCopied] = useState(false);
   const [comboOpen, setComboOpen] = useState(false);
+  // Index of the option holding keyboard focus while the output list is open.
+  const [activeOption, setActiveOption] = useState(0);
+  const listId = useId();
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const optionRefs = useRef<(HTMLLIElement | null)[]>([]);
+  const copiedTimer = useRef<number>(undefined);
+  useEffect(() => () => window.clearTimeout(copiedTimer.current), []);
+  // Roving focus: the active option is the only tabbable one and owns focus.
+  useEffect(() => {
+    if (comboOpen) optionRefs.current[activeOption]?.focus();
+  }, [comboOpen, activeOption]);
   const { document, draft } = editor;
   if (!document || !draft)
     return (
@@ -48,11 +59,54 @@ export function OverlayManager({
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
+      window.clearTimeout(copiedTimer.current);
+      copiedTimer.current = window.setTimeout(() => setCopied(false), 1500);
     } catch {
       // Clipboard permission denied; the input stays selectable.
     }
   }
+  const outputs = document.overlays;
+  const openCombo = () => {
+    setActiveOption(
+      Math.max(0, outputs.findIndex((overlay) => overlay.id === draft.id)),
+    );
+    setComboOpen(true);
+  };
+  // Keyboard picks hand focus back to the toggle (APG listbox); mouse picks let the
+  // option unmount as before so the combo's focus border does not linger.
+  const chooseOutput = (id: string, restoreFocus: boolean) => {
+    setComboOpen(false);
+    if (restoreFocus) toggleRef.current?.focus();
+    if (id !== draft.id) editor.select(id);
+  };
+  const onListKeyDown = (event: React.KeyboardEvent<HTMLUListElement>) => {
+    const last = outputs.length - 1;
+    const move = (index: number) => {
+      event.preventDefault();
+      setActiveOption(Math.min(last, Math.max(0, index)));
+    };
+    switch (event.key) {
+      case "ArrowDown":
+        return move(activeOption + 1);
+      case "ArrowUp":
+        return move(activeOption - 1);
+      case "Home":
+        return move(0);
+      case "End":
+        return move(last);
+      case "Enter":
+      case " ": {
+        event.preventDefault();
+        const overlay = outputs[activeOption];
+        if (overlay) chooseOutput(overlay.id, true);
+        return;
+      }
+      case "Escape":
+        event.preventDefault();
+        setComboOpen(false);
+        toggleRef.current?.focus();
+    }
+  };
   const selectionLabel =
     draft.selection === "selected"
       ? "Selected"
@@ -132,7 +186,14 @@ export function OverlayManager({
         <div className="overlay-main-col">
           <div className="overlay-combo">
             <label htmlFor="overlay-output-name">Output name</label>
-            <div className="overlay-combo-box">
+            <div
+              className="overlay-combo-box"
+              onBlur={(event) => {
+                // Close only once focus leaves the whole combo (input, toggle and list).
+                if (!event.currentTarget.contains(event.relatedTarget))
+                  setComboOpen(false);
+              }}
+            >
               <input
                 id="overlay-output-name"
                 value={draft.name}
@@ -143,20 +204,23 @@ export function OverlayManager({
                 }
               />
               <button
+                ref={toggleRef}
                 type="button"
                 className="overlay-combo-toggle"
                 aria-label="Switch output"
                 aria-haspopup="listbox"
                 aria-expanded={comboOpen}
+                aria-controls={comboOpen ? listId : undefined}
                 disabled={editor.busy}
-                onClick={() => setComboOpen((open) => !open)}
-                onBlur={(event) => {
-                  if (
-                    !event.currentTarget.parentElement?.contains(
-                      event.relatedTarget,
-                    )
-                  )
+                onClick={() => (comboOpen ? setComboOpen(false) : openCombo())}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                    event.preventDefault();
+                    openCombo();
+                  } else if (event.key === "Escape" && comboOpen) {
+                    event.preventDefault();
                     setComboOpen(false);
+                  }
                 }}
               >
                 <svg
@@ -175,27 +239,25 @@ export function OverlayManager({
               </button>
               {comboOpen && (
                 <ul
+                  id={listId}
                   className="overlay-combo-list"
                   role="listbox"
                   aria-label="Editing output"
+                  onKeyDown={onListKeyDown}
                 >
-                  {document.overlays.map((overlay) => (
+                  {outputs.map((overlay, index) => (
                     <li
                       key={overlay.id}
+                      ref={(element) => {
+                        optionRefs.current[index] = element;
+                      }}
                       role="option"
+                      tabIndex={index === activeOption ? 0 : -1}
                       aria-selected={overlay.id === draft.id}
+                      onClick={() => chooseOutput(overlay.id, false)}
                     >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setComboOpen(false);
-                          if (overlay.id !== draft.id)
-                            editor.select(overlay.id);
-                        }}
-                      >
-                        {overlay.name}
-                        {overlay.published ? " · On stream" : ""}
-                      </button>
+                      {overlay.name}
+                      {overlay.published ? " · On stream" : ""}
                     </li>
                   ))}
                 </ul>
@@ -280,7 +342,7 @@ export function OverlayManager({
       </div>
       {runningOverflow > 0 && draft.selection !== "selected" && (
         <p className="overlay-url-note">
-          {runningOverflow} extra running sessions dropped (8 max).
+          {`${runningOverflow} extra running sessions dropped (${MAX_OVERLAY_SESSIONS} max).`}
         </p>
       )}
       <p className="overlay-url-note">

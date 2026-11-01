@@ -515,23 +515,30 @@
   background: var(--ov-panel);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
 }
-.overlay-combo-list button {
-  width: 100%;
+/* Options are the focusable elements themselves (no nested buttons); these rules
+   reproduce the box the old full-width .multi-overlays option button rendered. */
+.overlay-combo-list [role="option"] {
+  display: flex;
+  align-items: center;
+  height: 32px;
   padding: 8px 10px;
-  border: 0;
   border-radius: 5px;
   background: transparent;
   color: var(--ov-text);
-  font: inherit;
   font-size: 13px;
+  font-weight: 500;
   text-align: left;
   cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
 }
-.overlay-combo-list [aria-selected="true"] button {
+.overlay-combo-list [aria-selected="true"] {
   background: var(--ov-accent-soft);
 }
-.overlay-combo-list button:hover {
+.overlay-combo-list [role="option"]:hover {
   background: #232a3d;
+}
+.overlay-combo-list [role="option"]:active {
+  transform: translateY(1px);
 }
 
 /* Visibility sits as its own column beside output name, sessions and selection. */
