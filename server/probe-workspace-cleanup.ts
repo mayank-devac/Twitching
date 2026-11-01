@@ -1,10 +1,9 @@
 import { lstat, readdir, rm } from "node:fs/promises";
 import { basename, resolve } from "node:path";
-import type { Agent } from "../shared/types.js";
+import { CLIS } from "../shared/types.js";
 
 const PROBE_NAME = /^(check|rpc)-[0-9a-f-]{36}$/i;
 const ROUND_NAME = /^\d+$/;
-const AGENTS: Agent[] = ["codex", "cursor"];
 const WORKSPACE_ROOTS = [
   "runtime/native-workspaces",
   "runtime/workspaces",
@@ -35,7 +34,7 @@ export async function cleanupProbeWorkspaces(
   const skipped: string[] = [];
 
   for (const base of WORKSPACE_ROOTS) {
-    for (const agent of AGENTS) {
+    for (const agent of CLIS) {
       const agentDir = resolve(root, base, agent);
       const entries = await readdir(agentDir).catch(
         (error: NodeJS.ErrnoException) => {

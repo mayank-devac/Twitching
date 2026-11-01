@@ -1,15 +1,15 @@
-import type { Agent, SessionConfig } from "../shared/types.js";
+import { isCli, type Agent, type SessionConfig } from "../shared/types.js";
 import type { CliModel } from "../server/cli/types.js";
 export type Question = (text: string, fallback?: string) => Promise<string>;
 export function parseSessionSpec(spec: string, index: number): SessionConfig {
   const parts = spec.split(":").map((part) => part.trim());
   const [cli, model, effort] = parts;
   if (
-    index < 0 || index > 1 || !["codex", "cursor"].includes(cli) ||
+    index < 0 || index > 1 || !isCli(cli) ||
     !model || parts.length > 3 || effort === ""
   )
     throw new Error("Use --session cli:model[:effort], at most twice");
-  return { id: `session-${index + 1}`, cli: cli as Agent, model, ...(effort ? { effort } : {}) };
+  return { id: `session-${index + 1}`, cli, model, ...(effort ? { effort } : {}) };
 }
 export async function chooseSessions(
   question: Question,

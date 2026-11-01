@@ -3,10 +3,10 @@ import { ActivityAdapter, JsonLines } from "../server/activity.js";
 import { Filter } from "../server/filter.js";
 import { Collection } from "../server/collection.js";
 import { Store } from "../server/store.js";
-import type { Agent, ChatMessage } from "../shared/types.js";
+import { CLIS, type Agent, type ChatMessage } from "../shared/types.js";
 const store = new Store(":memory:");
 const adapters = Object.fromEntries(
-  (["codex", "cursor"] as Agent[]).map((agent) => [
+  CLIS.map((agent) => [
     agent,
     new ActivityAdapter(
       agent,
