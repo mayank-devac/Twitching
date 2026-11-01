@@ -65,11 +65,13 @@ test("startup host accepts only loopback addresses", () => {
 // Fresh startup must not connect chat until the host explicitly opts into a platform.
 test("chat defaults to none and explicit flags or file choices opt in",()=>{
   const initial=resolveStartup(raw,{},root,false);
-  assert.deepEqual([initial.skipYoutube,initial.skipTwitch,initial.skipKick],[true,true,true]);
+  assert.deepEqual(initial.skips,{youtube:true,twitch:true,kick:true});
   const explicit=resolveStartup(raw,{ARENA_SKIP_YOUTUBE:"0"},root,false);
-  assert.deepEqual([explicit.skipYoutube,explicit.skipTwitch,explicit.skipKick],[false,true,true]);
-  assert.equal(resolveStartup({...raw,skipTwitch:false},{},root,false).skipTwitch,false);
-  assert.equal(resolveStartup(raw,{ARENA_SKIP_YOUTUBE:"0"},root,true).skipYoutube,true);
+  assert.deepEqual(explicit.skips,{youtube:false,twitch:true,kick:true});
+  // Legacy per-platform settings entries and the new saved skips record both apply.
+  assert.equal(resolveStartup({...raw,skipTwitch:false},{},root,false).skips.twitch,false);
+  assert.equal(resolveStartup({...raw,skips:{youtube:true,twitch:false,kick:true}},{},root,false).skips.twitch,false);
+  assert.equal(resolveStartup(raw,{ARENA_SKIP_YOUTUBE:"0"},root,true).skips.youtube,true);
 });
 
 test("launcher boot handshake validates the identity and brackets IPv6 hosts", async () => {
@@ -99,8 +101,8 @@ test("guided launcher flags parse into one options record", () => {
     assert.equal(options.mode, "live");
     assert.equal(options.verify, true);
     assert.deepEqual(
-      [options.skipYoutube, options.skipTwitch, options.skipKick],
-      [false, true, true],
+      options.skips,
+      { youtube: false, twitch: true, kick: true },
     );
     assert.equal(process.env.ARENA_SINGLE_AGENT, "codex");
   } finally {

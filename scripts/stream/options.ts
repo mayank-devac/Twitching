@@ -1,7 +1,8 @@
 // Owns the guided launcher's command line: help text, flag parsing and the env it hands the server.
 import { RUNNER_MODES } from "../../shared/schema.js";
 import { parseSessionSpec } from "../session-selection.js";
-import { parseSkipPlatform } from "../../server/chat-skips.js";
+import { parseSkipPlatform, skipRecord, skipEnvRecord } from "../../server/chat-skips.js";
+import { type ChatPlatform } from "../../shared/settings.js";
 import { CLIS, isCli, type Agent, type RunnerMode, type SessionConfig } from "../../shared/types.js";
 
 export const help = `Prompt Arena guided startup
@@ -29,9 +30,7 @@ export interface StreamOptions {
   runnerMode?: RunnerMode;
   verify: boolean;
   interactive: boolean;
-  skipYoutube: boolean;
-  skipTwitch: boolean;
-  skipKick: boolean;
+  skips: Record<ChatPlatform, boolean>;
   forcePrompts: boolean;
   ignorePrompts: boolean;
   singleAgent?: Agent;
@@ -56,18 +55,13 @@ export function parseStreamOptions(
     verify: false,
     interactive: Boolean(process.stdin.isTTY && process.stdout.isTTY),
     // Chat collection starts unchecked; each platform is an explicit opt-in.
-    skipYoutube: true,
-    skipTwitch: true,
-    skipKick: true,
+    skips: skipRecord(true),
     forcePrompts: false,
     ignorePrompts: false,
     requestedSessions: [],
   };
   const setSkip = (value: string, skip: boolean) => {
-    const platform = parseSkipPlatform(value);
-    if (platform === "youtube") options.skipYoutube = skip;
-    else if (platform === "twitch") options.skipTwitch = skip;
-    else options.skipKick = skip;
+    options.skips[parseSkipPlatform(value)] = skip;
   };
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--verify") options.verify = true;
@@ -145,7 +139,5 @@ export function parseStreamOptions(
 
 // The server reads chat skips from env, so they follow every change to the flags.
 export function exportChatSkips(options: StreamOptions) {
-  process.env.ARENA_SKIP_YOUTUBE = options.skipYoutube ? "1" : "0";
-  process.env.ARENA_SKIP_TWITCH = options.skipTwitch ? "1" : "0";
-  process.env.ARENA_SKIP_KICK = options.skipKick ? "1" : "0";
+  Object.assign(process.env, skipEnvRecord(options.skips));
 }

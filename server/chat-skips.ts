@@ -6,7 +6,6 @@ export const skipFlags: Record<ChatPlatform, string> = {
   twitch: "twitch",
   kick: "kick",
 };
-
 // --skip accepts the documented short name or the full platform name.
 export function parseSkipPlatform(value: string): ChatPlatform {
   const name = value.trim().toLowerCase();
@@ -30,3 +29,25 @@ export function chatSkips(
     CHAT_PLATFORMS.map((platform) => [platform, env[skipEnvKey(platform)] === "1"]),
   ) as Record<ChatPlatform, boolean>;
 }
+
+// One skip state per platform; the launcher and the startup settings both store this shape.
+export function skipRecord(skip = true): Record<ChatPlatform, boolean> {
+  return Object.fromEntries(
+    CHAT_PLATFORMS.map((platform) => [platform, skip]),
+  ) as Record<ChatPlatform, boolean>;
+}
+
+// The env entries a skip record turns into, so child processes inherit chat skips.
+export const skipEnvRecord = (skips: Record<ChatPlatform, boolean>) =>
+  Object.fromEntries(
+    CHAT_PLATFORMS.map((platform) => [
+      skipEnvKey(platform),
+      skips[platform] ? "1" : "0",
+    ]),
+  );
+
+// The enable flags web preferences express: the opposite of every skip.
+export const enabledFromSkips = (skips: Record<ChatPlatform, boolean>) =>
+  Object.fromEntries(
+    CHAT_PLATFORMS.map((platform) => [platform, !skips[platform]]),
+  ) as Record<ChatPlatform, boolean>;

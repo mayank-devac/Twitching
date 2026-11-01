@@ -60,12 +60,8 @@ export async function checkLivePreflight(
         ? "Fill the remaining Twitch names, or leave every Twitch field empty to skip Twitch. Edit .env.local in your editor. Do not paste credentials into chat or command-line arguments."
         : "Fill those names in .env.local using your editor, then rerun. Do not paste credentials into chat or command-line arguments.",
     );
-  const skipped: Record<ChatPlatform, boolean> = {
-    youtube: options.skipYoutube,
-    twitch: options.skipTwitch,
-    kick: options.skipKick,
-  };
   // Pre-live checks for each platform the host did not skip.
+  const skipped = options.skips;
   const checks: Record<ChatPlatform, () => Promise<void> | void> = {
     async youtube() {
       if (secrets.youtube.chat.trim()) return;

@@ -10,6 +10,8 @@ import {
   streamModeSchema,
 } from "../shared/schema.js";
 import { DEFAULT_PROMPT_FILE } from "./prompt-playlist.js";
+import { CHAT_PLATFORMS, type ChatPlatform } from "../shared/settings.js";
+import { skipRecord, skipEnvKey } from "./chat-skips.js";
 export const startupSchema = z.object({
   experience: z.enum(["welcome", "session", "arena"]).default("welcome"),
   // The control server holds credentials and native-run controls; it must
@@ -56,9 +58,10 @@ export const startupSchema = z.object({
   stopObsOnEnd: z.boolean(),
   kickWebhookUrl: z.string(),
   kickListenHost: z.enum(["127.0.0.1", "0.0.0.0"]),
-  skipYoutube: z.boolean().default(true),
-  skipTwitch: z.boolean().default(true),
-  skipKick: z.boolean().default(true),
+  // Chat collection is opt-in: one record holds every platform's skip state.
+  skips: z
+    .record(z.enum(CHAT_PLATFORMS), z.boolean())
+    .default(skipRecord(true)),
   promptFile: z.string().min(1).default(DEFAULT_PROMPT_FILE),
   promptPlaylist: z.boolean().default(false),
 });
@@ -103,25 +106,40 @@ export function resolveStartup(
           ? undefined
           : raw.sessions,
       // Chat collection is opt-in; explicit startup flags and saved file choices still win.
-      skipYoutube:
-        promptPlaylist ||
-        (env.ARENA_SKIP_YOUTUBE === undefined
-          ? (raw.skipYoutube ?? true)
-          : env.ARENA_SKIP_YOUTUBE !== "0"),
-      skipTwitch:
-        promptPlaylist ||
-        (env.ARENA_SKIP_TWITCH === undefined
-          ? (raw.skipTwitch ?? true)
-          : env.ARENA_SKIP_TWITCH !== "0"),
-      skipKick:
-        promptPlaylist ||
-        (env.ARENA_SKIP_KICK === undefined
-          ? (raw.skipKick ?? true)
-          : env.ARENA_SKIP_KICK !== "0"),
+      skips: startupSkips(raw, env, promptPlaylist),
       promptPlaylist,
     },
     root,
   );
+}
+
+// Chat collection is opt-in: env overrides, then saved file choices — the new skips
+// record wins over the legacy per-platform keys. Everything defaults to skipped.
+function startupSkips(
+  raw: Record<string, unknown>,
+  env: NodeJS.ProcessEnv,
+  forceSkip: boolean,
+): Record<ChatPlatform, boolean> {
+  const legacy: Record<ChatPlatform, string> = {
+    youtube: "skipYoutube",
+    twitch: "skipTwitch",
+    kick: "skipKick",
+  };
+  const skips = skipRecord(true);
+  for (const platform of CHAT_PLATFORMS) {
+    const envValue = env[skipEnvKey(platform)];
+    const stored = raw[legacy[platform]];
+    if (envValue !== undefined) skips[platform] = envValue !== "0";
+    else if (
+      typeof raw.skips === "object" &&
+      raw.skips !== null &&
+      typeof (raw.skips as Record<string, unknown>)[platform] === "boolean"
+    )
+      skips[platform] = (raw.skips as Record<string, unknown>)[platform] as boolean;
+    else if (typeof stored === "boolean") skips[platform] = stored;
+  }
+  if (forceSkip) return skipRecord(true);
+  return skips;
 }
 export function selectStartupSessions(
   settings: StartupSettings,

@@ -11,6 +11,8 @@ import { chooseSessions } from "./session-selection.js";
 import { inspectExistingApp } from "./stream/existing-app.js";
 import { checkLivePreflight } from "./stream/live-preflight.js";
 import { exportChatSkips, parseStreamOptions } from "./stream/options.js";
+import { skipRecord } from "../server/chat-skips.js";
+import { CHAT_PLATFORMS, chatPlatformLabels } from "../shared/settings.js";
 import { checkLocalSetup, checkServices } from "./stream/prerequisites.js";
 import {
   fix,
@@ -75,9 +77,7 @@ try {
         `No tasks in ${settings.promptFile}`,
         "Add one prompt per line (comments start with #), or rerun with --no-prompts to use live chat.",
       );
-    options.skipYoutube = true;
-    options.skipTwitch = true;
-    options.skipKick = true;
+    options.skips = skipRecord(true);
     exportChatSkips(options);
     process.env.ARENA_PROMPTS = "1";
     console.log(
@@ -186,9 +186,10 @@ try {
   });
   await maybeVerify(options, runnerMode);
   const pendingChats = [
-    ...(options.skipYoutube ? [] : ["YouTube"]),
-    ...(twitchPending ? ["Twitch"] : []),
-    ...(options.skipKick ? [] : ["Kick"]),
+    ...CHAT_PLATFORMS.filter(
+      (platform) => platform !== "twitch" && !options.skips[platform],
+    ).map((platform) => chatPlatformLabels[platform]),
+    ...(twitchPending ? [chatPlatformLabels.twitch] : []),
   ];
   console.log(
     `\nREADY: ${mode} prerequisites passed.\nControl: ${origin}/control\nOverlay: ${origin}/overlay\nPending live-only check: ${

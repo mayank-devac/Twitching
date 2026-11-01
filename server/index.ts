@@ -3,6 +3,8 @@ import { startupConfigurationId } from "./startup-config.js";
 import { QuickSettings, defaultCriteria } from "./quick-settings.js";
 import { BreakMedia } from "./break-media.js";
 import { defaultVisibility } from "../shared/settings.js";
+import { enabledFromSkips, skipEnvKey } from "./chat-skips.js";
+import { CHAT_PLATFORMS } from "../shared/settings.js";
 import type { ChatPlatform, QuickPreferences } from "../shared/settings.js";
 import { configuredSessions } from "../shared/types.js";
 import { resolve } from "node:path";
@@ -103,9 +105,7 @@ const preferences = new QuickSettings(
     ),
     stream: {
       mode: settings.mode,
-      youtube: !settings.skipYoutube,
-      twitch: !settings.skipTwitch,
-      kick: !settings.skipKick,
+      ...enabledFromSkips(settings.skips),
       collectionMs: settings.collectionMs,
       extensionMs: settings.extensionMs,
       resultMs: settings.resultMs,
@@ -115,16 +115,10 @@ const preferences = new QuickSettings(
     media: { visualFit: "fit" },
   },
   {
-    platforms: [
-      process.env.ARENA_SKIP_YOUTUBE,
-      process.env.ARENA_SKIP_TWITCH,
-      process.env.ARENA_SKIP_KICK,
-    ].some((value) => value !== undefined)
-      ? {
-          youtube: !settings.skipYoutube,
-          twitch: !settings.skipTwitch,
-          kick: !settings.skipKick,
-        }
+    platforms: CHAT_PLATFORMS.some(
+      (platform) => process.env[skipEnvKey(platform)] !== undefined,
+    )
+      ? enabledFromSkips(settings.skips)
       : undefined,
     mode: process.env.ARENA_MODE ? settings.mode : undefined,
     sessions:
@@ -136,9 +130,8 @@ const preferences = new QuickSettings(
 const applyPreferences = (value: QuickPreferences) => {
   settings.sessions = structuredClone(value.sessions);
   settings.mode = value.stream.mode;
-  settings.skipYoutube = !value.stream.youtube;
-  settings.skipTwitch = !value.stream.twitch;
-  settings.skipKick = !value.stream.kick;
+  for (const platform of CHAT_PLATFORMS)
+    settings.skips[platform] = !value.stream[platform];
   settings.collectionMs = value.stream.collectionMs;
   settings.extensionMs = value.stream.extensionMs;
   settings.resultMs = value.stream.resultMs;
@@ -301,11 +294,7 @@ const integrations = {
     // Start/Resume reconnects the selected platforms using the latest saved switches.
     this.stop();
     try {
-      await startSelectedChats({
-        youtube: !settings.skipYoutube,
-        twitch: !settings.skipTwitch,
-        kick: !settings.skipKick,
-      });
+      await startSelectedChats(enabledFromSkips(settings.skips));
     } catch (error) {
       this.stop();
       throw error;

@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import type { Obs } from "../../server/obs.js";
 import { configuredSessions } from "../../shared/types.js";
 import { fetchBoot } from "../boot-client.js";
+import { skipEnvRecord } from "../../server/chat-skips.js";
 import { fetchState, hostAction } from "./control-api.js";
 import {
   fix,
@@ -47,11 +48,9 @@ async function launchApp(show: ShowStart) {
       ARENA_RUNNER: show.runnerMode,
       ARENA_SINGLE_AGENT: options.singleAgent ?? "",
       ARENA_NATIVE_APPROVED: show.runnerMode === "native" ? "1" : "0",
-      ARENA_SKIP_YOUTUBE: options.skipYoutube ? "1" : "0",
-      ARENA_SKIP_TWITCH: options.skipTwitch ? "1" : "0",
-      ARENA_SKIP_KICK: options.skipKick ? "1" : "0",
       ARENA_PROMPTS: settings.promptPlaylist ? "1" : "0",
       ARENA_NO_PROMPTS: options.ignorePrompts ? "1" : "0",
+      ...skipEnvRecord(options.skips),
     },
   });
   launcher.app = app;
@@ -121,7 +120,7 @@ export async function startShow(show: ShowStart) {
     mode === "live" &&
     (!options.interactive ||
       !(await yes(
-        options.skipKick
+        options.skips.kick
           ? "Is the overlay visible in your intended OBS scene, with rehearsal audio checked?"
           : "Is the overlay visible in your intended OBS scene, with rehearsal audio checked, and is Kick configured to forward only its webhook port?",
       )))
