@@ -6,7 +6,7 @@ import { defaultVisibility } from "../shared/settings.js";
 import type { QuickPreferences } from "../shared/settings.js";
 import { configuredSessions, sessionCount } from "../shared/types.js";
 import { resolve } from "node:path";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { access, mkdir } from "node:fs/promises";
 import { settings, root, secrets, housePrompts } from "./config.js";
 import { ensureYoutubeLiveChatId, twitchStatus } from "./live-platforms.js";
@@ -32,14 +32,18 @@ if (settings.experience === "arena" && settings.promptPlaylist && housePrompts.l
     `No tasks in ${settings.promptFile}. Add one prompt per line, or set ARENA_NO_PROMPTS=1 to use live chat.`,
   );
 // An exclusive local lock prevents two controllers from driving the same show.
-const { open, unlink } = await import("node:fs/promises");
+const { open, unlink, readFile, rename, link } = await import("node:fs/promises");
 const lockPath = resolve(root, "runtime/controller.lock");
-try {
+const runningError = () =>
+  new Error("Another controller is running. Close it before starting this one.");
+const createLock = async () => {
   const handle = await open(lockPath, "wx", 0o600);
   await handle.writeFile(String(process.pid));
   await handle.close();
+};
+try {
+  await createLock();
 } catch {
-  const { readFile } = await import("node:fs/promises");
   const pid = Number(await readFile(lockPath, "utf8"));
   let alive = true;
   try {
@@ -47,14 +51,28 @@ try {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ESRCH") alive = false;
   }
-  if (alive)
-    throw new Error(
-      "Another controller is running. Close it before starting this one.",
-    );
-  await unlink(lockPath);
-  const handle = await open(lockPath, "wx", 0o600);
-  await handle.writeFile(String(process.pid));
-  await handle.close();
+  if (alive) throw runningError();
+  // Two starts can both see the same stale lock. Renaming is atomic, so only
+  // one of them moves it aside; the other's rename fails and it backs off.
+  const aside = `${lockPath}.stale-${process.pid}-${randomUUID()}`;
+  try {
+    await rename(lockPath, aside);
+  } catch {
+    throw runningError();
+  }
+  // A slower racer may have renamed a fresh lock that a faster one just
+  // created; put it back (link fails if a lock already exists) and back off.
+  if (Number(await readFile(aside, "utf8")) !== pid) {
+    await link(aside, lockPath).catch(() => {});
+    await unlink(aside).catch(() => {});
+    throw runningError();
+  }
+  await unlink(aside);
+  try {
+    await createLock();
+  } catch {
+    throw runningError();
+  }
 }
 const bootConfigurationId = startupConfigurationId(settings);
 const store = new Store(resolve(root, "runtime/show.sqlite"));
