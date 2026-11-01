@@ -373,6 +373,36 @@ test("public mode is gated on private rehearsal and authentication failure pause
   const g = await fixture("rehearsal");
   await g.cleanup();
 });
+test("live chat rounds refuse the native runner; rehearsal still starts", async () => {
+  const store = new Store(":memory:");
+  const make = (mode: "live" | "rehearsal") => {
+    const controller = new Controller(
+      store,
+      new Filter([]),
+      {
+        evaluate: async () => ({ safety: 1, relevance: 1, simplicity: 100, clarity: 100, creativity: 100, visual: 100 }),
+        choose: async () => "WAIT",
+        surprise: async () => "Build a tiny surprise game with colourful cards",
+      },
+      new FakeRunner(),
+      { validate: async (a, r) => `http://127.0.0.1:3211/page/${a}/${r}` },
+      { start: async () => {}, startChats: async () => {}, stop: () => {}, preflight: async () => [], stopBroadcast: async () => {} },
+      { ...options, mode, runnerMode: "native" },
+      (text) => text,
+      () => 1000,
+    );
+    controller.state.rehearsalComplete = true;
+    controller.state.rehearsalRunnerMode = "native";
+    return controller;
+  };
+  try {
+    await assert.rejects(make("live").start(), /need the Docker runner/);
+    const rehearsal = make("rehearsal");
+    await rehearsal.start();
+    await rehearsal.stop("test cleanup", false);
+    await new Promise((r) => setImmediate(r));
+  } finally { store.close(); }
+});
 test("prompt list sends each task to both CLIs then ends the show", async () => {
   let now = 1000;
   const store = new Store(":memory:");

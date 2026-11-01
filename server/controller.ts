@@ -437,6 +437,16 @@ export class Controller extends EventEmitter {
       throw new Error("Wait for the break transition or timer to finish");
     if (this.busy || this.launching || this.handles)
       throw new Error("Current round is still running");
+    // Viewer prompts become code; with no container boundary that code would
+    // run as the host user, so public chat rounds require the Docker runner.
+    if (
+      this.state.mode === "live" &&
+      !this.usingPlaylist() &&
+      this.options.runnerMode === "native"
+    )
+      throw new Error(
+        "Live chat rounds need the Docker runner; native mode is for private rehearsal and sessions.",
+      );
     if (
       this.state.mode === "live" &&
       !this.usingPlaylist() &&
