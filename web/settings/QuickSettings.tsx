@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type { Agent, SessionConfig, ShowState } from "../../shared/types.js";
 import type {
   ModelChoice,
@@ -42,10 +42,15 @@ export function QuickSettings({
   const [harness, setHarness] = useState(false);
   const [promptDirty, setPromptDirty] = useState(false);
   // The leave warning covers both durable settings and the separate prepared-prompt editor.
-  const dirty = !!(
-    document &&
-    draft &&
-    JSON.stringify(document.value) !== JSON.stringify(draft)
+  // Memoised: serialising both settings trees on every live-state render is wasteful.
+  const dirty = useMemo(
+    () =>
+      !!(
+        document &&
+        draft &&
+        JSON.stringify(document.value) !== JSON.stringify(draft)
+      ),
+    [document, draft],
   );
   const confirmLeave = useUnsavedWarning(dirty || promptDirty);
   async function reload() {
