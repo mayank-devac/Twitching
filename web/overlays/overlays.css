@@ -136,8 +136,11 @@
 }
 .overlay-menu summary {
   display: grid;
-  width: 26px;
+  min-width: 26px;
   height: 26px;
+  padding: 0 10px;
+  font-weight: 600;
+  white-space: nowrap;
   place-items: center;
   border: 1px solid var(--ov-border-strong);
   border-radius: var(--ov-radius-sm);
@@ -188,7 +191,7 @@
 }
 .overlay-editor-fields {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px 10px;
   align-items: start;
 }
@@ -446,4 +449,174 @@
   .overlay-menu-panel {
     width: min(240px, calc(100vw - 48px));
   }
+}
+
+/* Output name + output switcher merged into one field. */
+.overlay-combo {
+  grid-column: 1;
+  display: grid;
+  gap: 4px;
+  color: var(--ov-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+.overlay-combo-box {
+  position: relative;
+  display: flex;
+  border: 1px solid var(--ov-border-strong);
+  border-radius: var(--ov-radius-sm);
+  background: #0d1016;
+}
+.overlay-combo-box:focus-within {
+  border-color: var(--ov-accent);
+}
+.overlay-combo-box input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--ov-text);
+  font: inherit;
+  font-size: 13px;
+  outline: 0;
+}
+.overlay-combo-toggle {
+  flex: 0 0 38px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-left: 1px solid var(--ov-border-strong);
+  border-radius: 0 var(--ov-radius-sm) var(--ov-radius-sm) 0;
+  background: transparent;
+  color: var(--ov-muted);
+  cursor: pointer;
+}
+.overlay-combo-toggle:hover:not(:disabled) {
+  color: var(--ov-text);
+}
+.overlay-combo-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--ov-border-strong);
+  border-radius: var(--ov-radius-sm);
+  background: var(--ov-panel);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+.overlay-combo-list button {
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ov-text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.overlay-combo-list [aria-selected="true"] button {
+  background: var(--ov-accent-soft);
+}
+.overlay-combo-list button:hover {
+  background: #232a3d;
+}
+
+/* Visibility sits as its own column beside output name, sessions and selection. */
+.overlay-main-col {
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  align-self: start;
+}
+.overlay-main-col > label {
+  display: grid;
+  gap: 4px;
+  color: var(--ov-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+.overlay-side-col {
+  grid-column: 2;
+  min-width: 0;
+  align-self: start;
+}
+@media (max-width: 700px) {
+  .overlay-editor-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .overlay-side-col {
+    grid-column: 1;
+  }
+}
+
+/* Selected sessions: an even two-column grid with the remove button pinned right. */
+.overlay-chips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.overlay-chip {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: var(--ov-radius-sm);
+}
+.overlay-chip span {
+  flex: 1 1 auto;
+}
+.overlay-chip button {
+  flex: 0 0 14px;
+}
+.overlay-chips-empty {
+  grid-column: 1 / -1;
+}
+.overlay-selection-col small {
+  margin-top: 2px;
+}
+.overlay-url-row {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ov-border);
+}
+@media (max-width: 520px) {
+  .overlay-chips {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* URL box sits bottom-right beside the selected sessions: URL on top, Copy and Open side by side. */
+.overlay-editor-fields {
+  align-items: stretch;
+}
+.overlay-side-col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-self: stretch;
+}
+.overlay-side-col .overlay-url-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 0;
+  border-top: 0;
+}
+.overlay-side-col .overlay-url-row input {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.overlay-side-col .overlay-url-row > button,
+.overlay-side-col .overlay-url-row > a {
+  justify-content: center;
 }

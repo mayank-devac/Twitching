@@ -27,6 +27,7 @@
     "dictionary-en": "^4.0.0",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
+    "mermaid": "^12.2.0",
     "nspell": "^2.1.5",
     "obs-websocket-js": "^5.0.6",
     "parse5": "^7.3.0",

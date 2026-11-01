@@ -1,28 +1,13 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import { markdownComponents, markdownPlugins } from "../markdown.js";
+import { PromptText } from "./PromptText.js";
+import { TimelineMarkdown } from "./timeline-markdown.js";
+import { groupRows, placeholderText, rowLabel } from "./timeline-rows.js";
 import type { SessionView, TimelineItem } from "../../shared/sessions.js";
 import codexLogo from "../../assets/codex/codex.svg";
 import cursorLogo from "../../assets/cursor/Cube/SVG/CUBE_2D_DARK.svg";
 import "./welcome.css";
+import "./timeline.css";
 import { mergeTimeline, visibleTimeline } from "../../shared/timeline.js";
-
-// Unchanged history should not reparse Markdown whenever the current answer grows.
-const MessageText = React.memo(function MessageText({
-  text,
-}: {
-  text: string;
-}) {
-  return (
-    <ReactMarkdown
-      skipHtml
-      remarkPlugins={markdownPlugins}
-      components={markdownComponents}
-    >
-      {text}
-    </ReactMarkdown>
-  );
-});
 
 // Stable item IDs deduplicate reconnect snapshots; run IDs define prompt boundaries.
 export function Timeline({
@@ -151,23 +136,10 @@ export function Timeline({
         {view.visibility.cliIcon && (
           <img alt="" src={c.cli === "codex" ? codexLogo : cursorLogo} />
         )}
-        <div>
-          <h2>{c.title}</h2>
-          <p>
-            {view.visibility.cliName && <span>{c.cli} · </span>}
-            {view.visibility.model && (
-              <span>{c.model || "Model unknown"} · </span>
-            )}
-            {c.status === "running"
-              ? "Running"
-              : c.status === "idle"
-                ? "Idle"
-                : c.status === "unknown"
-                  ? "Unknown · saved history"
-                  : "Disconnected"}
-            {view.published && " · On stream"}
-          </p>
-        </div>
+        <h2>{c.title}</h2>
+        {view.visibility.model && (
+          <span className="timeline-model">{c.model || "Model unknown"}</span>
+        )}
       </header>
       {view.hidePreviousRuns && (
         <button
@@ -208,17 +180,21 @@ export function Timeline({
         {!visible.length && (
           <p className="timeline-empty">No visible activity yet.</p>
         )}
-        {visible.map((item, index) => (
+        {groupRows(visible).map(({ item, count }, index, rows) => (
           <React.Fragment key={item.id}>
-            {(index === 0 || visible[index - 1].run !== item.run) && (
+            {(index === 0 || rows[index - 1].item.run !== item.run) && (
               <div className="run-boundary">Run {item.run.slice(0, 8)}</div>
             )}
             <article
               data-item-id={item.id}
               className={`timeline-item kind-${item.kind}`}
             >
-              <small>{item.kind === "prompt" ? "You" : item.kind}</small>
-              <MessageText text={item.text} />
+              <small>{rowLabel(item.kind, count)}</small>
+              {placeholderText.has(item.text) ? null : item.kind === "prompt" ? (
+                <PromptText text={item.text} />
+              ) : (
+                <TimelineMarkdown text={item.text} />
+              )}
             </article>
           </React.Fragment>
         ))}

@@ -460,7 +460,6 @@ export function Welcome({
           {breakControl && (
             <BreakControl token={token} preferredId={overlayDraft?.id} initial={overlayEditor.document} />
           )}
-          <RehearsalCheck token={token} context={path === "arena" ? "arena" : selected?.conversation.id ?? "unselected"} revision={document?.revision} />
           {overlayDraft && overlayEditor.document && (
             <OverlayPresentation
               key={overlayDraft.id}
@@ -483,7 +482,6 @@ export function Welcome({
               [
                 ["existing", "Existing session"],
                 ["new", "New session"],
-                ["arena", "Prompt arena"],
               ] as const
             ).map(([id, title]) => (
               <button
@@ -756,11 +754,6 @@ export function Welcome({
                       </button>
                     </form>
                   )}
-                  {selected.conversation.source !== "managed" && (
-                    <p className="read-only-note">
-                      Read-only history. This external session can't accept prompts.
-                    </p>
-                  )}
                 </div>
                 {resultUrl && (
                   <iframe
@@ -779,6 +772,11 @@ export function Welcome({
             )}
             {selected && (
               <div className="publication-actions">
+                {selected.conversation.source !== "managed" && (
+                  <p className="read-only-note">
+                    Read-only history. This external session can't accept prompts.
+                  </p>
+                )}
                 {selected.published &&
                   document?.value.stream.mode === "rehearsal" && (
                     <button
@@ -914,6 +912,15 @@ export function Welcome({
           >
             Open OBS
           </button>
+          <button
+            className="ghost-button"
+            disabled={busy || !!handover || !token}
+            aria-pressed={path === "arena"}
+            onClick={() => { if (path !== "arena") void perform(() => switchPath("arena")); }}
+          >
+            Prompt arena
+          </button>
+          <RehearsalCheck token={token} context={path === "arena" ? "arena" : selected?.conversation.id ?? "unselected"} revision={document?.revision} />
           <a
             className="ghost-button"
             href="/overlay"

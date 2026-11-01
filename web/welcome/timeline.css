@@ -1,0 +1,292 @@
+/* Session timeline: header, scrolling list, rows, prompt attachments, diagrams.
+   Spacing uses two units only: --gap between things, --pad inside boxes. */
+
+/* ---------- Frame ---------- */
+.session-timeline {
+  --gap: 6px;
+  --pad: 10px;
+  /* Text size and weight grow as the window shrinks (see the steps below). */
+  --text-size: 15px;
+  --text-weight: 450;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: #11151d;
+  color: var(--welcome-text);
+  font: 14px/1.6 Inter, system-ui, sans-serif;
+}
+.welcome-content .session-timeline {
+  height: clamp(290px, 40vh, 480px);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* ---------- Header: logo, title, model name ---------- */
+.timeline-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--welcome-border);
+}
+.welcome-content .timeline-heading {
+  padding: 8px 16px;
+}
+.timeline-heading img {
+  width: 24px;
+  height: 24px;
+}
+.timeline-heading h2 {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.timeline-model {
+  flex: 0 0 auto;
+  color: var(--welcome-text);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+/* ---------- Scrolling list ---------- */
+.timeline-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overflow-anchor: none;
+  padding: var(--pad) 14px;
+  scrollbar-width: thin;
+}
+.welcome-content .timeline-scroll {
+  padding: 12px 16px;
+}
+.timeline-sentinel {
+  height: 1px;
+}
+.timeline-empty {
+  color: var(--welcome-muted);
+}
+.timeline-history-choice {
+  padding: 7px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--welcome-border);
+  background: #1d2030;
+  color: var(--welcome-text);
+  cursor: pointer;
+}
+.run-boundary {
+  margin-top: var(--pad);
+  padding-top: var(--pad);
+  border-top: 1px solid var(--welcome-border);
+  color: var(--welcome-muted);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ---------- Row: small label above its text ---------- */
+.timeline-item {
+  display: grid;
+  gap: 2px;
+  padding: var(--gap) 0;
+  border-bottom: 1px solid #1b2030;
+  overflow-wrap: anywhere;
+}
+.timeline-item small {
+  color: #aaa0ff;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+.timeline-item.kind-edit small,
+.timeline-item.kind-tool small {
+  color: var(--welcome-muted);
+}
+.timeline-item.kind-error {
+  color: #ffb1b6;
+}
+.timeline-item a {
+  color: #c4bbff;
+}
+
+/* Prompt: shown as a bubble. */
+.timeline-item.kind-prompt {
+  margin: var(--gap) 0;
+  padding: var(--pad) 12px;
+  border-bottom: 0;
+  border-radius: 9px;
+  background: #1d2030;
+}
+
+/* ---------- Text inside a row ---------- */
+.timeline-item p,
+.timeline-item ul,
+.timeline-item ol,
+.timeline-item blockquote,
+.timeline-item pre,
+.timeline-item .markdown-table-scroll {
+  margin: 0 0 var(--gap);
+  font-size: var(--text-size);
+  font-weight: var(--text-weight);
+  line-height: 1.5;
+}
+.timeline-item ul,
+.timeline-item ol {
+  padding-left: 20px;
+}
+.timeline-item li {
+  margin: 0 0 3px;
+}
+.timeline-item li > p {
+  margin: 0;
+}
+.timeline-item h1,
+.timeline-item h2,
+.timeline-item h3,
+.timeline-item h4 {
+  margin: calc(var(--gap) * 1.5) 0 var(--gap);
+  font-size: calc(var(--text-size) + 1px);
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+.timeline-item h1 { font-size: calc(var(--text-size) + 3px); }
+.timeline-item h2 { font-size: calc(var(--text-size) + 2px); }
+/* No extra space above the first or below the last block of a row. */
+.timeline-item > :not(small) > :first-child { margin-top: 0; }
+.timeline-item > :not(small) > :last-child { margin-bottom: 0; }
+
+.timeline-item pre {
+  max-width: 100%;
+  overflow: auto;
+  padding: 13px;
+  border: 1px solid var(--welcome-border);
+  border-radius: 8px;
+  background: #0b0d12;
+  white-space: pre;
+}
+.timeline-item code {
+  font: 12px/1.65 ui-monospace, monospace;
+}
+
+/* ---------- Prompt attachments ---------- */
+.prompt-parts {
+  display: grid;
+  gap: var(--gap);
+}
+.prompt-parts > * {
+  margin: 0;
+}
+.prompt-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap);
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border: 1px solid #4a3fa8;
+  border-radius: 999px;
+  background: #211b3f;
+  color: #d9d3ff;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.tag-reply {
+  border-color: #2f6b57;
+  background: #14302a;
+  color: #bff0dc;
+}
+.tag-file {
+  border-color: var(--welcome-border-strong);
+  background: #161a25;
+  color: var(--welcome-muted);
+  font-weight: 500;
+}
+.tag-file b {
+  color: #d9d3ff;
+  font-weight: 700;
+}
+
+/* Cards: annotations and question replies. */
+.timeline-item .cards {
+  display: grid;
+  gap: var(--gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.card {
+  display: grid;
+  gap: var(--gap);
+  justify-items: start;
+  padding: var(--pad) 12px;
+  border: 1px solid var(--welcome-border);
+  border-radius: 8px;
+  background: #151925;
+}
+.card p {
+  margin: 0;
+}
+.card-quote {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--welcome-text);
+}
+.card-note {
+  color: var(--welcome-muted);
+}
+.card-note b {
+  color: #aaa0ff;
+  font-weight: 650;
+}
+.card-answer {
+  color: var(--welcome-text);
+  font-weight: 600;
+}
+
+/* ---------- Mermaid diagrams ---------- */
+.mermaid-diagram {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 0 0 var(--gap);
+  padding: var(--pad);
+  border: 1px solid var(--welcome-border);
+  border-radius: 8px;
+  background: #0b0d12;
+}
+.mermaid-diagram svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+/* ---------- Smaller window: bigger, bolder text ---------- */
+@media (max-width: 1100px) {
+  .session-timeline { --text-size: 16px; --text-weight: 500; }
+}
+@media (max-width: 800px) {
+  .session-timeline { --text-size: 17px; --text-weight: 550; }
+}
+@media (max-width: 560px) {
+  .session-timeline { --text-size: 18px; --text-weight: 600; }
+}

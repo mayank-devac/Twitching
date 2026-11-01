@@ -20,6 +20,7 @@ export function OverlayManager({
 }) {
   const [name, setName] = useState("");
   const [copied, setCopied] = useState(false);
+  const [comboOpen, setComboOpen] = useState(false);
   const { document, draft } = editor;
   if (!document || !draft)
     return (
@@ -69,10 +70,10 @@ export function OverlayManager({
         </span>
         <details className="overlay-menu">
           <summary
-            aria-label="More output options"
+            aria-label="Create, capture or delete outputs"
             title="Create, capture or delete outputs"
           >
-            ⋯
+            + Create
           </summary>
           <div className="overlay-menu-panel">
             <label className="overlay-menu-new">
@@ -128,32 +129,56 @@ export function OverlayManager({
         </details>
       </header>
       <div className="overlay-editor-fields">
-        <label>
-          Editing output
-          <select
-            value={draft.id}
-            disabled={editor.busy}
-            onChange={(event) => editor.select(event.target.value)}
-          >
-            {document.overlays.map((overlay) => (
-              <option key={overlay.id} value={overlay.id}>
-                {overlay.name}
-                {overlay.published ? " · On stream" : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Output name
-          <input
-            value={draft.name}
-            maxLength={80}
-            disabled={editor.busy}
-            onChange={(event) =>
-              editor.setDraft({ ...draft, name: event.target.value })
-            }
-          />
-        </label>
+        <div className="overlay-main-col">
+        <div className="overlay-combo">
+          <label htmlFor="overlay-output-name">Output name</label>
+          <div className="overlay-combo-box">
+            <input
+              id="overlay-output-name"
+              value={draft.name}
+              maxLength={80}
+              disabled={editor.busy}
+              onChange={(event) =>
+                editor.setDraft({ ...draft, name: event.target.value })
+              }
+            />
+            <button
+              type="button"
+              className="overlay-combo-toggle"
+              aria-label="Switch output"
+              aria-haspopup="listbox"
+              aria-expanded={comboOpen}
+              disabled={editor.busy}
+              onClick={() => setComboOpen((open) => !open)}
+              onBlur={(event) => {
+                if (!event.currentTarget.parentElement?.contains(event.relatedTarget))
+                  setComboOpen(false);
+              }}
+            >
+              <svg viewBox="0 0 12 8" width="12" height="8" aria-hidden="true">
+                <path d="M1 1.5l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+              </svg>
+            </button>
+            {comboOpen && (
+              <ul className="overlay-combo-list" role="listbox" aria-label="Editing output">
+                {document.overlays.map((overlay) => (
+                  <li key={overlay.id} role="option" aria-selected={overlay.id === draft.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setComboOpen(false);
+                        if (overlay.id !== draft.id) editor.select(overlay.id);
+                      }}
+                    >
+                      {overlay.name}
+                      {overlay.published ? " · On stream" : ""}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
         <label>
           <span>
             Sessions to show{" "}
@@ -209,14 +234,10 @@ export function OverlayManager({
             {editor.dirty && " · Apply to update"}
           </small>
         </div>
-      </div>
-      {children}
-      {runningOverflow > 0 && draft.selection !== "selected" && (
-        <p className="overlay-url-note">
-          {runningOverflow} extra running sessions dropped (8 max).
-        </p>
-      )}
-      <div className="overlay-url-row">
+        </div>
+        <div className="overlay-side-col">
+          {children}
+          <div className="overlay-url-row">
         <input
           aria-label="OBS browser source URL"
           value={url}
@@ -230,6 +251,13 @@ export function OverlayManager({
           Open ↗
         </a>
       </div>
+        </div>
+      </div>
+      {runningOverflow > 0 && draft.selection !== "selected" && (
+        <p className="overlay-url-note">
+          {runningOverflow} extra running sessions dropped (8 max).
+        </p>
+      )}
       <p className="overlay-url-note">
         Add this URL as an OBS browser source. Each output has its own
         assignment.
