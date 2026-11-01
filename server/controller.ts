@@ -19,7 +19,7 @@ import {
   type SessionCount,
 } from "../shared/types.js";
 import { Collection } from "./collection.js";
-import { Filter } from "./filter.js";
+import { Filter, MAX_PROMPT_CHARS } from "./filter.js";
 import type { Judge } from "./jev.js";
 import type { PairRunner, RunHandle } from "./runner.js";
 import { Store } from "./store.js";
@@ -194,12 +194,12 @@ export class Controller extends EventEmitter {
     const value = text.trim();
     if (
       value.length < 10 ||
-      value.length > 600 ||
+      value.length > MAX_PROMPT_CHARS ||
       /[\u0000-\u0008]/.test(value) ||
       this.clean(value, Infinity) !== value
     )
       throw new Error(
-        "Use 10–600 characters without private paths, credentials or control characters",
+        `Use 10–${MAX_PROMPT_CHARS} characters without private paths, credentials or control characters`,
       );
     this.collection.prepared = {
       text: value,
@@ -371,19 +371,19 @@ export class Controller extends EventEmitter {
       sessions.map((s) => [s.id, sessionLabel(s)]),
     );
     if (value.round) {
-      value.round.task.text = this.clean(value.round.task.text, 600);
+      value.round.task.text = this.clean(value.round.task.text, MAX_PROMPT_CHARS);
       value.round.task.author = this.clean(value.round.task.author, 80);
     }
     if (value.prepared) {
-      value.prepared.text = this.clean(value.prepared.text, 600);
+      value.prepared.text = this.clean(value.prepared.text, MAX_PROMPT_CHARS);
       value.prepared.author = this.clean(value.prepared.author, 80);
     }
     value.candidates = value.candidates.map((c) => ({
       ...c,
-      text: this.clean(c.text, 600),
+      text: this.clean(c.text, MAX_PROMPT_CHARS),
       message: {
         ...c.message,
-        text: this.clean(c.message.text, 600),
+        text: this.clean(c.message.text, MAX_PROMPT_CHARS),
         author: this.clean(c.message.author, 80),
       },
     }));
