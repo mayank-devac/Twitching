@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { Docker } from "../server/docker.js";
@@ -49,4 +49,19 @@ test("unsafe login destination is rejected without replacing its original conten
     await assert.rejects(copyLoginFile(source, outside, profile, profile), /inside its profile/);
     assert.equal(await readFile(outside, "utf8"), "fixture-original");
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("a reused workspace whose .home is a planted symlink is refused", async () => {
+  const root = await mkdtemp(resolve(tmpdir(), "arena-home-link-"));
+  const store = new Store(":memory:");
+  try {
+    const outside = resolve(root, "outside");
+    await mkdir(outside);
+    const dir = resolve(root, "runtime/workspaces/session-1/reused");
+    await mkdir(dir, { recursive: true });
+    await symlink(outside, resolve(dir, ".home"));
+    const host = new Docker(store, { root, image: "unused" });
+    await assert.rejects(host.workspace({ cli: "codex", round: "reused", session: "session-1", auth: false }), /real directory/);
+    assert.deepEqual(await readdir(outside), []);
+  } finally { store.close(); await rm(root, { recursive: true, force: true }); }
 });

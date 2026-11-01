@@ -36,6 +36,14 @@ const cursorLoginEntry = (path: string, directory: boolean) => directory
   ? !path.split("/").some((part) => ["sessions", "logs", "projects", "skills", "plugins"].includes(part))
   : ["auth.json", "config.toml", "cli-config.json"].includes(path.split("/").at(-1)!);
 
+// Session workspaces are reused and agent-writable: a planted symlink at
+// .home or .tmp would redirect login seeding outside the round folder.
+async function assertRealDirectory(path: string) {
+  const info = await lstat(path);
+  if (info.isSymbolicLink() || !info.isDirectory())
+    throw new Error("Runner workspace path must be a real directory, not a link");
+}
+
 export interface DockerOptions {
   root: string;
   image: string;
@@ -78,6 +86,8 @@ export class Docker {
     await mkdir(resolve(dir, ".tmp"), { recursive: true, mode: 0o700 });
     const home = resolve(dir, ".home");
     await mkdir(home, { recursive: true, mode: 0o700 });
+    for (const path of [dir, resolve(dir, ".tmp"), home])
+      await assertRealDirectory(path);
     if (agent === "codex") {
       await prepareCodexHome(this.options.root, home, auth);
       return dir;
