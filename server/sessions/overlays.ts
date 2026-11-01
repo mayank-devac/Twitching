@@ -233,8 +233,9 @@ export class Overlays extends EventEmitter {
         throw new Error(
           "Publication changed while preparing this overlay. Reload and retry.",
         );
+      // read() returns at most one view per id, in id order.
       prepared?.forEach((view, index) => {
-        if (view) this.pages.set(ids[index], view);
+        if (view) this.pages.set(ids[index]!, view);
       });
       this.commit(
         this.document.overlays.map((overlay) =>
@@ -354,7 +355,7 @@ export class Overlays extends EventEmitter {
         }),
       );
       results.forEach((result, index) => {
-        const id = part[index];
+        const id = part[index]!; // one settled result per id in part
         if (result.status === "fulfilled") {
           this.pages.set(id, result.value);
           this.failures.delete(id);

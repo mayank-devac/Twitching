@@ -164,7 +164,7 @@ export class Sessions extends EventEmitter {
     const main = this.overlays.snapshot();
     const publication = {
       publishedId:
-        main.frames.length === 1 ? main.frames[0].conversation.id : undefined,
+        main.frames.length === 1 ? main.frames[0]!.conversation.id : undefined,
       publishedIds,
     };
     if (source === "cursor")
@@ -194,7 +194,8 @@ export class Sessions extends EventEmitter {
     return c;
   }
   async models(cli: Agent, runner: RunnerMode) {
-    const defaults = this.preferences.get().value.sessions[0];
+    // preferencesSchema keeps at least one session.
+    const defaults = this.preferences.get().value.sessions[0]!;
     return new CliRunner(
       this.hosts[runner],
       {
@@ -249,7 +250,7 @@ export class Sessions extends EventEmitter {
       () =>
         c.config?.id ??
         doc.sessions.find((s) => s.cli === c.cli)?.id ??
-        doc.sessions[0].id,
+        doc.sessions[0]!.id, // preferencesSchema keeps at least one session
     );
   }
   private async rawPage(c: Conversation, before?: string, limit = 60) {
@@ -505,9 +506,12 @@ export class Sessions extends EventEmitter {
             if (this.overlays.hasPublished()) this.overlays.schedule();
           },
         );
-        active.handle = handles[config.id];
-        if (this.closing) await active.handle.stop("cancelled");
-        const outcome = await active.handle.done;
+        const handle = handles[config.id];
+        // launch() returns a handle for every session it was given.
+        if (!handle) throw new Error(`Runner returned no handle for ${config.id}`);
+        active.handle = handle;
+        if (this.closing) await handle.stop("cancelled");
+        const outcome = await handle.done;
         c.result = outcome.hasResult ? { round, agent: config.id } : undefined;
         c.status = "idle";
         add({
