@@ -273,11 +273,15 @@ export function makeHttp(
       channels.set(ws, overlay); sockets.emit("connection", ws, req);
     });
   });
+  // Sockets that answered the last ping; others are dead and get terminated.
+  const alive = new WeakSet<WebSocket>();
   sockets.on("connection", (socket) => {
     const channel = channels.get(socket) ?? "default";
     const state = publicState(channel);
     if (!previous.has(channel)) previous.set(channel, state);
     socket.send(JSON.stringify({ type: "snapshot", state: wireState(state), previewOrigin: options.previewOrigin }));
+    alive.add(socket);
+    socket.on("pong", () => alive.add(socket));
     socket.on("error", () => socket.terminate());
     socket.on("message", () => socket.close(1008, "Read-only overlay socket"));
   });
@@ -309,9 +313,14 @@ export function makeHttp(
   controller.on("state", broadcast);
   options.sessions?.on("state", broadcast);
   const heartbeat = setInterval(() => {
-    for (const socket of sockets.clients) socket.ping();
+    for (const socket of sockets.clients) {
+      if (!alive.has(socket)) { socket.terminate(); continue; }
+      alive.delete(socket);
+      socket.ping();
+    }
   }, 20000);
   heartbeat.unref();
+  sockets.on("close", () => clearInterval(heartbeat));
   return {
     app,
     server,

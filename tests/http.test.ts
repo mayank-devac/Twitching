@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { mock } from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { once } from "node:events";
@@ -160,6 +160,47 @@ test("overlay reconnect returns current state/events without launching a job, an
       404,
     );
   } finally {
+    await http.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("event socket heartbeat terminates clients that miss a pong", async () => {
+  const root = await mkdtemp(resolve(tmpdir(), "stram-http-"));
+  const port = await freePort();
+  const origin = `http://127.0.0.1:${port}`;
+  const controller = Object.assign(new EventEmitter(), {
+    snapshot: () => ({ status: "idle", events: [] }),
+  }) as unknown as Controller;
+  // Only the heartbeat interval is faked; sockets still run on real I/O.
+  mock.timers.enable({ apis: ["setInterval"] });
+  const http = makeHttp(controller, {
+    host: "127.0.0.1", port, previewOrigin: "http://127.0.0.1:39211", root,
+    musicPath: resolve(root, "missing.mp3"),
+  });
+  await new Promise<void>((r) => http.server.listen(port, "127.0.0.1", r));
+  try {
+    const open = async () => {
+      const socket = new WebSocket(`ws://127.0.0.1:${port}/events`, { origin });
+      await once(socket, "message");
+      return socket;
+    };
+    const healthy = await open(), dead = await open();
+    // A paused client never reads the ping, so it cannot answer with a pong.
+    (dead as unknown as { _socket: { pause(): void; resume(): void } })._socket.pause();
+    const pinged = once(healthy, "ping");
+    mock.timers.tick(20000);
+    await pinged;
+    await new Promise((r) => setTimeout(r, 50));
+    mock.timers.tick(20000);
+    (dead as unknown as { _socket: { resume(): void } })._socket.resume();
+    const [code] = await once(dead, "close", { signal: AbortSignal.timeout(2000) });
+    assert.equal(code, 1006);
+    assert.equal(healthy.readyState, WebSocket.OPEN);
+    healthy.close();
+    await once(healthy, "close");
+  } finally {
+    mock.timers.reset();
     await http.close();
     await rm(root, { recursive: true, force: true });
   }
