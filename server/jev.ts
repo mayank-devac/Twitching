@@ -108,10 +108,16 @@ export class Jev implements Judge {
   }
   async choose(candidates: Candidate[]) {
     if (!candidates.length) return "WAIT";
-    const criteria = Object.fromEntries(
-      candidates.map((c) => [
-        c.id,
-        `Existing suggestion: ${c.text}. Weighted score: ${c.score}.`,
+    // Option criteria act as instructions to the selector, so viewer text must
+    // never appear there: options use opaque ids and the numeric score only,
+    // and the suggestion text travels solely in the state payload.
+    const options = new Map(
+      candidates.map((c, index) => [`candidate-${index + 1}`, c]),
+    );
+    const criteria: Record<string, string> = Object.fromEntries(
+      [...options].map(([id, c]) => [
+        id,
+        `Suggestion ${id} from the state data. Weighted score: ${Number(c.score)}.`,
       ]),
     );
     criteria.WAIT = this.prompts.choose.wait;
@@ -128,8 +134,8 @@ export class Jev implements Judge {
       .parse(
         await this.call(
           {
-            candidates: candidates.map((c) => ({
-              id: c.id,
+            candidates: [...options].map(([id, c]) => ({
+              id,
               text: c.text,
               score: c.score,
             })),
@@ -143,8 +149,9 @@ export class Jev implements Judge {
           },
         ),
       ).answers.selection;
-    if (!(answer.choice in criteria))
+    if (!Object.hasOwn(criteria, answer.choice))
       throw new Error("Jev returned an unknown candidate");
-    return answer.confidence < 0.6 ? "WAIT" : answer.choice;
+    if (answer.confidence < 0.6 || answer.choice === "WAIT") return "WAIT";
+    return options.get(answer.choice)!.id;
   }
 }

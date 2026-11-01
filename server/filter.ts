@@ -237,6 +237,8 @@ const CONFUSABLES: Record<string, string> = {
   ρ: "p",
 };
 const SUFFIXES = ["ing", "ers", "er", "ed", "es", "ty", "s"];
+// Longer chat suggestions are rejected before any Jev call is made.
+export const MAX_PROMPT_CHARS = 600;
 
 const normalize = (text: string) =>
   text
@@ -367,7 +369,8 @@ export class Filter {
       .normalize("NFKC")
       .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u206f\u00ad\ufeff]/g, "")
       .trim();
-    if (text.length > 600) return { error: "Prompt exceeds 600 characters" };
+    if (text.length > MAX_PROMPT_CHARS)
+      return { error: `Prompt exceeds ${MAX_PROMPT_CHARS} characters` };
     if (/[\u0000-\u001f\u007f]/.test(text))
       return { error: "Unreadable control characters" };
     const words = text.match(/[A-Za-z]+(?:'[A-Za-z]+)?|\d+/g) ?? [];
