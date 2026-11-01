@@ -1,12 +1,14 @@
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { z } from "zod";
+import { configuredSessions, type SessionConfig } from "../shared/types.js";
 import {
-  configuredSessions,
-  validSessionId,
-  SESSION_IDS,
-  type SessionConfig,
-} from "../shared/types.js";
+  cliSchema,
+  runnerModeSchema,
+  sessionIdSchema,
+  sessionListSchema,
+  streamModeSchema,
+} from "../shared/schema.js";
 import { DEFAULT_PROMPT_FILE } from "./prompt-playlist.js";
 export const startupSchema = z.object({
   experience: z.enum(["welcome", "session", "arena"]).default("welcome"),
@@ -30,26 +32,19 @@ export const startupSchema = z.object({
   agentImage: z.string().regex(/^[\w./:-]+$/),
   previewImage: z.string().regex(/^[\w./:-]+$/),
   browserPort: z.number().int().min(1024).max(65535),
-  mode: z.enum(["live", "rehearsal"]),
+  mode: streamModeSchema,
   previewView: z.enum(["jpeg", "live"]).default("live"),
-  runnerMode: z.enum(["docker", "native"]).default("docker"),
-  sessions: z
-    .array(
-      z.object({
-        id: z.string().refine(validSessionId, `Use ${SESSION_IDS.join(", ")}`),
-        cli: z.enum(["codex", "cursor"]),
-        model: z.string().trim().min(1),
-        effort: z.string().trim().min(1).optional(),
-      }),
-    )
-    .min(1)
-    .max(2)
-    .refine(
-      (sessions) => new Set(sessions.map((s) => s.id)).size === sessions.length,
-      "Session IDs must be unique",
-    )
-    .optional(),
-  singleAgent: z.enum(["codex", "cursor"]).optional(),
+  runnerMode: runnerModeSchema.default("docker"),
+  // Operator-authored settings: not strict and without the saved-settings length caps.
+  sessions: sessionListSchema(
+    z.object({
+      id: sessionIdSchema,
+      cli: cliSchema,
+      model: z.string().trim().min(1),
+      effort: z.string().trim().min(1).optional(),
+    }),
+  ).optional(),
+  singleAgent: cliSchema.optional(),
   safetyThreshold: z.number().min(0).max(1),
   relevanceThreshold: z.number().min(0).max(1),
   minScore: z.number().min(0).max(100),

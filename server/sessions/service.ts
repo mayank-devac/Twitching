@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import type {
   Agent,
   Activity,
+  RunnerMode,
   SessionConfig,
   ShowState,
 } from "../../shared/types.js";
@@ -60,16 +61,16 @@ export class Sessions extends EventEmitter {
   private nativeApprovals = new Set<string>();
   // Capability probes are fixed per host, so prompts and model loads share them
   // instead of starting fresh probe containers for every new CliRunner.
-  private capabilities: Record<"docker" | "native", CapabilityChecks> = { docker: new Map(), native: new Map() };
+  private capabilities: Record<RunnerMode, CapabilityChecks> = { docker: new Map(), native: new Map() };
   // HTTP supplies the host-confirmed checklist without coupling it to provider connectors.
   requirePresentationRehearsal: (context: string, output?: import("../../shared/sessions.js").OverlayDefinition) => void = () => {};
   get mode() { return this.preferences.get().value.stream.mode; }
   private publicationMode?: "live" | "rehearsal";
-  readonly recoveryRunners: Set<"docker" | "native">;
+  readonly recoveryRunners: Set<RunnerMode>;
   constructor(
     private store: Store,
     private preferences: QuickSettings,
-    private hosts: Record<"docker" | "native", Docker>,
+    private hosts: Record<RunnerMode, Docker>,
     private clean: (
       text: string,
       limit?: number,
@@ -187,7 +188,7 @@ export class Sessions extends EventEmitter {
     if (!c) throw new Error("Session not found");
     return c;
   }
-  async models(cli: Agent, runner: "docker" | "native") {
+  async models(cli: Agent, runner: RunnerMode) {
     const defaults = this.preferences.get().value.sessions[0];
     return new CliRunner(
       this.hosts[runner],
@@ -203,7 +204,7 @@ export class Sessions extends EventEmitter {
   }
   async create(
     cli: Agent,
-    runner: "docker" | "native",
+    runner: RunnerMode,
     nativeConsent?: string,
   ) {
     if (this.closing) throw new Error("The server is shutting down");

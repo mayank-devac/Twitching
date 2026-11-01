@@ -1,7 +1,8 @@
 // Owns the guided launcher's command line: help text, flag parsing and the env it hands the server.
+import { RUNNER_MODES } from "../../shared/schema.js";
 import { parseSessionSpec } from "../session-selection.js";
 import { parseSkipPlatform } from "../../server/chat-skips.js";
-import { CLIS, isCli, type Agent, type SessionConfig } from "../../shared/types.js";
+import { CLIS, isCli, type Agent, type RunnerMode, type SessionConfig } from "../../shared/types.js";
 
 export const help = `Prompt Arena guided startup
 
@@ -25,7 +26,7 @@ Public starts require terminal confirmation. No credentials are requested or pri
 export interface StreamOptions {
   command: "check" | "start";
   mode?: "live" | "rehearsal";
-  runnerMode?: "docker" | "native";
+  runnerMode?: RunnerMode;
   verify: boolean;
   interactive: boolean;
   skipYoutube: boolean;
@@ -96,7 +97,7 @@ export function parseStreamOptions(
     } else if (args[i] === "--non-interactive") options.interactive = false;
     else if (args[i] === "--mode" && ["live", "rehearsal"].includes(args[i + 1]))
       options.mode = args[++i] as StreamOptions["mode"];
-    else if (args[i] === "--runner" && ["docker", "native"].includes(args[i + 1]))
+    else if (args[i] === "--runner" && (RUNNER_MODES as readonly string[]).includes(args[i + 1]))
       options.runnerMode = args[++i] as StreamOptions["runnerMode"];
     else if (args[i] === "--prompts") options.forcePrompts = true;
     else if (args[i] === "--no-prompts") options.ignorePrompts = true;

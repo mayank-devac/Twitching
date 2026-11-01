@@ -1,10 +1,11 @@
 // Owns the opt-in automated verification step (--verify, or the check-mode prompt).
+import type { RunnerMode } from "../../shared/types.js";
 import { run, toolEnv, yes } from "./runtime.js";
 import type { StreamOptions } from "./options.js";
 
 export async function maybeVerify(
   options: StreamOptions,
-  runnerMode: "docker" | "native",
+  runnerMode: RunnerMode,
 ) {
   if (
     options.verify ||

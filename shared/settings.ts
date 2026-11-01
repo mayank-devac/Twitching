@@ -1,4 +1,4 @@
-import type { ActivityKind, SessionConfig } from "./types.js";
+import type { ActivityKind, RunnerMode, SessionConfig } from "./types.js";
 
 // Every chat source the show can read; loops over this replace per-platform copies.
 export const CHAT_PLATFORMS = ["youtube", "twitch", "kick"] as const;
@@ -73,7 +73,7 @@ export interface LastSetup {
   path: "existing" | "new" | "arena";
   sessionId?: string;
   session?: { cli: string; model?: string; effort?: string; title: string };
-  runner: "docker" | "native";
+  runner: RunnerMode;
   sessions: SessionConfig[];
   visibility: QuickPreferences["visibility"];
   stream: QuickPreferences["stream"];

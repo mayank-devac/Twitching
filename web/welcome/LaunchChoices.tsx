@@ -1,5 +1,5 @@
 import React from "react";
-import type { Agent } from "../../shared/types.js";
+import type { Agent, RunnerMode } from "../../shared/types.js";
 
 // Runner choices affect only future managed runs; external sessions are always read-only.
 export function LaunchChoices({
@@ -16,10 +16,10 @@ export function LaunchChoices({
   newSession: boolean;
   busy: boolean;
   cli: Agent;
-  runner: "docker" | "native";
+  runner: RunnerMode;
   nativeAccepted: boolean;
   changeCli(cli: Agent): void;
-  changeRunner(runner: "docker" | "native"): void;
+  changeRunner(runner: RunnerMode): void;
   changeNativeAccepted(accepted: boolean): void;
   discover(): void;
 }) {
@@ -43,7 +43,7 @@ export function LaunchChoices({
             <select
               value={runner}
               onChange={(e) =>
-                changeRunner(e.target.value as "docker" | "native")
+                changeRunner(e.target.value as RunnerMode)
               }
             >
               <option value="docker">Docker — isolated</option>

@@ -1,6 +1,7 @@
 import express from "express";
 import { z } from "zod";
 import type { Sessions } from "./service.js";
+import { cliSchema, runnerModeSchema } from "../../shared/schema.js";
 import { routeAction, type HostOnly } from "../http-kit.js";
 
 const identifier = z
@@ -14,6 +15,7 @@ const listing = z.object({
   search: z.string().max(160).default(""),
   before: cursor,
 });
+const cliRunner = { cli: cliSchema, runner: runnerModeSchema };
 const overlayId = z.string().regex(/^(default|[a-f0-9-]{36})$/);
 const page = z.object({
   id: identifier,
@@ -50,8 +52,7 @@ const overlayAction = z.discriminatedUnion("action", [
 const action = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("create"),
-    cli: z.enum(["codex", "cursor"]),
-    runner: z.enum(["docker", "native"]),
+    ...cliRunner,
     nativeConsent: z.literal("NATIVE").optional(),
   }),
   z.object({ action: z.literal("publish"), id: identifier }),
@@ -114,10 +115,7 @@ export function sessionRoutes(
     "/api/sessions/models",
     respond(async (req) => {
       const input = z
-        .object({
-          cli: z.enum(["codex", "cursor"]),
-          runner: z.enum(["docker", "native"]),
-        })
+        .object(cliRunner)
         .parse(req.query);
       try {
         return { models: await sessions.models(input.cli, input.runner) };

@@ -2,7 +2,8 @@ import { basename } from "node:path";
 import express from "express";
 import { z } from "zod";
 import type { Controller } from "./controller.js";
-import type { Agent } from "../shared/types.js";
+import type { Agent, RunnerMode } from "../shared/types.js";
+import { cliSchema, runnerModeSchema } from "../shared/schema.js";
 import type { QuickSettings } from "./quick-settings.js";
 import { saveSettingsSchema } from "./quick-settings.js";
 import { validateModel } from "./cli/index.js";
@@ -15,8 +16,8 @@ export interface SettingsServices {
   preferences: QuickSettings;
   media: BreakMedia;
   store: Store;
-  discover(cli: Agent, runner?: "docker" | "native"): Promise<CliModel[]>;
-  runner?: "docker" | "native";
+  discover(cli: Agent, runner?: RunnerMode): Promise<CliModel[]>;
+  runner?: RunnerMode;
   defaults?: { audio: string; visual: string; visualUrl: string };
 }
 // Every host route authenticates before parsing a body or doing expensive discovery.
@@ -49,9 +50,9 @@ export function settingsRoutes(
   };
   app.get("/api/settings", (_req, res) => res.json(preferences.get()));
   app.get("/api/models/:cli", routeAction(async (req) => {
-    const cli = z.enum(["codex", "cursor"]).safeParse(req.params.cli);
+    const cli = cliSchema.safeParse(req.params.cli);
     if (!cli.success) throw new HttpError(400, "Unsupported CLI");
-    const boundary = z.enum(["docker", "native"]).optional().parse(req.query.runner);
+    const boundary = runnerModeSchema.optional().parse(req.query.runner);
     return { models: boundary ? await services.discover(cli.data, boundary) : await discover(cli.data) };
   }, {
     status: 409,
@@ -63,7 +64,7 @@ export function settingsRoutes(
     "/api/settings",
     express.json({ limit: "24kb" }),
     routeAction(async (req) => {
-      const runner = z.enum(["docker", "native"]).optional().safeParse(req.query.runner);
+      const runner = runnerModeSchema.optional().safeParse(req.query.runner);
       if (!runner.success) throw new HttpError(400, "Invalid runner");
       const parsed = saveSettingsSchema.safeParse(req.body);
       if (!parsed.success)

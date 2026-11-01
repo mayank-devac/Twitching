@@ -1,4 +1,5 @@
 // Owns the Docker side of startup: engine, agent/preview images (with build consent), provider proxy and preview network.
+import type { RunnerMode } from "../../shared/types.js";
 import { spawn } from "node:child_process";
 import type { Docker } from "../../server/docker.js";
 import { PREVIEW_NETWORK } from "../../server/constants.js";
@@ -46,7 +47,7 @@ async function waitForDockerEngine(docker: Docker) {
 export async function checkSandbox(
   docker: Docker,
   settings: Settings,
-  runnerMode: "docker" | "native",
+  runnerMode: RunnerMode,
 ) {
   await repair(
     "Docker Desktop",

@@ -3,7 +3,7 @@ import { ModeHandover, type ModeHandoverState } from "./ModeHandover.js";
 import { RehearsalCheck } from "./RehearsalCheck.js";
 import { BreakControl } from "../break-control.js";
 import React, { useEffect, useRef, useState } from "react";
-import type { Agent, SessionConfig } from "../../shared/types.js";
+import type { Agent, RunnerMode, SessionConfig } from "../../shared/types.js";
 import type {
   Conversation,
   ConnectorCapabilities,
@@ -120,7 +120,7 @@ export function Welcome({
   const [handover, setHandover] = useState<ModeHandoverState>();
   const [failedMode, setFailedMode] = useState<"existing" | "new" | "arena">();
   const [cli, setCli] = useState<Agent>("codex");
-  const [runner, setRunner] = useState<"docker" | "native">("native");
+  const [runner, setRunner] = useState<RunnerMode>("native");
   const [nativeAccepted, setNativeAccepted] = useState(false);
   const [models, setModels] = useState<ModelChoice[]>();
   const [choice, setChoice] = useState<SessionConfig>();

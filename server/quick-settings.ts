@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { QuickPreferences, SettingsDocument } from "../shared/settings.js";
 import { defaultVisibility } from "../shared/settings.js";
 import { validSessionId } from "../shared/types.js";
+import { sessionConfigSchema, sessionListSchema, streamModeSchema } from "../shared/schema.js";
 import type { Store } from "./store.js";
 
 // Strict schemas prevent an operator request from becoming arbitrary configuration.
@@ -27,20 +28,7 @@ export const preferencesSchema = z
           .strict(),
       )
       .optional(),
-    sessions: z
-      .array(
-        z
-          .object({
-            id: z.string().refine(validSessionId),
-            cli: z.enum(["codex", "cursor"]),
-            model: z.string().trim().min(1).max(160),
-            effort: z.string().trim().min(1).max(40).optional(),
-          })
-          .strict(),
-      )
-      .min(1)
-      .max(2)
-      .refine((s) => new Set(s.map((v) => v.id)).size === s.length),
+    sessions: sessionListSchema(sessionConfigSchema),
     visibility: z.record(
       z
         .string()
@@ -53,7 +41,7 @@ export const preferencesSchema = z
     ),
     stream: z
       .object({
-        mode: z.enum(["live", "rehearsal"]),
+        mode: streamModeSchema,
         youtube: z.boolean(),
         twitch: z.boolean(),
         kick: z.boolean(),

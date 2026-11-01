@@ -1,4 +1,5 @@
 // Owns the public-live gate: private fields, chat platform readiness, OBS auto-stop and a confirmed rehearsal.
+import type { RunnerMode } from "../../shared/types.js";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
@@ -46,7 +47,7 @@ export async function checkLivePreflight(
   options: StreamOptions,
   settings: Settings,
   secrets: Secrets,
-  runnerMode: "docker" | "native",
+  runnerMode: RunnerMode,
   state: LauncherState | undefined,
 ) {
   const { missingLiveSecrets, twitchStatus, ensureYoutubeLiveChatId } =

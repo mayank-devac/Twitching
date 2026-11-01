@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { z } from "zod";
 import { resolve } from "node:path";
 import { randomUUID, createHash } from "node:crypto";
-import { CLIS, type Agent, type SessionId } from "../shared/types.js";
+import { CLIS, type Agent, type RunnerMode, type SessionId } from "../shared/types.js";
 import { writeFileAtomic } from "./atomic-file.js";
 import { CodexAppServerClient } from "./codex-app-server.js";
 import { enforceDiskBudget } from "./disk-budget.js";
@@ -94,7 +94,7 @@ export interface WorkspaceRequest {
   auth?: boolean;
 }
 export class Docker {
-  readonly executionBoundary: "docker" | "native" = "docker";
+  readonly executionBoundary: RunnerMode = "docker";
   label: string;
   constructor(
     private store: Store,

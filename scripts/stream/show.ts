@@ -1,4 +1,5 @@
 // Owns the start phase: native consent, launching the app and its boot handshake, then starting the show.
+import type { RunnerMode } from "../../shared/types.js";
 import { spawn } from "node:child_process";
 import type { Obs } from "../../server/obs.js";
 import { configuredSessions } from "../../shared/types.js";
@@ -19,7 +20,7 @@ import type { StreamOptions } from "./options.js";
 export interface ShowStart {
   options: StreamOptions;
   mode: "live" | "rehearsal";
-  runnerMode: "docker" | "native";
+  runnerMode: RunnerMode;
   settings: Settings;
   housePrompts: string[];
   origin: string;

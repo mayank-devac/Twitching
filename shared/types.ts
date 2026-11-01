@@ -19,12 +19,9 @@ export function sessionCount(sessions: readonly unknown[]): SessionCount {
     throw new Error("Choose one or two sessions");
   return sessions.length;
 }
-export interface SessionConfig {
-  id: SessionId;
-  cli: Agent;
-  model: string;
-  effort?: string;
-}
+// Validated shapes live in schema.ts; their types are re-exported here for existing importers.
+export type { RunnerMode, SessionConfig } from "./schema.js";
+import type { RunnerMode, SessionConfig } from "./schema.js";
 export interface SessionOptions {
   sessions?: SessionConfig[];
   singleAgent?: Agent;
@@ -192,7 +189,7 @@ export interface ShowState {
   connections: Record<string, string>;
   checks: string[];
   rehearsalComplete: boolean;
-  rehearsalRunnerMode?: "docker" | "native";
+  rehearsalRunnerMode?: RunnerMode;
   playlistIndex?: number;
   playlistTotal?: number;
   awaitingHostChoice?: boolean;

@@ -1,4 +1,4 @@
-import type { ActivityKind, Agent, SessionConfig } from "./types.js";
+import type { ActivityKind, Agent, RunnerMode, SessionConfig } from "./types.js";
 import type { SessionVisibility } from "./settings.js";
 
 export type Experience = "welcome" | "session" | "arena";
@@ -21,7 +21,7 @@ export interface Conversation {
   model?: string;
   status: "running" | "idle" | "disconnected" | "unknown";
   config?: SessionConfig;
-  runner?: "docker" | "native";
+  runner?: RunnerMode;
   result?: { round: number; agent: string };
   pendingRun?: boolean;
 }

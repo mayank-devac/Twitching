@@ -12,7 +12,7 @@ import {
   failedLoginAgent,
 } from "../../server/cli-startup-repair.js";
 import { credentialGuard } from "../../server/redact.js";
-import { configuredSessions, sessionCount, type Agent } from "../../shared/types.js";
+import { configuredSessions, sessionCount, type Agent, type RunnerMode } from "../../shared/types.js";
 import { newestSource } from "../boot-client.js";
 import {
   fix,
@@ -89,7 +89,7 @@ export async function checkLocalSetup(settings: Settings, existing: boolean) {
 export interface ServiceCheck {
   settings: Settings;
   secrets: Secrets;
-  runnerMode: "docker" | "native";
+  runnerMode: RunnerMode;
   singleAgent?: Agent;
   runner: CliRunner;
   docker: Docker;
