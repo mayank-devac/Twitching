@@ -15,7 +15,7 @@ import { parseServerMessage } from "../shared/server-message.js";
 import { BreakScreen } from "./break-screen.js";
 import { BreakControl } from "./break-control.js";
 import { defaultVisibility } from "../shared/settings.js";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import ReactMarkdown from "react-markdown";
 import { markdownComponents, markdownPlugins } from "./markdown.js";
@@ -40,7 +40,12 @@ const outputId = namedOverlay
   ? location.pathname.slice("/overlay/".length)
   : "default";
 const control = location.pathname === "/control" || settingsPage || welcomePage;
-function MarkdownText({ children }: { children: string }) {
+// Memoised so a parent re-render only re-parses Markdown whose text changed.
+const MarkdownText = React.memo(function MarkdownText({
+  children,
+}: {
+  children: string;
+}) {
   return (
     <div className="markdown">
       <ReactMarkdown
@@ -52,7 +57,7 @@ function MarkdownText({ children }: { children: string }) {
       </ReactMarkdown>
     </div>
   );
-}
+});
 function clock(ms: number) {
   const seconds = Math.max(0, Math.floor(ms / 1000));
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
@@ -776,6 +781,7 @@ const laneLabel: Record<ActivityLane, string> = {
   terminal: "terminal use",
 };
 const CLI_TAG_MS = 1400;
+const noRows: Activity[] = [];
 function CliColumn({
   agent,
   cli,
@@ -788,7 +794,10 @@ function CliColumn({
   rows: Activity[];
 }) {
   const log = useRef<HTMLUListElement>(null);
-  const textSize = rows.reduce((size, row) => size + row.text.length, 0);
+  const textSize = useMemo(
+    () => rows.reduce((size, row) => size + row.text.length, 0),
+    [rows],
+  );
   useEffect(() => {
     if (log.current) log.current.scrollTop = log.current.scrollHeight;
   }, [rows.length, textSize]);
@@ -834,9 +843,22 @@ function CliColumn({
   );
 }
 function CliBoards({ state }: { state: ShowState }) {
+  const agents = state.agents ?? (["cursor", "codex"] as const);
+  // One pass per events change instead of agents×lanes filters on every render.
+  const rowsByLane = useMemo(() => {
+    const groups = new Map<string, Activity[]>();
+    for (const event of state.events) {
+      if (!event.lane) continue;
+      const key = `${event.agent}:${event.lane}`;
+      const rows = groups.get(key);
+      if (rows) rows.push(event);
+      else groups.set(key, [event]);
+    }
+    return groups;
+  }, [state.events]);
   return (
     <div className={`cli-boards ${state.agents?.length === 1 ? "solo" : ""}`}>
-      {(state.agents ?? (["cursor", "codex"] as const)).map((agent) => (
+      {agents.map((agent) => (
         <section
           key={agent}
           className="cli-board"
@@ -844,9 +866,7 @@ function CliBoards({ state }: { state: ShowState }) {
         >
           <div className="cli-columns">
             {lanes.map((lane) => {
-              const rows = state.events.filter(
-                (e) => e.agent === agent && e.lane === lane,
-              );
+              const rows = rowsByLane.get(`${agent}:${lane}`) ?? noRows;
               return (
                 <CliColumn
                   key={lane}
@@ -885,7 +905,10 @@ function AgentPanel({ agent, state }: { agent: SessionId; state: ShowState }) {
     : (state.quickSettings?.visibility[agent] ?? defaultVisibility);
   const cliLabel = `${cli === "codex" ? "Codex" : "Cursor"} ${(state.agents?.indexOf(agent) ?? 0) === 0 ? "Left" : "Right"}`;
   const showIntro = !control && !state.round;
-  const events = state.events.filter((e) => e.agent === agent && !e.lane);
+  const events = useMemo(
+    () => state.events.filter((e) => e.agent === agent && !e.lane),
+    [state.events, agent],
+  );
   const log = useRef<HTMLDivElement>(null);
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -900,7 +923,10 @@ function AgentPanel({ agent, state }: { agent: SessionId; state: ShowState }) {
       return () => clearTimeout(previewTimer.current);
     }
   }, [attempt?.preview]);
-  const textSize = events.reduce((n, e) => n + e.text.length, 0);
+  const textSize = useMemo(
+    () => events.reduce((n, e) => n + e.text.length, 0),
+    [events],
+  );
   useEffect(() => {
     const node = log.current;
     if (!node) return;
@@ -912,13 +938,16 @@ function AgentPanel({ agent, state }: { agent: SessionId; state: ShowState }) {
     return () => cancelAnimationFrame(frame);
   }, [events.length, textSize]);
   // Group consecutive real Cursor deltas to keep character streaming readable.
-  const lines: Activity[] = [];
-  for (const event of events) {
-    const last = lines.at(-1);
-    if (event.append && event.kind === "message" && last?.kind === "message")
-      last.text += event.text;
-    else lines.push({ ...event });
-  }
+  const lines = useMemo(() => {
+    const grouped: Activity[] = [];
+    for (const event of events) {
+      const last = grouped.at(-1);
+      if (event.append && event.kind === "message" && last?.kind === "message")
+        last.text += event.text;
+      else grouped.push({ ...event });
+    }
+    return grouped;
+  }, [events]);
   return (
     <section className={`agent-panel ${cli}`}>
       <div className="agent-header">
