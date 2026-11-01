@@ -18,7 +18,7 @@ test("provider proxy is ready only on an internal network with egress running", 
 
 test("assertProviderProxy awaits docker answers and keeps the repair messages", async () => {
   const docker = (answers: Record<string, string | Error>) => async (args: string[]) => {
-    const answer = answers[args[0]];
+    const answer = answers[args[0]!];
     if (answer instanceof Error || answer === undefined) throw answer ?? new Error("no docker");
     return answer;
   };

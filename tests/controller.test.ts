@@ -153,8 +153,8 @@ test("arena handover waits for the current run and blocks stale arena controls",
     assert.equal(await f.controller.leaveArena("wait"), "waiting");
     await assert.rejects(() => f.controller.resume(), /Open Prompt arena/);
     assert.deepEqual(f.runner.stopped, []);
-    f.runner.resolvers.codex({ status: "complete" });
-    f.runner.resolvers.cursor({ status: "complete" });
+    f.runner.resolvers.codex!({ status: "complete" });
+    f.runner.resolvers.cursor!({ status: "complete" });
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(await f.controller.leaveArena("wait"), "ready");
     assert.equal(f.controller.sessionReady, true);
@@ -191,7 +191,7 @@ test("two Codex usage failures share one in-flight quota request", async () => {
       return new Promise((resolve) => { resolveQuota = resolve; });
     };
     for (const session of sessions)
-      f.runner.resolvers[session.id]({ status: "error", failure: "usage" });
+      f.runner.resolvers[session.id]!({ status: "error", failure: "usage" });
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(requests, 1);
     resolveQuota({ remainingPercent: 90, resetsAt: 900000 });
@@ -204,13 +204,13 @@ test("launches a pair once with the same timestamp and preserves faster preview"
   const f = await fixture();
   assert.equal(f.runner.launches.length, 1);
   assert.equal(
-    f.controller.state.round?.attempts.codex.startedAt,
-    f.controller.state.round?.attempts.cursor.startedAt,
+    f.controller.state.round?.attempts.codex!.startedAt,
+    f.controller.state.round?.attempts.cursor!.startedAt,
   );
   f.runner.resolvers.codex?.({ status: "complete" });
   await new Promise((r) => setImmediate(r));
-  assert.equal(f.controller.state.round?.attempts.codex.status, "complete");
-  assert.equal(f.controller.state.round?.attempts.cursor.status, "running");
+  assert.equal(f.controller.state.round?.attempts.codex!.status, "complete");
+  assert.equal(f.controller.state.round?.attempts.cursor!.status, "running");
   await f.controller.tick();
   assert.equal(f.runner.launches.length, 1);
   await f.cleanup();
@@ -221,8 +221,8 @@ test("long-running attempts continue until completion or host cancellation", asy
   await f.controller.tick();
   await new Promise((r) => setImmediate(r));
   assert.deepEqual(f.runner.stopped, []);
-  assert.equal(f.controller.state.round?.attempts.codex.status, "running");
-  assert.equal(f.controller.state.round?.attempts.cursor.status, "running");
+  assert.equal(f.controller.state.round?.attempts.codex!.status, "running");
+  assert.equal(f.controller.state.round?.attempts.cursor!.status, "running");
   await f.cleanup();
 });
 test("long activity remains complete through controller snapshots and persistence", async () => {
@@ -324,7 +324,7 @@ test("restart pauses interrupted jobs rather than relaunching", async () => {
     () => 1000,
   );
   assert.equal(restarted.state.status, "paused");
-  assert.equal(restarted.state.round?.attempts.codex.status, "cancelled");
+  assert.equal(restarted.state.round?.attempts.codex!.status, "cancelled");
   await restarted.recover();
   await restarted.tick();
   assert.equal(f.runner.launches.length, 1);
@@ -459,7 +459,7 @@ test("prompt list sends each task to both CLIs then ends the show", async () => 
   await controller.tick();
   assert.equal(runner.launches.length, 1);
   assert.equal(
-    runner.launches[0].task.text,
+    runner.launches[0]!.task.text,
     "Build a colourful garden with flower controls",
   );
   assert.equal(controller.state.playlistIndex, 1);
@@ -470,7 +470,7 @@ test("prompt list sends each task to both CLIs then ends the show", async () => 
   await controller.tick();
   assert.equal(runner.launches.length, 2);
   assert.equal(
-    runner.launches[1].task.text,
+    runner.launches[1]!.task.text,
     "Build a tiny neon piano with clickable keys",
   );
   runner.resolvers.codex?.({ status: "complete" });
@@ -662,7 +662,7 @@ for (const agent of ["codex", "cursor"] as const) {
       await new Promise((resolve) => setImmediate(resolve));
       assert.equal(f.controller.state.status, "results");
       assert.equal(
-        f.controller.state.round?.attempts[agent].status,
+        f.controller.state.round?.attempts[agent]!.status,
         "complete",
       );
       assert.ok(f.controller.state.round?.attempts[agent].preview);
@@ -680,14 +680,14 @@ test("two Codex sessions keep independent results and cancellation identity", as
   const f = await fixture("live", undefined, (text) => text, sessions);
   try {
     assert.deepEqual(f.controller.snapshot().sessions, sessions);
-    f.runner.resolvers["session-1"]({ status: "complete" });
+    f.runner.resolvers["session-1"]!({ status: "complete" });
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(
-      f.controller.state.round!.attempts["session-1"].status,
+      f.controller.state.round!.attempts["session-1"]!.status,
       "complete",
     );
     assert.equal(
-      f.controller.state.round!.attempts["session-2"].status,
+      f.controller.state.round!.attempts["session-2"]!.status,
       "running",
     );
     assert.equal(f.controller.state.status, "running");
@@ -695,11 +695,11 @@ test("two Codex sessions keep independent results and cancellation identity", as
     await new Promise((resolve) => setImmediate(resolve));
     assert.ok(f.runner.stopped.includes("session-2"));
     assert.equal(
-      f.controller.state.round!.attempts["session-1"].model,
+      f.controller.state.round!.attempts["session-1"]!.model,
       "fixture-a",
     );
     assert.equal(
-      f.controller.state.round!.attempts["session-2"].status,
+      f.controller.state.round!.attempts["session-2"]!.status,
       "cancelled",
     );
     assert.deepEqual(f.store.state()!.round!.sessions, sessions);
@@ -714,8 +714,8 @@ test("manual break keeps a server deadline and expiry pauses the show", async ()
   try {
     await f.controller.manualBreak(10000,false);
     assert.equal(f.controller.state.status,"running");
-    f.runner.resolvers.codex({status:"complete"});
-    f.runner.resolvers.cursor({status:"complete"});
+    f.runner.resolvers.codex!({status:"complete"});
+    f.runner.resolvers.cursor!({status:"complete"});
     await new Promise(resolve=>setImmediate(resolve));
     f.setTime(1031);await f.controller.tick();
     assert.equal(f.controller.state.breakKind,"manual");

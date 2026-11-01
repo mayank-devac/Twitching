@@ -51,21 +51,21 @@ test("settings survive reload and a stale tab cannot overwrite a newer save", ()
     const preferences = new QuickSettings(store, defaults());
     const tabA = preferences.get();
     const tabB = preferences.get();
-    tabA.value.sessions[0].model = "new-model";
+    tabA.value.sessions[0]!.model = "new-model";
     preferences.save(tabA.revision, tabA.value);
     assert.throws(
       () => preferences.save(tabB.revision, tabB.value),
       /another tab/,
     );
     assert.equal(
-      new QuickSettings(store, defaults()).get().value.sessions[0].model,
+      new QuickSettings(store, defaults()).get().value.sessions[0]!.model,
       "new-model",
     );
     const startup = new QuickSettings(store, defaults(), {
       mode: "rehearsal",
       sessions: defaults().sessions,
     });
-    assert.equal(startup.get().value.sessions[0].model, "fixture");
+    assert.equal(startup.get().value.sessions[0]!.model, "fixture");
     assert.equal(
       preferencesSchema.safeParse({ ...defaults(), runnerMode: "native" })
         .success,
@@ -105,7 +105,7 @@ test("media rejects active documents, traversal and symlinks while round-trippin
     assert.equal(uploaded.type, "image/gif");
     assert.equal(uploaded.name, "evening loop.gif");
     assert.equal(
-      (await new BreakMedia(root, mediaStore).list())[0].name,
+      (await new BreakMedia(root, mediaStore).list())[0]!.name,
       "evening loop.gif",
     );
     assert.equal((await media.list()).length, 1);
@@ -220,9 +220,9 @@ test("read metadata cannot turn a private path or search pattern into a public f
   read("secret", "/workspace/.env");
   const reads = events.filter((e) => e.lane === "read");
   assert.equal(reads.length, 3);
-  assert.equal(reads[0].publicFile, "prompt_7.html");
-  assert.equal(reads[1].publicFile, undefined);
-  assert.equal(reads[2].publicFile, undefined);
+  assert.equal(reads[0]!.publicFile, "prompt_7.html");
+  assert.equal(reads[1]!.publicFile, undefined);
+  assert.equal(reads[2]!.publicFile, undefined);
 });
 
 // makeHttp fixes its allowed Origin from options.port before listening, so it
@@ -283,7 +283,7 @@ test("settings routes require host protection, reject unavailable models and rej
     const headers = {
       Origin: origin,
       "X-Host-Token": csrf,
-      Cookie: host.headers.get("set-cookie")!.split(";")[0],
+      Cookie: host.headers.get("set-cookie")!.split(";")[0]!,
       "Content-Type": "application/json",
     };
     const library = await fetch(origin + "/api/break-media", { headers });
@@ -335,14 +335,14 @@ test("settings routes require host protection, reject unavailable models and rej
         body: JSON.stringify(body),
       });
     const unavailable = defaults();
-    unavailable.sessions[0].model = "not-installed";
+    unavailable.sessions[0]!.model = "not-installed";
     assert.equal((await save({ revision: 0, value: unavailable })).status, 409);
     assert.equal(preferences.get().revision, 0);
     const valid = defaults();
-    valid.sessions[0].effort = "high";
+    valid.sessions[0]!.effort = "high";
     assert.equal((await save({ revision: 0, value: valid })).status, 200);
     assert.equal((await save({ revision: 0, value: defaults() })).status, 409);
-    assert.equal(preferences.get().value.sessions[0].effort, "high");
+    assert.equal(preferences.get().value.sessions[0]!.effort, "high");
     const bad = await fetch(origin + "/api/break-media", {
       method: "POST",
       headers: { ...headers, "Content-Type": "application/octet-stream" },

@@ -103,7 +103,7 @@ test("flat startup model keys read as a per-CLI map without changing session sha
     { id: "codex", cli: "codex", model: "a", effort: "high" },
   ]);
   assert.deepEqual(
-    Object.keys(configuredSessions({ ...options, codexEffort: "low", singleAgent: "codex" })[0]),
+    Object.keys(configuredSessions({ ...options, codexEffort: "low", singleAgent: "codex" })[0]!),
     ["id", "cli", "model", "effort"],
   );
 });

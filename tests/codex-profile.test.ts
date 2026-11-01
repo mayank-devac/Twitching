@@ -245,9 +245,9 @@ test("paired launch uses runtime isolation controls and the same autonomous prom
     assert.ok(codexCommand.includes(argument));
   assert.ok(codexCommand.includes("requested-codex"));
   assert.ok(commands.some((command) => command.includes("requested-cursor")));
-  assert.equal(commands[0].at(-1), commands[1].at(-1));
+  assert.equal(commands[0]!.at(-1), commands[1]!.at(-1));
   assert.match(
-    commands[0].at(-1)!,
+    commands[0]!.at(-1)!,
     /Choose a safe self-contained interpretation and continue/,
   );
 });

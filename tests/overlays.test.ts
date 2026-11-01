@@ -121,7 +121,7 @@ test("session pages deduplicate IDs and preserve two different sessions with the
       rows.map((row) => row.id),
       [first.id, second.id],
     );
-    assert.equal(rows[0].updatedAt, 99);
+    assert.equal(rows[0]!.updatedAt, 99);
   } finally {
     f.close();
   }
@@ -163,7 +163,7 @@ test("named outputs isolate assignment/history and stop without modifying anothe
     f.overlays.stop(created);
     assert.equal(f.overlays.snapshot(created).frames.length, 0);
     assert.equal(
-      f.overlays.snapshot().frames[0].page.items[0].text,
+      f.overlays.snapshot().frames[0]!.page.items[0]!.text,
       "Private answer 2",
     );
     assert.equal(f.values.size, 10);
@@ -180,7 +180,7 @@ test("named outputs isolate assignment/history and stop without modifying anothe
 test("the eight-session cap and revision check apply on the server", async () => {
   const f = fixture();
   try {
-    const main = f.overlays.host().overlays[0];
+    const main = f.overlays.host().overlays[0]!;
     const ids = [...f.values.keys()];
     await assert.rejects(
       () => f.save({ ...main, sessionIds: ids.slice(0, 9), published: true }),
@@ -202,7 +202,7 @@ test("running snapshots stay fixed and automatic outputs follow verified activit
   const f = fixture();
   try {
     await f.save({
-      ...f.overlays.host().overlays[0],
+      ...f.overlays.host().overlays[0]!,
       selection: "running-snapshot",
       published: true,
     });
@@ -214,35 +214,35 @@ test("running snapshots stay fixed and automatic outputs follow verified activit
     f.setRunning(next);
     await f.overlays.refresh();
     assert.equal(
-      f.overlays.snapshot().frames[0].conversation.id,
+      f.overlays.snapshot().frames[0]!.conversation.id,
       "managed:session-0",
     );
     await f.save({
-      ...f.overlays.host().overlays[0],
+      ...f.overlays.host().overlays[0]!,
       name: "Renamed fixed output",
     });
     assert.equal(
-      f.overlays.snapshot().frames[0].conversation.id,
+      f.overlays.snapshot().frames[0]!.conversation.id,
       "managed:session-0",
     );
     await f.overlays.save(
       f.overlays.host().revision,
-      f.overlays.host().overlays[0],
+      f.overlays.host().overlays[0]!,
       true,
     );
     assert.equal(
-      f.overlays.snapshot().frames[0].conversation.id,
+      f.overlays.snapshot().frames[0]!.conversation.id,
       "managed:session-1",
     );
     await f.save({
-      ...f.overlays.host().overlays[0],
+      ...f.overlays.host().overlays[0]!,
       selection: "follow-running",
     });
     assert.equal(
-      f.overlays.snapshot().frames[0].conversation.id,
+      f.overlays.snapshot().frames[0]!.conversation.id,
       "managed:session-1",
     );
-    f.setRunning([{ ...next[0], status: "unknown" }, next[1]]);
+    f.setRunning([{ ...next[0]!, status: "unknown" }, next[1]!]);
     await f.overlays.refresh();
     assert.deepEqual(
       f.overlays.snapshot().frames.map((frame) => frame.conversation.id),
@@ -257,7 +257,7 @@ test("restart preserves output definitions and requires publication again", asyn
   const f = fixture();
   try {
     await f.save({
-      ...f.overlays.host().overlays[0],
+      ...f.overlays.host().overlays[0]!,
       sessionIds: ["managed:session-0"],
       published: true,
     });
@@ -274,7 +274,7 @@ test("restart preserves output definitions and requires publication again", asyn
     });
     try {
       assert.equal(restored.snapshot().published, false);
-      assert.deepEqual(restored.host().overlays[0].sessionIds, [
+      assert.deepEqual(restored.host().overlays[0]!.sessionIds, [
         "managed:session-0",
       ]);
     } finally {
@@ -289,13 +289,13 @@ test("stopping an overlay cancels an in-flight publication instead of reviving i
   const f = fixture();
   try {
     await f.save({
-      ...f.overlays.host().overlays[0],
+      ...f.overlays.host().overlays[0]!,
       sessionIds: ["managed:session-0"],
       published: true,
     });
     const held = f.hold("managed:session-1");
     const change = f.save({
-      ...f.overlays.host().overlays[0],
+      ...f.overlays.host().overlays[0]!,
       sessionIds: ["managed:session-1"],
       published: true,
     });
@@ -326,9 +326,9 @@ test("two conversations with the same item IDs reconstruct patches independently
       frames,
     };
     const next = structuredClone(before);
-    next.frames[0].page.items[0].text += " TAIL";
+    next.frames[0]!.page.items[0]!.text += " TAIL";
     const patches = overlayPatches(before, next);
-    assert.equal(patches[0].patches[0].event.text, " TAIL");
+    assert.equal(patches[0]!.patches[0]!.event.text, " TAIL");
     const wire = {
       ...next,
       frames: next.frames.map((frame) => ({
@@ -339,7 +339,7 @@ test("two conversations with the same item IDs reconstruct patches independently
     assert.deepEqual(applyOverlayPatches(before, wire, patches), next);
     const other = { ...next, id: "other-output" };
     assert.equal(
-      overlayPatches(before, other)[0].patches[0].prefixLength,
+      overlayPatches(before, other)[0]!.patches[0]!.prefixLength,
       undefined,
     );
   } finally {
@@ -349,13 +349,13 @@ test("two conversations with the same item IDs reconstruct patches independently
 test("a refresh with unchanged public views does not emit state", async () => {
   const f = fixture();
   try {
-    await f.save({ ...f.overlays.host().overlays[0], selection: "selected", sessionIds: ["managed:session-0"], published: true });
+    await f.save({ ...f.overlays.host().overlays[0]!, selection: "selected", sessionIds: ["managed:session-0"], published: true });
     await f.overlays.refresh();
     let emits = 0;
     f.overlays.on("state", () => emits++);
     await f.overlays.refresh();
     assert.equal(emits, 0);
-    f.values.get("managed:session-0")!.page.items[0].text += " more";
+    f.values.get("managed:session-0")!.page.items[0]!.text += " more";
     await f.overlays.refresh();
     assert.equal(emits, 1);
   } finally {

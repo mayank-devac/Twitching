@@ -205,7 +205,7 @@ test("viewer replacement, duplicates, message IDs and cached evaluation", async 
     message("!prompt Build a small game with colourful cards", "three"),
   );
   assert.equal(f.collection.candidates.length, 1);
-  assert.equal(f.collection.candidates[0].message.id, "three");
+  assert.equal(f.collection.candidates[0]!.message.id, "three");
   f.collection.reset();
   f.setTime(1001);
   await f.collection.ingest({ ...message(undefined, "four"), timestamp: 1001 });
@@ -225,16 +225,16 @@ test("latest asynchronous submission wins and previous-window evaluations cannot
   const second = f.collection.ingest(
     message("!prompt Build a small game with colourful cards", "two"),
   );
-  resolvers[1](good);
+  resolvers[1]!(good);
   await second;
-  resolvers[0](good);
+  resolvers[0]!(good);
   await first;
-  assert.equal(f.collection.candidates[0].message.id, "two");
+  assert.equal(f.collection.candidates[0]!.message.id, "two");
   const late = f.collection.ingest(
     message("!prompt Create a tiny garden with flowers", "three", "new"),
   );
   f.collection.reset();
-  resolvers[2](good);
+  resolvers[2]!(good);
   await late;
   assert.equal(f.collection.candidates.length, 0);
   f.store.close();
@@ -266,7 +266,7 @@ test("best thirty bound and stronger late candidate replacement", async () => {
     ),
   );
   assert.equal(f.collection.candidates.length, 30);
-  assert.equal(f.collection.candidates[0].message.id, "strong");
+  assert.equal(f.collection.candidates[0]!.message.id, "strong");
   f.store.close();
 });
 test("WAIT, API failure and empty chat extend once then run a surprise task", async () => {
@@ -411,7 +411,7 @@ test("partial UTF-8 NDJSON and duplicate tool events do not repeat", () => {
   lines.push(data);
   lines.end();
   assert.equal(events.length, 1);
-  assert.equal(events[0].text, "Hello 🌻");
+  assert.equal(events[0]!.text, "Hello 🌻");
 });
 test("Cursor startup is visible once without publishing private session metadata", () => {
   const events: Activity[] = [];
@@ -426,8 +426,8 @@ test("Cursor startup is visible once without publishing private session metadata
   adapter.receive(init);
   adapter.receive(init);
   assert.equal(events.length, 1);
-  assert.equal(events[0].kind, "output");
-  assert.equal(events[0].text, "Cursor CLI started; waiting for model output");
+  assert.equal(events[0]!.kind, "output");
+  assert.equal(events[0]!.text, "Cursor CLI started; waiting for model output");
   assert.ok(!JSON.stringify(events).includes("PRIVATE_SESSION_ID"));
   assert.ok(!JSON.stringify(events).includes("/private/session"));
   assert.equal(adapter.successful, false);
@@ -463,11 +463,11 @@ test("Cursor streams deltas, skips duplicate flushes and keeps file reads privat
   assert.equal(events.filter((e) => e.kind === "message").length, 1);
   assert.ok(!JSON.stringify(events).includes("NEVER_PUBLIC"));
   assert.ok(!JSON.stringify(events).includes("/private/secret"));
-  assert.match(events[1].text, /secret.txt/);
+  assert.match(events[1]!.text, /secret.txt/);
   const reads = events.filter((e) => e.lane === "read");
   assert.equal(reads.length, 1);
-  assert.match(reads[0].text, /secret\.txt/);
-  assert.ok(!reads[0].text.includes("NEVER_PUBLIC"));
+  assert.match(reads[0]!.text, /secret\.txt/);
+  assert.ok(!reads[0]!.text.includes("NEVER_PUBLIC"));
 });
 test("terminal lanes redact a secret in a long command", () => {
   const events: Activity[] = [];
@@ -488,9 +488,9 @@ test("terminal lanes redact a secret in a long command", () => {
   });
   const terminal = events.filter((e) => e.lane === "terminal");
   assert.equal(terminal.length, 1);
-  assert.ok(terminal[0].text.includes("[redacted]"));
-  assert.ok(!terminal[0].text.includes(secret));
-  assert.ok(!terminal[0].text.includes("my-se"));
+  assert.ok(terminal[0]!.text.includes("[redacted]"));
+  assert.ok(!terminal[0]!.text.includes(secret));
+  assert.ok(!terminal[0]!.text.includes("my-se"));
 });
 test("terminal lanes redact a secret containing repeated whitespace", () => {
   const events: Activity[] = [];
@@ -574,8 +574,8 @@ test("Codex terminal lane shows the command and hides its output", () => {
     },
   });
   const terminal = events.filter((e) => e.lane === "terminal");
-  assert.match(terminal[0].text, /running rg --files prompt_3.html/);
-  assert.match(terminal[1].text, /done rg --files prompt_3.html \(exit 0\)/);
+  assert.match(terminal[0]!.text, /running rg --files prompt_3.html/);
+  assert.match(terminal[1]!.text, /done rg --files prompt_3.html \(exit 0\)/);
   assert.ok(!JSON.stringify(terminal).includes("SECRET_OUTPUT"));
 });
 test("Cursor shows a written HTML page once and keeps reads private", () => {
@@ -614,9 +614,9 @@ test("Cursor shows a written HTML page once and keeps reads private", () => {
   });
   const pages = events.filter((e) => e.text.includes("peacock"));
   assert.equal(pages.length, 1);
-  assert.equal(pages[0].kind, "edit");
-  assert.match(pages[0].text, /\[redacted\]/);
-  assert.ok(!pages[0].text.includes("my-secret-token"));
+  assert.equal(pages[0]!.kind, "edit");
+  assert.match(pages[0]!.text, /\[redacted\]/);
+  assert.ok(!pages[0]!.text.includes("my-secret-token"));
   assert.ok(!JSON.stringify(events).includes("NEVER_PUBLIC"));
 });
 test("Cursor thinking deltas stream and a split credential is redacted", () => {
@@ -692,10 +692,10 @@ test("credentials split across Cursor deltas are redacted before publishing", ()
       message: { content: [{ type: "text", text }] },
     });
   assert.equal(events.length, 1);
-  assert.equal(events[0].text, "[redacted]");
+  assert.equal(events[0]!.text, "[redacted]");
   adapter.receive({ type: "result", subtype: "success", is_error: false });
   assert.ok(!JSON.stringify(events).includes("secret-token"));
-  assert.equal(events[0].text, "[redacted]");
+  assert.equal(events[0]!.text, "[redacted]");
 });
 test("official metadata establishes membership and signed gifts; user words do not", () => {
   const store = new Store(":memory:");
@@ -818,9 +818,9 @@ test("Kick client credentials mint, cache, refresh early and back off without ne
   );
   assert.equal(token.current(), "");
   assert.equal(await token.get(), "minted-1");
-  assert.match(calls[0], /grant_type=client_credentials/);
-  assert.match(calls[0], /client_id=client-id/);
-  assert.match(calls[0], /client_secret=client-secret/);
+  assert.match(calls[0]!, /grant_type=client_credentials/);
+  assert.match(calls[0]!, /client_id=client-id/);
+  assert.match(calls[0]!, /client_secret=client-secret/);
   now = 3600_000 - 120_000;
   assert.equal(await token.get(), "minted-1");
   now = 3600_000 - 30_000;

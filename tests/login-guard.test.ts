@@ -20,7 +20,7 @@ for (const cli of ["codex", "cursor"] as const)
       const hosts = [new Docker(store, { root, image: "unused" }), new Docker(store, { root, image: "unused" })];
       const homes = await Promise.all(hosts.map((host, i) => host.workspace({ cli, round: 1, session: `session-${i + 1}` })));
       await Promise.all(homes.map((home, i) => writeFile(resolve(home, ".home", file), `fixture-refresh-${i}`)));
-      const results = await Promise.allSettled(hosts.map((host, i) => host.retainAuth(cli, homes[i])));
+      const results = await Promise.allSettled(hosts.map((host, i) => host.retainAuth(cli, homes[i]!)));
       assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
       const failure = results.find((result) => result.status === "rejected");
       assert.ok(failure?.status === "rejected" && failure.reason instanceof LoginRefreshConflict);

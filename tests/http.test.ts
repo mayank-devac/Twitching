@@ -96,7 +96,7 @@ test("overlay reconnect returns current state/events without launching a job, an
     assert.equal(cross.status, 403);
     const host = await fetch(`${origin}/api/host`);
     const { csrf } = (await host.json()) as any;
-    const cookie = host.headers.get("set-cookie")!.split(";")[0];
+    const cookie = host.headers.get("set-cookie")!.split(";")[0]!;
     const accepted = await fetch(`${origin}/api/action`, {
       method: "POST",
       headers: {

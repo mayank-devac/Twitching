@@ -29,7 +29,7 @@ import { visibleTimeline, mergeTimeline } from "../shared/timeline.js";
 import { defaultVisibility } from "../shared/settings.js";
 import type { TimelineItem } from "../shared/sessions.js";
 
-const sessions: SessionConfig[] = [
+const sessions: [SessionConfig, SessionConfig] = [
   { id: "session-1", cli: "codex", model: "model-a", effort: "high" },
   { id: "session-2", cli: "codex", model: "model-b" },
 ];
@@ -155,10 +155,11 @@ test("successful general coding without HTML keeps messages and completes", asyn
     const runner = new CliRunner(f.host, { ...options, sessions: [sessions[0]], experience: "session" }, (text) => text);
     const handles = await runner.launch(9, { ...task, text: "Explain this function" }, 0, (e) => events.push(e));
     const created = f.host.created[0];
+    assert.ok(created);
     assert.doesNotMatch(created.command.at(-1)!, /Build exactly one|AUDIENCE_COMMENT_JSON/);
     f.host.children.get(created.name)!.stdout.emit("data", Buffer.from(JSON.stringify({ type: "item.completed", item: { id: "answer", type: "agent_message", text: "This function adds two numbers." } }) + "\n"));
     f.host.finish(created.name);
-    assert.equal((await handles["session-1"].done).status, "complete");
+    assert.equal((await handles["session-1"]!.done).status, "complete");
     assert.ok(events.some((e) => e.text === "This function adds two numbers."));
     assert.ok(events.every((e) => !e.text.includes("checking HTML")));
   } finally { await f.close(); }
@@ -182,10 +183,10 @@ test("old runs page independently for two Codex sessions and hiding never delete
     assert.equal(visibleTimeline(all, defaultVisibility, true, true, "new-run").length, 120);
     assert.equal(store.conversationPage("managed:first").items.length, 60);
     assert.ok(store.conversationPage("managed:second").items.every((i) => i.text.startsWith("Second")));
-    const replacement: TimelineItem = { ...latest.items[0], text: "First revised" };
+    const replacement: TimelineItem = { ...latest.items[0]!, text: "First revised" };
     store.conversationItem("managed:first", replacement);
     assert.equal(mergeTimeline(all, [replacement]).length, 120);
-    assert.equal(store.conversationPage("managed:first").items[0].text, "First revised");
+    assert.equal(store.conversationPage("managed:first").items[0]!.text, "First revised");
   } finally { store.close(); }
 });
 
@@ -196,9 +197,10 @@ test("arena still requires HTML and a general CLI process failure still fails", 
       const runner = new CliRunner(f.host, { ...options, sessions: [sessions[0]], experience }, (text) => text);
       const handles = await runner.launch(10, task, 0, () => {});
       const created = f.host.created[0];
+      assert.ok(created);
       if (experience === "arena") f.host.finish(created.name);
       else f.host.children.get(created.name)!.emit("close", 1);
-      assert.equal((await handles["session-1"].done).status, "error");
+      assert.equal((await handles["session-1"]!.done).status, "error");
     } finally { await f.close(); }
   }
 });
@@ -212,8 +214,8 @@ test("two Codex models have separate handles, prompts, files and exports; discov
     assert.equal(f.host.probes, 1);
     assert.equal(f.host.children.size, 2);
     assert.equal(
-      f.host.created[0].command.at(-1),
-      f.host.created[1].command.at(-1),
+      f.host.created[0]!.command.at(-1),
+      f.host.created[1]!.command.at(-1),
     );
     // Containers are created in parallel, so look each session up by id.
     const byId = (id: string) => f.host.created.find((c) => c.id === id)!;
@@ -448,9 +450,9 @@ test("legacy saved rounds keep their original directory and model identity", () 
     assert.deepEqual(saved.round!.sessions, [
       { id: "codex", cli: "codex", model: "old-model", effort: "high" },
     ]);
-    assert.equal(saved.round!.attempts.codex.cli, "codex");
-    assert.equal(saved.round!.attempts.codex.model, "old-model");
-    assert.equal(saved.round!.attempts.codex.effort, "high");
+    assert.equal(saved.round!.attempts.codex!.cli, "codex");
+    assert.equal(saved.round!.attempts.codex!.model, "old-model");
+    assert.equal(saved.round!.attempts.codex!.effort, "high");
     // Earlier versions already added sessions but left the display label in model.
     // Read a separate fixture: the assertions above narrow `saved` to require effort.
     const previouslyMigrated = store.state()!;
@@ -463,7 +465,7 @@ test("legacy saved rounds keep their original directory and model identity", () 
     });
     const id = store.roundId();
     store.round({ ...previouslyMigrated.round!, id });
-    assert.equal(store.history().rounds[0].sessions![0].model, "old-model");
+    assert.equal(store.history().rounds[0]!.sessions![0]!.model, "old-model");
   } finally {
     store.close();
   }

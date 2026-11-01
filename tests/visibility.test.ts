@@ -117,7 +117,7 @@ test("arena: projected rows keep their shape and text unredacted", () => {
   assert.deepStrictEqual(byId.term, {
     id: "term", round: 3, agent: "a", at: 10, kind: "command", text: "npm test SECRET", lane: undefined,
   });
-  assert.equal(byId.done.text, "done SECRET");
+  assert.equal(byId.done!.text, "done SECRET");
   // A prompt file of another round is never named.
   assert.deepEqual(publicActivity(events("a", 4).map((e) => ({ ...e, publicFile: e.publicFile && "prompt_3.html" })), { a: allOn }).map((x) => x.id).includes("rp"), false);
   // Input events are never mutated.

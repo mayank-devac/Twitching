@@ -23,7 +23,7 @@ test("growing conversation messages send only the new text and recover from a sn
   };
   const after: TimelineItem = { ...before, text: before.text + "TAIL" };
   const patches = activityPatches([before], [after]);
-  assert.equal(patches[0].event.text, "TAIL");
+  assert.equal(patches[0]!.event.text, "TAIL");
   assert.deepEqual(mergeActivityPatches([before], patches, [after.id]), [
     after,
   ]);
@@ -101,13 +101,13 @@ test("preview is private; publication and history never mix two same-CLI session
       text: "Second private answer",
     });
     assert.equal(
-      (await sessions.view(first.id)).page.items[0].text,
+      (await sessions.view(first.id)).page.items[0]!.text,
       "First private answer",
     );
     assert.equal(sessions.snapshot(base).sharedSession, undefined);
     await sessions.publish(first.id);
     const published = sessions.snapshot(base).sharedSession!;
-    assert.equal(published.page.items[0].text, "First private answer");
+    assert.equal(published.page.items[0]!.text, "First private answer");
     assert.equal(published.conversation.config, undefined);
     assert.equal(sessions.snapshot(base).reason, "Selected session on stream");
     await sessions.view(second.id);

@@ -74,7 +74,7 @@ test("saving state writes the round history row and state together", () => {
       round: { id, task: { text: "draw a lighthouse", author: "a", platform: "fallback" }, launchedAt: 1, sessions: [], attempts: {} },
     } as unknown as ShowState;
     store.save(state);
-    assert.equal(store.history().rounds[0].id, id);
+    assert.equal(store.history().rounds[0]!.id, id);
     assert.equal(store.state()!.round!.id, id);
     // A failing write inside a transaction leaves neither half behind.
     assert.throws(() => store.transaction(() => {
@@ -114,7 +114,7 @@ test("prune trims old append-only rows but keeps the current round and recent da
     assert.deepEqual(ids("SELECT window AS id FROM decisions"), ["2"]);
     assert.equal(store.cache("k0"), undefined);
     assert.ok(store.cache("k5002"));
-    assert.equal(store.history().rounds[0].id, current);
+    assert.equal(store.history().rounds[0]!.id, current);
     // A second pass finds nothing more to remove.
     assert.deepEqual(store.prune(now), { messages: 0, decisions: 0, events: 0, evaluations: 0, placeholders: 0 });
   } finally {

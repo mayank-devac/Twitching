@@ -95,9 +95,9 @@ test("real browser validates isolated HTML, serves it live with CSP, and blocks 
   try {
     await previews.ready();
     const url = await previews.validate("codex", 1, 2);
-    assert.deepEqual(renderingPages()[0].viewportSize(), { width: 960, height: 1044 });
+    assert.deepEqual(renderingPages()[0]!.viewportSize(), { width: 960, height: 1044 });
     await previews.validate("codex", 1, 1);
-    assert.deepEqual(renderingPages()[0].viewportSize(), { width: 1920, height: 1044 });
+    assert.deepEqual(renderingPages()[0]!.viewportSize(), { width: 1920, height: 1044 });
     const response = await fetch(url);
     const viewer = await response.text();
     assert.equal(

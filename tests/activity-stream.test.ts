@@ -45,7 +45,7 @@ for (const agent of ["codex", "cursor"] as const)
       const shown = events.filter(
         (event) => event.kind === (thinking ? "summary" : "message"),
       );
-      assert.equal(shown[0].text, first);
+      assert.equal(shown[0]!.text, first);
       assert.equal(shown.at(-1)?.text, first + "TAIL!");
     }
   });
@@ -152,7 +152,7 @@ test("live updates send only new text and reconstruct replacements, removals and
   };
   const next = { ...event, at: 2, text: event.text + "TAIL!" };
   const patches = activityPatches([event], [next]);
-  assert.equal(patches[0].event.text, "TAIL!");
+  assert.equal(patches[0]!.event.text, "TAIL!");
   assert.deepEqual(mergeActivityPatches([event], patches, [event.id]), [next]);
   const replaced = { ...next, text: "[redacted]" };
   assert.deepEqual(
@@ -192,7 +192,7 @@ test("HTML snapshots emit redacted diffs without reading unrelated files or foll
     await diffs.capture();
     const shown = events.filter((event) => event.diff && !event.lane);
     assert.equal(shown.length, 2);
-    assert.match(shown[1].text, /-<p>\[redacted\]<\/p>\n\+<p>new<\/p>/);
+    assert.match(shown[1]!.text, /-<p>\[redacted\]<\/p>\n\+<p>new<\/p>/);
     assert.ok(!JSON.stringify(events).includes("secret-token"));
     assert.ok(!JSON.stringify(events).includes("UNRELATED_CONTENT"));
     await rm(join(dir, "prompt_1.html"));

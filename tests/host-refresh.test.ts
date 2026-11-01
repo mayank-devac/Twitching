@@ -13,29 +13,29 @@ test("bursts use one active request and one follow-up; stale sessions never appl
   try {
     for (let n = 0; n < 100; n++) refresh.request();
     assert.equal(requests.length, 1);
-    requests[0].resolve(1);
+    requests[0]!.resolve(1);
     await settle();
     assert.equal(requests.length, 2);
-    requests[1].resolve(2);
+    requests[1]!.resolve(2);
     await settle();
     assert.deepEqual(applied, [1, 2]);
     assert.equal(requests.length, 2);
     refresh.request();
     refresh.invalidate();
     refresh.request();
-    assert.equal(requests[2].signal.aborted, true);
-    requests[2].resolve(3); // Even a fetch implementation ignoring abort cannot apply old content.
+    assert.equal(requests[2]!.signal.aborted, true);
+    requests[2]!.resolve(3); // Even a fetch implementation ignoring abort cannot apply old content.
     await settle();
     assert.deepEqual(applied, [1, 2]);
-    requests[3].reject(new Error("Disconnected"));
+    requests[3]!.reject(new Error("Disconnected"));
     await settle();
     refresh.request();
-    requests[4].resolve(4);
+    requests[4]!.resolve(4);
     await settle();
     assert.deepEqual(applied, [1, 2, 4]);
     refresh.request();
     refresh.close();
-    requests[5].resolve(5);
+    requests[5]!.resolve(5);
     await settle();
     assert.deepEqual(applied, [1, 2, 4]);
   } finally { refresh.close(); }
@@ -48,7 +48,7 @@ test("continuous output cannot start host fetches faster than the minimum interv
   try {
     refresh.request();
     refresh.request();
-    requests[0](1);
+    requests[0]!(1);
     await settle();
     assert.equal(requests.length, 1);
     t.mock.timers.tick(749);
@@ -56,11 +56,11 @@ test("continuous output cannot start host fetches faster than the minimum interv
     t.mock.timers.tick(1);
     assert.equal(requests.length, 2);
     refresh.request();
-    requests[1](2);
+    requests[1]!(2);
     await settle();
     t.mock.timers.tick(750);
     assert.equal(requests.length, 3);
-    requests[2](3);
+    requests[2]!(3);
     await settle();
   } finally { refresh.close(); }
 });

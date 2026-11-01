@@ -47,7 +47,7 @@ test("privacy persists independently; stopwatch survives goal changes and restor
     restored.act({ action: "show" });
     restored.act({ action: "show" });
     assert.equal(restored.get().hidden, false);
-    assert.equal(restored.publicSnapshot(base()).events[0].text, "Private answer");
+    assert.equal(restored.publicSnapshot(base()).events[0]!.text, "Private answer");
     controls.act({ action: "pause" });
     now += 1000;
     assert.equal(elapsed(controls.get()), 7000);
@@ -85,7 +85,7 @@ test("selected and all-output breaks cover public text while coding data stays p
     assert.equal(cover.status, "break");
     assert.equal(cover.events.length, 0);
     assert.equal(JSON.stringify(cover).includes("Private answer"), false);
-    assert.equal(controls.publicSnapshot(base(), "default").events[0].text, "Private answer");
+    assert.equal(controls.publicSnapshot(base(), "default").events[0]!.text, "Private answer");
     assert.throws(() => controls.act({ action: "break-start", overlay: named, durationMs: null }), /already has a break/);
     controls.act({ action: "break-start", durationMs: null });
     assert.equal(controls.publicSnapshot(base(), "default").status, "break");
@@ -99,7 +99,7 @@ test("selected and all-output breaks cover public text while coding data stays p
     assert.equal(restored.get(named).breakActive, false);
     restored.close();
     controls.act({ action: "break-end", overlay: named });
-    assert.equal(controls.publicSnapshot(base(), named).events[0].text, "Private answer");
+    assert.equal(controls.publicSnapshot(base(), named).events[0]!.text, "Private answer");
   } finally { controls.close(); store.close(); }
 });
 
@@ -116,7 +116,7 @@ test("a timed presentation break emits a fresh public view when its deadline exp
     assert.equal(controls.publicSnapshot(base()).status, "break");
     t.mock.timers.tick(1);
     assert.equal(controls.publicSnapshot(base()).status, "running");
-    assert.equal(controls.publicSnapshot(base()).events[0].text, "Private answer");
+    assert.equal(controls.publicSnapshot(base()).events[0]!.text, "Private answer");
     assert.equal(updates, 2);
     assert.equal(store.presentation()!.breakActive, false);
   } finally { controls.close(); store.close(); }
@@ -220,7 +220,7 @@ test("hide clears public snapshots, reconnect stays hidden, reveal sends a full 
     await once(socket, "message");
     const host = await fetch(origin + "/api/host");
     const { csrf } = await host.json() as { csrf: string };
-    const headers = { Origin: origin, "Content-Type": "application/json", "X-Host-Token": csrf, Cookie: host.headers.get("set-cookie")!.split(";")[0] };
+    const headers = { Origin: origin, "Content-Type": "application/json", "X-Host-Token": csrf, Cookie: host.headers.get("set-cookie")!.split(";")[0]! };
     const post = (path: string, body: unknown) => fetch(origin + path, { method: "POST", headers, body: JSON.stringify(body) });
     assert.equal((await fetch(origin + "/api/presentation", { method: "POST", headers: { Origin: origin, "Content-Type": "application/json" }, body: '{"action":"hide"}' })).status, 403);
     const hiddenMessage = once(socket, "message");
@@ -229,7 +229,7 @@ test("hide clears public snapshots, reconnect stays hidden, reveal sends a full 
     assert.equal(hidden.type, "snapshot");
     assert.equal(hidden.state.presentation.hidden, true);
     assert.equal(JSON.stringify(hidden).includes("Private answer"), false);
-    current.events[0].text += " while hidden";
+    current.events[0]!.text += " while hidden";
     // An unchanged hidden view may send no frame at all (broadcast dedupe), so
     // collect whatever arrives in a bounded window instead of awaiting one.
     const frames: string[] = [];
