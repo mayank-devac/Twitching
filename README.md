@@ -193,6 +193,8 @@ Each round uses new sessions without a resume flag. In single-agent mode, only t
 
 Use `--prompts` to force the file, or `--no-prompts` to keep chat even when the file has tasks.
 
+**edit Jev prompts** →  `jev_prompts.json` in the repo root holds every sentence Jev works from: `evaluate.safety`, `evaluate.relevance`, `evaluate.scoreInstructions` (keep the `{dimension}` placeholder; the four rubric lists need exactly five grades) and `choose.instructions` with `choose.wait`, plus `surprise` for self-run rounds. Operator preferences from quick settings are appended automatically, and audience text stays data — edit only your wording, never the structure. A missing file falls back to built-in wording; a malformed file stops startup with a message naming the bad field. Restart after edits.
+
 With a prompt list, the next task starts after the result hold. After the last task, the show ends and the desk offers chat collection or ending the stream.
 
 **Stop** opens **Chat** and **End**. Each offers **After this round** or **Now**; Chat also asks which platforms to use.
@@ -259,6 +261,7 @@ Failures print specific fixes. Interactive checks offer image builds, network se
 
 - **`.env.local`:** Credentials; Private, Git-ignored; runtime permissions set to `0600`
 - **`settings.json`:** Timings, model IDs, blocked words, Jev startup probe, media paths and Kick webhook URL; Public configuration; restart after edits
+- **`jev_prompts.json`:** Wording Jev judges with (`evaluate` sentences and rubrics, `choose` selection and WAIT, `surprise` task); Optional file; missing file uses built-in wording, invalid file stops startup; restart after edits
 - **`runtime/auth/`:** Saved CLI authentication; Private, Git-ignored
 - **`assets/break.mp3`:** Your break music; Supply locally
 
