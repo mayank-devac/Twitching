@@ -143,9 +143,9 @@ export class CliRunner implements PairRunner {
     const clis = [...new Set(sessions.map((s) => s.cli))];
     const catalogs = await allInOrder(clis.map(async (cli) => {
       await this.ensureCapabilities(cli);
-      return cliAdapters[cli].discover(this.docker);
+      return [cli, await cliAdapters[cli].discover(this.docker)] as const;
     }));
-    clis.forEach((cli, index) => models.set(cli, catalogs[index]));
+    for (const [cli, catalog] of catalogs) models.set(cli, catalog);
     for (const session of sessions) {
       validateModel(session, models.get(session.cli)!.models);
       checks.push(
@@ -200,11 +200,16 @@ export class CliRunner implements PairRunner {
       }));
       const failed = created.find((r) => r.status === "rejected");
       if (failed) throw failed.reason;
+      const containerOf = (id: SessionId) => {
+        const container = containers[id];
+        if (!container) throw new Error(`No container was created for ${id}`);
+        return container;
+      };
       // Initialise watchers before starting either process.
       const watchers = new Map<SessionId, HtmlDiffs>();
       for (const session of sessions) {
         const diffs = new HtmlDiffs(
-          containers[session.id].dir,
+          containerOf(session.id).dir,
           round,
           session.id,
           this.clean,
@@ -217,7 +222,7 @@ export class CliRunner implements PairRunner {
         handles[session.id] = this.attach(
           session,
           round,
-          containers[session.id],
+          containerOf(session.id),
           emit,
           watchers.get(session.id)!,
         );

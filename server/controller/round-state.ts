@@ -41,7 +41,7 @@ export function newRound(id: number, task: Task, sessions: SessionConfig[], at: 
 export function recordActivity(state: ShowState, store: Store, event: Activity) {
   const index = state.events.findIndex((e) => e.id === event.id);
   if (index >= 0) {
-    if (state.events[index].text === event.text) return false;
+    if (state.events[index]!.text === event.text) return false;
     state.events[index] = event;
     store.replaceEvent(event);
     return true;

@@ -41,7 +41,8 @@ export function presentationRoutes(
               value.visibility[
                 c?.config?.id ??
                   value.sessions.find((s) => s.cli === cli)?.id ??
-                  value.sessions[0].id
+                  // preferencesSchema keeps at least one session.
+                  value.sessions[0]!.id
               ]),
           context === "arena" ? undefined : layouts
             .filter((output) => output.selection === "follow-running" || output.sessionIds.includes(context))

@@ -290,9 +290,10 @@ export class Controller extends EventEmitter {
   }
   private armPlaylist() {
     const list = this.options.playlist ?? [];
-    if (this.playlistCursor >= list.length) return false;
+    const text = list[this.playlistCursor];
+    if (text === undefined) return false;
     this.collection.prepared = {
-      text: list[this.playlistCursor],
+      text,
       author: "Prompt list",
       platform: "fallback",
     };
@@ -714,6 +715,8 @@ export class Controller extends EventEmitter {
     const outcome = await handle.done;
     if (this.state.round?.id !== id) return;
     const attempt = this.state.round.attempts[agent];
+    // A handle only exists for an attempt this round created.
+    if (!attempt) throw new Error(`No attempt for ${agent} in round ${id}`);
     attempt.endedAt = this.now();
     attempt.status = outcome.status;
     attempt.error = outcome.error;

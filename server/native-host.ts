@@ -203,8 +203,9 @@ export class NativeHost extends Docker {
     const workspace =
       dir ?? (await this.workspace({ cli: agent, round, session }));
     // Keep task instructions identical across native agents; the fixed output is relative to cwd.
+    // A coding command always has a final task argument (see `coding` above).
     if (coding)
-      args[args.length - 1] = command[command.length - 1]
+      args[args.length - 1] = command[command.length - 1]!
         .replaceAll("/workspace/", "./")
         .replace(
           "Work only in /workspace.",
@@ -298,7 +299,9 @@ export class NativeHost extends Docker {
   override attach(name: string) {
     const item = this.prepared.get(name);
     if (!item) throw new Error("Native runner was not prepared");
-    const child = spawn(item.command[0], item.command.slice(1), {
+    const [file, ...rest] = item.command;
+    if (!file) throw new Error("Native runner command is empty");
+    const child = spawn(file, rest, {
       cwd: item.dir,
       detached: true,
       stdio: ["pipe", "pipe", "pipe"],

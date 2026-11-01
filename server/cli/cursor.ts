@@ -12,7 +12,7 @@ function cursorModels(output: string): CliModel[] {
         .match(
           /^(?:[-*•]\s+)?([a-z0-9][a-z0-9._/-]*)\s*(?:$|\s+-\s+|\s+\(|\s*[:|]\s*)/,
         );
-      return match ? [{ id: match[1], efforts: [] }] : [];
+      return match ? [{ id: match[1]!, efforts: [] }] : [];
     });
   return [...new Map(models.map((model) => [model.id, model])).values()];
 }

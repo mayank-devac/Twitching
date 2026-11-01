@@ -395,8 +395,7 @@ if (settings.experience === "arena") await browserSandbox
     ),
   );
 if (settings.experience === "arena" && controller.state.round)
-  for (const agent of Object.keys(controller.state.round.attempts)) {
-    const attempt = controller.state.round.attempts[agent];
+  for (const [agent, attempt] of Object.entries(controller.state.round.attempts)) {
     if (attempt.status === "complete") {
       try {
         await preview.ready();

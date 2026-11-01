@@ -11,7 +11,7 @@ import {
 import { resolve } from "node:path";
 
 export const mediaId = /^[a-f0-9]{32}\.(mp3|wav|ogg|png|jpg|gif|webp)$/;
-const mime: Record<string, string> = {
+const mime = {
   mp3: "audio/mpeg",
   wav: "audio/wav",
   ogg: "audio/ogg",
@@ -19,9 +19,13 @@ const mime: Record<string, string> = {
   jpg: "image/jpeg",
   gif: "image/gif",
   webp: "image/webp",
-};
+} as const satisfies Record<string, string>;
+type MediaExt = keyof typeof mime;
+// Callers pass only ids that already matched mediaId, so the extension is a known key.
+const mimeOf = (id: string): string =>
+  mime[id.slice(id.lastIndexOf(".") + 1) as MediaExt];
 // Inspect bytes rather than trusting a filename or a browser-supplied MIME type.
-export function detectMedia(b: Buffer): string {
+export function detectMedia(b: Buffer): MediaExt {
   if (b.length < 16) throw new Error("Media file is empty or incomplete");
   if (
     b.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) &&
@@ -57,19 +61,22 @@ export function detectMedia(b: Buffer): string {
     (b.includes(Buffer.from("vorbis")) || b.includes(Buffer.from("OpusHead")))
   )
     return "ogg";
+  // Out-of-range reads count as 0, as the bitwise operators already treated undefined.
+  const byte = (i: number) => b[i] ?? 0;
   let offset = 0;
   if (b.subarray(0, 3).toString() === "ID3") {
-    if ([b[6], b[7], b[8], b[9]].some((n) => n > 127))
+    if ([byte(6), byte(7), byte(8), byte(9)].some((n) => n > 127))
       throw new Error("Invalid MP3 tag");
-    offset = 10 + ((b[6] << 21) | (b[7] << 14) | (b[8] << 7) | b[9]);
+    offset =
+      10 + ((byte(6) << 21) | (byte(7) << 14) | (byte(8) << 7) | byte(9));
   }
   if (
     offset + 4 < b.length &&
-    b[offset] === 255 &&
-    (b[offset + 1] & 224) === 224 &&
-    (b[offset + 1] & 6) !== 0 &&
-    (b[offset + 2] & 240) !== 0 &&
-    (b[offset + 2] & 240) !== 240
+    byte(offset) === 255 &&
+    (byte(offset + 1) & 224) === 224 &&
+    (byte(offset + 1) & 6) !== 0 &&
+    (byte(offset + 2) & 240) !== 0 &&
+    (byte(offset + 2) & 240) !== 240
   )
     return "mp3";
   throw new Error(
@@ -111,7 +118,7 @@ export class BreakMedia {
         files.push({
           id,
           name: this.store?.mediaName(id) ?? id,
-          type: mime[id.split(".").pop()!],
+          type: mimeOf(id),
           bytes: info.size,
         });
     }
@@ -124,7 +131,7 @@ export class BreakMedia {
     const info = await lstat(path);
     if (!info.isFile() || info.isSymbolicLink())
       throw new Error("Media is unavailable");
-    return { path, type: mime[id.split(".").pop()!] };
+    return { path, type: mimeOf(id) };
   }
   // A small fixed library and one bounded write prevent repeated uploads filling disk.
   async upload(bytes: Buffer, originalName = "") {

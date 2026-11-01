@@ -68,7 +68,7 @@ export async function assertProviderProxy(
           "inspect",
           "--format",
           "{{.State.Running}}",
-          id.split("\n")[0],
+          id.split("\n")[0]!,
         ])) === "true";
     } catch {
       egressRunning = false;

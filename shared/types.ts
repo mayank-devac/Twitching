@@ -74,7 +74,7 @@ export function legacyModel(
   const match = label.match(
     /^(.*?) · (minimal|low|medium|high|xhigh|max|ultra)$/,
   );
-  return match ? { model: match[1], effort: match[2] } : { model: label };
+  return match ? { model: match[1]!, effort: match[2] } : { model: label };
 }
 export interface ChatMessage {
   id: string;

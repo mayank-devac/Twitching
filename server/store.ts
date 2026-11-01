@@ -166,7 +166,7 @@ export class Store {
       AND lower(ifnull(json_extract(value,'$.title'),'')||' '||ifnull(json_extract(value,'$.project'),'')||' '||ifnull(json_extract(value,'$.cli'),'')) LIKE ? ESCAPE '\\'
       ORDER BY rowid DESC LIMIT 31`).all(before, pattern) as { rowid: number; value: string }[];
     return { conversations: rows.slice(0, 30).map((r) => JSON.parse(r.value) as import("../shared/sessions.js").Conversation),
-      before: rows.length > 30 ? String(rows[29].rowid) : undefined };
+      before: rows.length > 30 ? String(rows[29]!.rowid) : undefined };
   }
   conversationItem(conversation: string, item: import("../shared/sessions.js").TimelineItem) {
     // Long messages become stable page-sized fragments instead of losing their tail.
@@ -177,7 +177,7 @@ export class Store {
       let offset = 0, part = 0;
       do {
         let end = Math.min(offset + 16000, item.text.length);
-        if (end < item.text.length && /[\uD800-\uDBFF]/.test(item.text[end - 1])) end--;
+        if (end < item.text.length && /[\uD800-\uDBFF]/.test(item.text[end - 1]!)) end--;
         const id = part === 0 ? item.id : `${prefix}${part}`;
         write.run(conversation, id, JSON.stringify({ ...item, id, text: item.text.slice(offset, end) }));
         offset = end; part++;
@@ -191,7 +191,7 @@ export class Store {
     const size = Math.max(1, Math.min(60, limit));
     const rows = this.sql("SELECT seq,value FROM conversation_items WHERE conversation=? AND seq<? ORDER BY seq DESC LIMIT ?")
       .all(conversation, before, size + 1) as { seq: number; value: string }[];
-    return { items: rows.slice(0,size).reverse().map((r) => JSON.parse(r.value)), before: rows.length > size ? String(rows[size - 1].seq) : undefined };
+    return { items: rows.slice(0,size).reverse().map((r) => JSON.parse(r.value)), before: rows.length > size ? String(rows[size - 1]!.seq) : undefined };
   }
   disconnectConversations() {
     const runners = new Set<"docker" | "native">();
@@ -227,7 +227,7 @@ export class Store {
       .all(before) as { id: number; value: string }[];
     return {
       rounds: rows.slice(0, 20).map((r) => migrateRound(JSON.parse(r.value))),
-      before: rows.length > 20 ? rows[19].id : undefined,
+      before: rows.length > 20 ? rows[19]!.id : undefined,
     };
   }
   state(): ShowState | undefined {

@@ -294,16 +294,17 @@ export class Filter {
       const pattern = new RegExp(
         `^${[...stem].map((ch) => `${ch}+`).join("")}$`,
       );
-      const bucket = this.fuzzy.get(stem[0]) ?? [];
+      const first = stem[0]!;
+      const bucket = this.fuzzy.get(first) ?? [];
       bucket.push(pattern);
-      this.fuzzy.set(stem[0], bucket);
+      this.fuzzy.set(first, bucket);
     }
   }
   private stemHit(key: string) {
     if (this.stems.has(key)) return true;
     if (!/(.)\1/.test(key)) return false;
     return (
-      this.fuzzy.get(key[0])?.some((pattern) => pattern.test(key)) ?? false
+      this.fuzzy.get(key[0]!)?.some((pattern) => pattern.test(key)) ?? false
     );
   }
   private listed(key: string) {
