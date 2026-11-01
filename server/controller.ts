@@ -9,6 +9,7 @@ import type {
   SessionId,
   SessionConfig,
   ChatMessage,
+  Round,
   ShowState,
   Task,
 } from "../shared/types.js";
@@ -23,6 +24,9 @@ import { Filter, MAX_PROMPT_CHARS } from "./filter.js";
 import type { Judge } from "./jev.js";
 import type { PairRunner, RunHandle } from "./runner.js";
 import { Store } from "./store.js";
+// Saved rounds keep their own session list; older ones fall back to the attempts that ran.
+export const roundSessionCount = (round: Round): SessionCount =>
+  sessionCount(round.sessions ?? Object.values(round.attempts).filter((a) => a.status !== "idle"));
 export interface ControllerOptions {
   jevCriteria?: string;
   mode: "live" | "rehearsal";
@@ -808,12 +812,7 @@ export class Controller extends EventEmitter {
         attempt.preview = await this.preview.validate(
           agent,
           id,
-          sessionCount(
-            this.state.round.sessions ??
-              Object.values(this.state.round.attempts).filter(
-                (a) => a.status !== "idle",
-              ),
-          ),
+          roundSessionCount(this.state.round),
         );
         attempt.status = "complete";
       } catch {

@@ -4,7 +4,7 @@ import { QuickSettings, defaultCriteria } from "./quick-settings.js";
 import { BreakMedia } from "./break-media.js";
 import { defaultVisibility } from "../shared/settings.js";
 import type { QuickPreferences } from "../shared/settings.js";
-import { configuredSessions, sessionCount } from "../shared/types.js";
+import { configuredSessions } from "../shared/types.js";
 import { resolve } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { access, mkdir } from "node:fs/promises";
@@ -17,7 +17,7 @@ import { CliRunner } from "./runner.js";
 import { Previews } from "./preview.js";
 import { Filter } from "./filter.js";
 import { Jev } from "./jev.js";
-import { Controller, type ChatPlatforms } from "./controller.js";
+import { Controller, roundSessionCount, type ChatPlatforms } from "./controller.js";
 import { YouTubeChat, TwitchChat, KickChat, KickToken } from "./chat.js";
 import { Obs } from "./obs.js";
 import { makeHttp, urlHost } from "./http.js";
@@ -446,12 +446,7 @@ if (settings.experience === "arena" && controller.state.round)
         attempt.preview = await preview.restore(
           agent,
           controller.state.round.id,
-          sessionCount(
-            controller.state.round.sessions ??
-              Object.values(controller.state.round.attempts).filter(
-                (a) => a.status !== "idle",
-              ),
-          ),
+          roundSessionCount(controller.state.round),
         );
       } catch {
         attempt.preview = undefined;
