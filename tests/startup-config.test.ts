@@ -4,6 +4,8 @@ import {
   normalizeStartup, resolveStartup, selectStartupSessions, startupConfigurationId,
 } from "../server/startup-config.js";
 import { chooseSessions, parseSessionSpec } from "../scripts/session-selection.js";
+import { fetchBoot, sameBoot } from "../scripts/boot-client.js";
+import { controlOrigin } from "../shared/boot.js";
 
 // Public fixture only; importing the parser must never load .env.local.
 const raw = {
@@ -66,4 +68,20 @@ test("chat defaults to none and explicit flags or file choices opt in",()=>{
   assert.deepEqual([explicit.skipYoutube,explicit.skipTwitch,explicit.skipKick],[false,true,true]);
   assert.equal(resolveStartup({...raw,skipTwitch:false},{},root,false).skipTwitch,false);
   assert.equal(resolveStartup(raw,{ARENA_SKIP_YOUTUBE:"0"},root,true).skipYoutube,true);
+});
+
+test("launcher boot handshake validates the identity and brackets IPv6 hosts", async () => {
+  assert.equal(controlOrigin("::1", 3210), "http://[::1]:3210");
+  assert.equal(controlOrigin("127.0.0.1", 3210), "http://127.0.0.1:3210");
+  const reply = (body: unknown, status = 200) =>
+    (async () => new Response(JSON.stringify(body), { status })) as typeof fetch;
+  const identity = { rootId: "r", configurationId: "c", startedAt: 5 };
+  assert.deepEqual(await fetchBoot("http://x", 10, reply(identity)), identity);
+  // An idle server answers {}; foreign or malformed bodies read as no identity.
+  assert.deepEqual(await fetchBoot("http://x", 10, reply({})), {});
+  assert.deepEqual(await fetchBoot("http://x", 10, reply({ rootId: 7 })), {});
+  assert.deepEqual(await fetchBoot("http://x", 10, reply(null)), {});
+  assert.deepEqual(await fetchBoot("http://x", 10, reply(identity, 500)), {});
+  assert.equal(sameBoot(identity, { ...identity }), true);
+  assert.equal(sameBoot(identity, { ...identity, startedAt: 6 }), false);
 });

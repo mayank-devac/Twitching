@@ -1,8 +1,9 @@
 import { spawn, execFile } from "node:child_process";
-import { readFile, access, readdir, stat } from "node:fs/promises";
+import { readFile, access, stat } from "node:fs/promises";
 import { resolve } from "node:path";
-import { createHash } from "node:crypto";
 import { normalizeStartup } from "../server/startup-config.js";
+import { controlOrigin } from "../shared/boot.js";
+import { fetchBoot, newestSource, rootIdentity } from "./boot-client.js";
 
 // Reuse only this checkout's controller; the server's exclusive lock owns new starts.
 const root = process.cwd();
@@ -39,18 +40,6 @@ async function buildWelcomeUi() {
     );
   });
 }
-async function newestSource(folder: string): Promise<number> {
-  const times = await Promise.all(
-    (await readdir(folder, { withFileTypes: true })).map(async (entry) => {
-      const path = resolve(folder, entry.name);
-      if (entry.isDirectory()) return newestSource(path);
-      return /\.(ts|tsx|css|html)$/.test(entry.name)
-        ? (await stat(path)).mtimeMs
-        : 0;
-    }),
-  );
-  return Math.max(0, ...times);
-}
 const newestUiSource = Math.max(
   await newestSource(resolve(root, "web")),
   await newestSource(resolve(root, "shared")),
@@ -72,33 +61,23 @@ const newestServerSource = Math.max(
   await newestSource(resolve(root, "scripts")),
   (await stat(resolve(root, "settings.json"))).mtimeMs,
 );
-const origin = `http://${settings.host}:${settings.port}`;
-const rootId = createHash("sha256").update(root).digest("hex");
+const origin = controlOrigin(settings.host, settings.port);
+const rootId = rootIdentity(root);
 async function existing() {
+  let boot;
   try {
-    const response = await fetch(`${origin}/api/boot`, {
-      signal: AbortSignal.timeout(1000),
-    });
-    const boot = (await response.json()) as {
-      rootId?: string;
-      startedAt?: number;
-    };
-    if (boot.rootId !== rootId)
-      throw new Error("Another service is using the configured port");
-    if (!boot.startedAt || newestServerSource > boot.startedAt)
-      throw new Error(
-        "The running server has older code. Stop its terminal with Ctrl+C, then reopen the launcher.",
-      );
-    return true;
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      (error.message === "Another service is using the configured port" ||
-        error.message.startsWith("The running server has older code"))
-    )
-      throw error;
+    boot = await fetchBoot(origin, 1000);
+  } catch {
+    // Nothing answering yet: the caller starts (or keeps waiting for) the server.
     return false;
   }
+  if (boot.rootId !== rootId)
+    throw new Error("Another service is using the configured port");
+  if (!boot.startedAt || newestServerSource > boot.startedAt)
+    throw new Error(
+      "The running server has older code. Stop its terminal with Ctrl+C, then reopen the launcher.",
+    );
+  return true;
 }
 let child: ReturnType<typeof spawn> | undefined;
 if (!(await existing())) {

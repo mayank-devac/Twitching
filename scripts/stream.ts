@@ -11,9 +11,9 @@ import {
   type SessionConfig,
 } from "../shared/types.js";
 import { spawn, type ChildProcess } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { createServer } from "node:net";
-import { access, mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
+import { access, mkdir, rm, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { createInterface } from "node:readline/promises";
@@ -26,6 +26,13 @@ import {
 } from "../server/cli-startup-repair.js";
 import { parseSkipPlatform } from "../server/chat-skips.js";
 import { assertProviderProxy } from "../server/provider-proxy.js";
+import { controlOrigin } from "../shared/boot.js";
+import {
+  fetchBoot,
+  newestSource,
+  rootIdentity,
+  sameBoot,
+} from "./boot-client.js";
 
 const args = process.argv.slice(2);
 const command = args.shift();
@@ -272,18 +279,6 @@ async function assertFree(port: number) {
     );
   });
 }
-async function newestSource(folder: string): Promise<number> {
-  let newest = 0;
-  for (const entry of await readdir(folder, { withFileTypes: true })) {
-    const path = resolve(folder, entry.name);
-    if (entry.isDirectory())
-      newest = Math.max(newest, await newestSource(path));
-    else if (/\.(ts|tsx|css|html)$/.test(entry.name))
-      newest = Math.max(newest, (await stat(path)).mtimeMs);
-  }
-  return newest;
-}
-
 let closeResources: (() => Promise<void>) | undefined;
 let app: ChildProcess | undefined;
 let appExit: Promise<number | null> | undefined;
@@ -384,8 +379,7 @@ try {
   console.log(
     `\nPrompt Arena — ${mode.toUpperCase()} / ${runnerMode.toUpperCase()} AGENTS\nPreviews always use isolated Docker. No coding jobs have started.`,
   );
-  // IPv6 loopback (::1) must be bracketed in a URL.
-  const origin = `http://${settings.host.includes(":") ? `[${settings.host}]` : settings.host}:${settings.port}`;
+  const origin = controlOrigin(settings.host, settings.port);
   const { Store } = await import("../server/store.js");
   const { Docker } = await import("../server/docker.js");
   const { NativeHost } = await import("../server/native-host.js");
@@ -424,7 +418,7 @@ try {
   closeResources = async () => {
     for (const close of resources.reverse()) await close().catch(() => {});
   };
-  const rootId = createHash("sha256").update(root).digest("hex");
+  const rootId = rootIdentity(root);
   let configurationId = startupConfigurationId(settings);
   let existing = false;
   let existingConfigurationId: string | undefined;
@@ -441,10 +435,7 @@ try {
     /* The start script can launch the app after checks. */
   }
   if (existing) {
-    const response = await fetch(`${origin}/api/boot`, {
-      signal: AbortSignal.timeout(1000),
-    });
-    const boot = response.ok ? ((await response.json()) as any) : {};
+    const boot = await fetchBoot(origin, 1000);
     existingConfigurationId = boot.configurationId;
     if (boot.rootId !== rootId)
       fix(
@@ -461,7 +452,7 @@ try {
     );
     // Starting against an owned server is an explicit choice, including stale or active shows.
     if (command === "start") {
-      if (newest > boot.startedAt)
+      if (newest > (boot.startedAt ?? Infinity))
         console.log("The running server predates local code/settings changes.");
       console.log(
         "Keep leaves the old server untouched. Restart stops active coding and may end an OBS broadcast managed by its old startup terminal.",
@@ -483,17 +474,8 @@ try {
         root,
         settings.port,
         async () => {
-          const response = await fetch(`${origin}/api/boot`, {
-            signal: AbortSignal.timeout(1000),
-          });
-          const current = response.ok
-            ? ((await response.json()) as typeof boot)
-            : {};
-          if (
-            current.rootId !== rootId ||
-            current.startedAt !== boot.startedAt ||
-            current.configurationId !== boot.configurationId
-          )
+          // boot.rootId was already confirmed to equal this checkout's rootId.
+          if (!sameBoot(await fetchBoot(origin, 1000), boot))
             throw new Error("The running server changed");
         },
         () => stopping,
@@ -503,7 +485,7 @@ try {
       state = undefined;
       console.log("Old server stopped. Continuing normal startup checks.");
     }
-    if (existing && newest > boot.startedAt)
+    if (existing && newest > (boot.startedAt ?? Infinity))
       fix(
         "The running app has older code/settings/credentials.",
         "Close it and rerun start_stream.sh to load your changes.",
@@ -952,10 +934,7 @@ try {
             "Fix the startup error shown above.",
           );
         try {
-          const response = await fetch(`${origin}/api/boot`, {
-            signal: AbortSignal.timeout(500),
-          });
-          const boot = (await response.json()) as any;
+          const boot = await fetchBoot(origin, 500);
           ready =
             boot.rootId === rootId && boot.configurationId === configurationId;
         } catch {}
