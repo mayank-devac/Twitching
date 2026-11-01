@@ -648,6 +648,30 @@ export function Welcome({
                   {selected?.published ? "On stream" : "Not published"}
                 </small>
               </span>
+              {selected && (
+                <nav className="preview-tabs" aria-label="Preview content">
+                  <button
+                    aria-pressed={!resultUrl}
+                    onClick={() => setResultUrl("")}
+                  >
+                    Conversation
+                  </button>
+                  <button
+                    aria-pressed={!!resultUrl}
+                    disabled={busy || !selected.conversation.result}
+                    onClick={() =>
+                      void perform(async () => {
+                        const result = await request<{ url: string }>(
+                          `/api/sessions/result?id=${encodeURIComponent(selected.conversation.id)}`,
+                        );
+                        setResultUrl(result.url);
+                      })
+                    }
+                  >
+                    Result
+                  </button>
+                </nav>
+              )}
               <button
                 className="ghost-button"
                 disabled={busy || !(overlayEditor.overlayDoc?.overlays.find((overlay) => overlay.id === "default")?.published ?? !!listing.publishedId)}
@@ -671,28 +695,6 @@ export function Welcome({
             </header>
             {selected ? (
               <>
-                <nav className="preview-tabs" aria-label="Preview content">
-                  <button
-                    aria-pressed={!resultUrl}
-                    onClick={() => setResultUrl("")}
-                  >
-                    Conversation
-                  </button>
-                  <button
-                    aria-pressed={!!resultUrl}
-                    disabled={busy || !selected.conversation.result}
-                    onClick={() =>
-                      void perform(async () => {
-                        const result = await request<{ url: string }>(
-                          `/api/sessions/result?id=${encodeURIComponent(selected.conversation.id)}`,
-                        );
-                        setResultUrl(result.url);
-                      })
-                    }
-                  >
-                    Result
-                  </button>
-                </nav>
                 <div className="preview-scroll" hidden={!!resultUrl}>
                   <Timeline
                     key={selected.conversation.id}
