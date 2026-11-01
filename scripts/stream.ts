@@ -638,16 +638,7 @@ try {
   if (mode === "live") {
     const { missingLiveSecrets, twitchStatus, ensureYoutubeLiveChatId } =
       await import("../server/live-platforms.js");
-    // KICK_CLIENT_ID + KICK_CLIENT_SECRET replace KICK_ACCESS_TOKEN: the server
-    // mints the app token itself, so only check the static token without them.
-    const kickClientCredentials = !!(
-      secrets.kick.client.trim() && secrets.kick.secret.trim()
-    );
-    const missing = missingLiveSecrets(
-      kickClientCredentials
-        ? { ...secrets, kick: { ...secrets.kick, access: "client-credentials" } }
-        : secrets,
-    );
+    const missing = missingLiveSecrets(secrets);
     if (missing.length)
       fix(
         `Missing private fields: ${missing.join(", ")}`,

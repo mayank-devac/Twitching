@@ -70,6 +70,26 @@ test("empty Twitch fields skip Twitch; a partial Twitch setup is still missing",
     ),
     [],
   );
+  // A Kick client ID + secret pair stands in for the static access token.
+  const noKickToken = { ...filled, kick: { access: "", broadcaster: "1" } };
+  assert.deepEqual(
+    missingLiveSecrets(noKickToken, { youtube: false, twitch: true }),
+    ["KICK_ACCESS_TOKEN"],
+  );
+  assert.deepEqual(
+    missingLiveSecrets(
+      { ...noKickToken, kick: { ...noKickToken.kick, client: "id", secret: "s" } },
+      { youtube: false, twitch: true },
+    ),
+    [],
+  );
+  assert.deepEqual(
+    missingLiveSecrets(
+      { ...noKickToken, kick: { ...noKickToken.kick, client: "id", secret: " " } },
+      { youtube: false, twitch: true },
+    ),
+    ["KICK_ACCESS_TOKEN"],
+  );
   assert.deepEqual(
     twitchStatus({
       access: "token",

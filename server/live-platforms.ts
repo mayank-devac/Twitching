@@ -35,7 +35,7 @@ export function missingLiveSecrets(
       broadcaster: string;
       user: string;
     };
-    kick: { access: string; broadcaster: string };
+    kick: { access: string; broadcaster: string; client?: string; secret?: string };
   } = secrets,
   skips: {
     youtube?: boolean;
@@ -45,10 +45,11 @@ export function missingLiveSecrets(
 ) {
   const required: Array<[string, string]> = [["TYPESAFE_API_KEY", values.jev]];
   if (!skips.kick) {
-    required.push(
-      ["KICK_ACCESS_TOKEN", values.kick.access],
-      ["KICK_BROADCASTER_ID", values.kick.broadcaster],
-    );
+    // KICK_CLIENT_ID + KICK_CLIENT_SECRET replace KICK_ACCESS_TOKEN: the server
+    // mints the app token itself, so the static token is required only without them.
+    if (!(values.kick.client?.trim() && values.kick.secret?.trim()))
+      required.push(["KICK_ACCESS_TOKEN", values.kick.access]);
+    required.push(["KICK_BROADCASTER_ID", values.kick.broadcaster]);
   }
   if (!skips.youtube) required.push(["YOUTUBE_ACCESS_TOKEN", values.youtube.access]);
   const twitch = skips.twitch
