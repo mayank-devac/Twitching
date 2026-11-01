@@ -83,7 +83,7 @@ export function parseStreamOptions(
         process.exit(2);
       }
     } else if (args[i] === "--cli" || CLIS.some((cli) => args[i] === `--${cli}`)) {
-      const agent = args[i] === "--cli" ? args[++i] : args[i].slice(2);
+      const agent = args[i] === "--cli" ? args[++i] : args[i]!.slice(2);
       if (
         !isCli(agent) ||
         (options.singleAgent && options.singleAgent !== agent)
@@ -95,15 +95,15 @@ export function parseStreamOptions(
       }
       options.singleAgent = agent;
     } else if (args[i] === "--non-interactive") options.interactive = false;
-    else if (args[i] === "--mode" && ["live", "rehearsal"].includes(args[i + 1]))
+    else if (args[i] === "--mode" && ["live", "rehearsal"].includes(args[i + 1] ?? ""))
       options.mode = args[++i] as StreamOptions["mode"];
-    else if (args[i] === "--runner" && (RUNNER_MODES as readonly string[]).includes(args[i + 1]))
+    else if (args[i] === "--runner" && (RUNNER_MODES as readonly string[]).includes(args[i + 1] ?? ""))
       options.runnerMode = args[++i] as StreamOptions["runnerMode"];
     else if (args[i] === "--prompts") options.forcePrompts = true;
     else if (args[i] === "--no-prompts") options.ignorePrompts = true;
     else if (args[i] === "--chat" && args[i + 1]) {
       try {
-        setSkip(args[++i], false);
+        setSkip(args[++i]!, false);
       } catch (error) {
         console.error(
           `ERROR: ${error instanceof Error ? error.message : "Invalid --chat"}`,
@@ -112,7 +112,7 @@ export function parseStreamOptions(
       }
     } else if (args[i] === "--skip" && args[i + 1]) {
       try {
-        setSkip(args[++i], true);
+        setSkip(args[++i]!, true);
       } catch (error) {
         console.error(
           `ERROR: ${error instanceof Error ? error.message : "Invalid --skip"}\n${help}`,

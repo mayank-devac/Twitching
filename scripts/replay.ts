@@ -15,7 +15,7 @@ const adapters = Object.fromEntries(
       (e) => console.log(`${e.agent} ${e.kind}: ${e.text}`),
     ),
   ]),
-);
+) as Record<Agent, ActivityAdapter>;
 const lines = new JsonLines((record) =>
   adapters[record.agent as Agent].receive(record.event),
 );

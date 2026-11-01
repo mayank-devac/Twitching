@@ -92,7 +92,7 @@ async function processInfo(pid: number, os: RestartSystem) {
   ).trim();
   return {
     parent: Number(match[1]),
-    node: /(?:^|\/)(?:node|nodejs|tsx)$/.test(match[2]),
+    node: /(?:^|\/)(?:node|nodejs|tsx)$/.test(match[2]!),
     args,
   };
 }

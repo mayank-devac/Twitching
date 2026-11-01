@@ -68,13 +68,14 @@ async function main() {
     console.error("Invalid selection. Nothing was exported.");
     process.exitCode = 1;
   } else {
-    const selected = selection.map((index) => results[index]);
+    // parseSandboxResultSelection returns only in-range indices.
+    const selected = selection.map((index) => results[index]!);
     const { saved, failed } = await preserveSelectedSandboxResults(
       root,
       selected,
     );
     if (selected.length === 1 && saved.length === 1) {
-      const result = saved[0];
+      const result = saved[0]!;
       const destination = sandboxResultPath(root, result.agent, result.round);
       console.log(
         `${result.exported ? "Re-exported" : "Exported"} to ${destination}`,
