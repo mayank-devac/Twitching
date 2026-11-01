@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import {
   chmod, cp, lstat, mkdir, readFile, readdir, realpath, rename, unlink,
 } from "node:fs/promises";
-import { basename, dirname, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import type { Agent } from "../shared/types.js";
 export class LoginRefreshConflict extends Error {}
 const guards = new Map<string, LoginGuard>();
@@ -66,8 +66,12 @@ async function stat(path: string) {
   });
 }
 async function assertInside(path: string, root: string) {
+  const inner = relative(root, path);
+  // The realpath comparison only rules out symlinks; a "../" path with no
+  // links would pass it, so containment is checked lexically as well.
   if (
-    (await realpath(path)) !== resolve(await realpath(root), relative(root, path))
+    inner === ".." || inner.startsWith(`..${sep}`) || isAbsolute(inner) ||
+    (await realpath(path)) !== resolve(await realpath(root), inner)
   )
     throw new Error("Login path must stay inside its profile");
 }
