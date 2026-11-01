@@ -1090,24 +1090,6 @@ body:has(.welcome-page) {
   border: 0;
   background: #10141c;
 }
-.session-overlay {
-  width: 100%;
-  height: 100dvh;
-  padding: 18px;
-  background: #0c0f15;
-}
-.session-overlay .session-timeline {
-  height: 100%;
-  border: 0;
-}
-.session-overlay-empty {
-  display: grid;
-  height: 100dvh;
-  place-content: center;
-  background: var(--welcome-bg);
-  color: var(--welcome-muted);
-  font: 20px system-ui;
-}
 
 /* Keep scrolling while hiding scrollbar tracks throughout the site. */
 * {

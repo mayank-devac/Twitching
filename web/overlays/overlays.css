@@ -393,12 +393,6 @@
   margin-top: 4px;
   font-size: 10px;
 }
-.overlay-note {
-  color: var(--ov-muted);
-  font-size: 11px;
-  line-height: 1.45;
-  margin: 2px 0 0;
-}
 .overlay-actions {
   display: flex;
   flex-wrap: wrap;

@@ -57,13 +57,6 @@ main {
   padding: 28px 36px 20px;
 }
 
-.masthead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24px;
-}
-
 .wordmark {
   font-size: 26px;
   font-weight: 850;
@@ -114,19 +107,6 @@ main {
   border-radius: 12px;
   background: linear-gradient(120deg, #181e26, #141921);
   padding: 20px 24px;
-}
-
-.prompt-label {
-  font:
-    10px ui-monospace,
-    monospace;
-  letter-spacing: 1.8px;
-  color: var(--lime);
-}
-
-.prompt-label > span {
-  color: #667182;
-  margin-left: 20px;
 }
 
 .prompt-strip h1 {
@@ -586,27 +566,6 @@ main {
   line-height: 1.8;
 }
 
-.empty-footnote {
-  font:
-    8px ui-monospace,
-    monospace;
-  letter-spacing: 1.2px;
-  color: #546271;
-  margin-top: 25px;
-}
-
-.agent-footer {
-  display: flex;
-  justify-content: space-between;
-  padding: 12px 22px;
-  border-top: 1px solid #252e3a;
-  font:
-    9px ui-monospace,
-    monospace;
-  color: #7c8899;
-  letter-spacing: 0.3px;
-}
-
 .result-frame {
   height: 100%;
   width: 100%;
@@ -665,30 +624,10 @@ main {
   color: #a5afbc;
 }
 
-.next-label {
-  font:
-    9px ui-monospace,
-    monospace;
-  color: var(--lime);
-  letter-spacing: 1px;
-  white-space: nowrap;
-}
-
 .next-strip > span:nth-child(2) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.chat-hint {
-  margin-left: auto;
-  white-space: nowrap;
-  font-size: 10px;
-  color: #738090;
-}
-
-.chat-hint b {
-  color: #bbc8d7;
 }
 
 .controls {
@@ -700,14 +639,6 @@ main {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.eyebrow {
-  font:
-    9px ui-monospace,
-    monospace;
-  letter-spacing: 1.5px;
-  color: var(--lime);
 }
 
 .control-heading h2 {
@@ -785,12 +716,6 @@ button.danger {
 
 .checks span {
   text-transform: capitalize;
-}
-
-.muted {
-  font-size: 12px;
-  color: #7f8fa3;
-  line-height: 1.8;
 }
 
 .candidates {
@@ -1109,15 +1034,6 @@ textarea {
   }
 
   .agent-state > span:last-child {
-    display: none;
-  }
-
-  .agent-footer {
-    padding: 10px;
-    font-size: 8px;
-  }
-
-  .chat-hint {
     display: none;
   }
 
