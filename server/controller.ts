@@ -766,7 +766,11 @@ export class Controller extends EventEmitter {
       this.handles = handles;
       for (const agent of Object.keys(handles)) {
         const handle = handles[agent];
-        if (handle) void this.finished(agent, id, handle);
+        if (handle)
+          void this.finished(agent, id, handle).catch((error) => {
+            console.error(`${agent} result handling failed: ${this.clean(error instanceof Error ? error.message : String(error))}`);
+            this.pause(`${agent} result handling failed. Check the host before resuming.`);
+          });
       }
       if (generation !== this.generation)
         await Promise.all(

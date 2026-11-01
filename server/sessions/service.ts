@@ -559,7 +559,17 @@ export class Sessions extends EventEmitter {
         this.emit("state");
       }
     };
-    void execute();
+    // execute() handles run failures itself; this only catches persistence or
+    // overlay errors in its finally block, which would otherwise crash the process.
+    void execute().catch((error) => {
+      console.error(`Session ${id} bookkeeping failed: ${this.clean(error instanceof Error ? error.message : String(error), 300)}`);
+      c.status = "disconnected";
+      c.pendingRun = false;
+      try { this.store.saveConversation(c); } catch {}
+      this.active.delete(id);
+      finish();
+      this.emit("state");
+    });
     return { run };
   }
   async close() {

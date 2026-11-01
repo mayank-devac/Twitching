@@ -329,11 +329,23 @@ export class CliRunner implements PairRunner {
         }
         resolve(outcome);
       };
+      // finish() can throw before its own try (line flush, diff capture); settle
+      // as a runner failure so callers pause instead of waiting forever or crashing.
+      const settle = (code: number | null) =>
+        finish(code).catch(() => {
+          stopping ??= this.docker.stop(container.name);
+          void stopping.catch(() => {});
+          resolve({
+            status: "error",
+            failure: "other",
+            error: this.options.experience === "session" ? "Runner cleanup failed" : "Runner cleanup or HTML output failed; show must pause",
+          });
+        });
       process.once("close", (code) => {
-        void finish(code);
+        void settle(code);
       });
       process.once("error", () => {
-        void finish(1);
+        void settle(1);
       });
     });
     process.stdin.end();

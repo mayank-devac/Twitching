@@ -27,6 +27,7 @@ class FakeRunner implements PairRunner {
   sessions?: SessionConfig[];
   launches: Array<{ round: number; task: Task; at: number }> = [];
   resolvers: Record<string, (outcome: RunOutcome) => void> = {};
+  rejecters: Record<string, (error: Error) => void> = {};
   stopped: string[] = [];
   recovered = 0;
   quotaValue = { remainingPercent: 90, resetsAt: 900000 };
@@ -48,8 +49,9 @@ class FakeRunner implements PairRunner {
     this.onActivity = emit;
     this.launches.push({ round, task, at });
     const handle = (agent: string): RunHandle => ({
-      done: new Promise((resolve) => {
+      done: new Promise((resolve, reject) => {
         this.resolvers[agent] = resolve;
+        this.rejecters[agent] = reject;
       }),
       stop: async (reason) => {
         this.stopped.push(agent);
@@ -134,6 +136,14 @@ async function fixture(
     },
   };
 }
+test("a failed result handler pauses the show instead of rejecting unhandled", async () => {
+  const f = await fixture();
+  f.runner.rejecters.codex?.(new Error("result bookkeeping failed"));
+  await new Promise((r) => setImmediate(r));
+  assert.equal(f.controller.state.status, "paused");
+  assert.match(f.controller.state.reason ?? "", /codex result handling failed/);
+  await f.cleanup();
+});
 // Switching experiences must not interrupt work without consent or stop OBS.
 test("arena handover waits for the current run and blocks stale arena controls", async () => {
   const f = await fixture();

@@ -166,12 +166,23 @@ preview.publicHidden = () => { const p = presentation.get("default"); return p.h
 const previewServer = preview.app().listen(settings.previewPort, settings.host);
 let controller: Controller;
 let sessionService: Sessions | undefined;
+const failureText = (error: unknown) => clean(error instanceof Error ? error.message : String(error), 300);
+// Last resort: Node 24 exits on an unhandled rejection, which would drop a live
+// show mid-round. Log a redacted reason and pause new rounds instead.
+process.on("unhandledRejection", (error) => {
+  console.error(`Unhandled controller error: ${failureText(error)}`);
+  try { controller?.pause("Unexpected controller error. Check the host log before resuming."); }
+  catch { console.error("Show could not be paused after an unexpected error."); }
+});
 const connection = (platform: string, status: string, fatal = false) => {
   if (platform === "obs" && status === "Disconnected") sessionService?.obsDisconnected();
   controller?.connection(platform, status, fatal);
 };
 const receive = (message: Parameters<Controller["ingest"]>[0]) => {
-  void controller.ingest(message);
+  void controller.ingest(message).catch((error) => {
+    console.error(`Chat message handling failed: ${failureText(error)}`);
+    controller.pause("Chat message handling failed. Check the host before resuming.");
+  });
 };
 const since = () => controller.collection.openedAt;
 const youtube = new YouTubeChat(
