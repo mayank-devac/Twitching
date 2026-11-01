@@ -1,12 +1,10 @@
 import React from "react";
-import ReactMarkdown, { type Components } from "react-markdown";
-import { MarkdownLink, markdownComponents, markdownPlugins } from "../markdown.js";
+import type { Components } from "react-markdown";
+import { MarkdownLink, SafeMarkdown } from "../markdown.js";
 import { MermaidDiagram } from "./Mermaid.js";
 
-// Markdown rules for timeline rows: the shared safe rules, plus
-// mermaid diagrams and "Annotation N" tags.
+// Timeline rows add mermaid diagrams and "Annotation N" tags to the shared safe rules.
 const timelineComponents: Components = {
-  ...markdownComponents,
   pre: ({ children, node: _node, ...props }) => {
     const code = React.Children.toArray(children)[0];
     if (React.isValidElement<{ className?: string; children?: React.ReactNode }>(code)) {
@@ -35,13 +33,5 @@ export const TimelineMarkdown = React.memo(function TimelineMarkdown({
 }: {
   text: string;
 }) {
-  return (
-    <ReactMarkdown
-      skipHtml
-      remarkPlugins={markdownPlugins}
-      components={timelineComponents}
-    >
-      {stripDirectives(text)}
-    </ReactMarkdown>
-  );
+  return <SafeMarkdown text={stripDirectives(text)} components={timelineComponents} />;
 });

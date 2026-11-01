@@ -24,8 +24,7 @@ import React, {
   useState,
 } from "react";
 import { createRoot } from "react-dom/client";
-import ReactMarkdown from "react-markdown";
-import { markdownComponents, markdownPlugins } from "./markdown.js";
+import { SafeMarkdown } from "./markdown.js";
 import "./markdown.css";
 import type {
   Activity,
@@ -64,24 +63,14 @@ const QuickSettings = lazy(() =>
 const RehearsalCheck = lazy(() =>
   loadRehearsalCheck().then((m) => ({ default: m.RehearsalCheck })),
 );
-// Memoised so a parent re-render only re-parses Markdown whose text changed.
-const MarkdownText = React.memo(function MarkdownText({
-  children,
-}: {
-  children: string;
-}) {
+// SafeMarkdown is memoised, so a parent re-render only re-parses changed text.
+function MarkdownText({ children }: { children: string }) {
   return (
     <div className="markdown">
-      <ReactMarkdown
-        skipHtml
-        remarkPlugins={markdownPlugins}
-        components={markdownComponents}
-      >
-        {children}
-      </ReactMarkdown>
+      <SafeMarkdown text={children} />
     </div>
   );
-});
+}
 function clock(ms: number) {
   const seconds = Math.max(0, Math.floor(ms / 1000));
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;

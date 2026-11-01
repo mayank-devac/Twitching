@@ -1,5 +1,5 @@
-import React from "react";
-import type { Components, ExtraProps } from "react-markdown";
+import React, { useMemo } from "react";
+import ReactMarkdown, { type Components, type ExtraProps } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 // External links open in a new tab. `node` is react-markdown's hast node; it is
@@ -17,8 +17,8 @@ export function MarkdownLink({
 }
 
 // Both public renderers use the same safe Markdown rules and scrollable tables.
-export const markdownPlugins = [remarkGfm];
-export const markdownComponents: Components = {
+const markdownPlugins = [remarkGfm];
+const markdownComponents: Components = {
   img: () => null,
   a: MarkdownLink,
   table: ({ children, node: _node, ...props }) => (
@@ -27,3 +27,25 @@ export const markdownComponents: Components = {
     </div>
   ),
 };
+
+// The only Markdown entry point: raw HTML is always skipped and the safe rules always
+// apply; `components` may add or replace renderers on top of them. Memoised so a
+// parent re-render only re-parses Markdown whose text changed — pass a stable
+// `components` object to keep that.
+export const SafeMarkdown = React.memo(function SafeMarkdown({
+  text,
+  components,
+}: {
+  text: string;
+  components?: Components;
+}) {
+  const merged = useMemo(
+    () => (components ? { ...markdownComponents, ...components } : markdownComponents),
+    [components],
+  );
+  return (
+    <ReactMarkdown skipHtml remarkPlugins={markdownPlugins} components={merged}>
+      {text}
+    </ReactMarkdown>
+  );
+});
