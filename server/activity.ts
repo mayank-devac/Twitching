@@ -81,15 +81,23 @@ export class ActivityAdapter {
   ) {
     if (this.seen.has(key)) return;
     this.seen.add(key);
-    this.emit({
+    this.emit(this.make(kind, this.clean(text, Infinity), key, { append }));
+  }
+  private make(
+    kind: ActivityKind,
+    text: string,
+    key: string,
+    extra: Pick<Activity, "append" | "publicFile" | "lane"> = {},
+  ): Activity {
+    return {
       id: `${this.round}:${this.session}:${key}`,
       round: this.round,
       agent: this.session,
       at: this.now(),
       kind,
-      text: this.clean(text, Infinity),
-      append,
-    });
+      text,
+      ...extra,
+    };
   }
   private emitText(
     kind: ActivityKind,
@@ -101,14 +109,7 @@ export class ActivityAdapter {
     const prev = this.shown.get(key) ?? "";
     if (!next || next === prev) return;
     this.shown.set(key, next);
-    this.emit({
-      id: `${this.round}:${this.session}:${key}`,
-      round: this.round,
-      agent: this.session,
-      at: this.now(),
-      kind,
-      text: next,
-    });
+    this.emit(this.make(kind, next, key));
   }
   receive(value: unknown) {
     const e = parseCliEvent(value);
@@ -233,11 +234,9 @@ export class ActivityAdapter {
       const detail = e.tool_call?.[tool];
       const args = toolArgs(detail);
       const name = String(args.name ?? tool);
-      const kind = /write|edit|delete/i.test(name)
-        ? "edit"
-        : /shell|terminal|exec|bash/i.test(name)
-          ? "command"
-          : "tool";
+      const lane = classifyTool(name);
+      const kind =
+        lane === "write" ? "edit" : lane === "terminal" ? "command" : "tool";
       const path = String(args.path ?? "")
         .split("/")
         .pop();
@@ -281,16 +280,7 @@ export class ActivityAdapter {
     const shown = this.clean(text, Infinity).trim();
     if (!shown || this.seen.has(key)) return;
     this.seen.add(key);
-    this.emit({
-      id: `${this.round}:${this.session}:${key}`,
-      round: this.round,
-      agent: this.session,
-      at: this.now(),
-      kind: "command",
-      text: shown,
-      publicFile,
-      lane,
-    });
+    this.emit(this.make("command", shown, key, { publicFile, lane }));
   }
   private trackCursorTool(
     callId: string,
@@ -313,18 +303,12 @@ export class ActivityAdapter {
       args.pattern ?? args.glob ?? args.glob_pattern ?? args.query ?? "",
     );
     const command = String(args.command ?? args.cmd ?? "");
-    let lane: ActivityLane = "tool";
+    const lane = classifyTool(name);
     let text = name;
-    if (/shell|terminal|exec|bash/i.test(name)) {
-      lane = "terminal";
-      text = `${subtype || "running"} ${command || name}`;
-    } else if (/write|edit|replace|delete/i.test(name) && !/read/i.test(name)) {
-      lane = "write";
-      text = path || name;
-    } else if (/read|grep|glob|search/i.test(name)) {
-      lane = "read";
-      text = path || pattern || name;
-    } else if (path) text = `${name} ${path}`;
+    if (lane === "terminal") text = `${subtype || "running"} ${command || name}`;
+    else if (lane === "write") text = path || name;
+    else if (lane === "read") text = path || pattern || name;
+    else if (path) text = `${name} ${path}`;
     this.track(
       lane,
       text,
@@ -352,14 +336,7 @@ export class ActivityAdapter {
     )
       return;
     this.shown.set(key, redacted);
-    this.emit({
-      id: `${this.round}:${this.session}:${key}`,
-      round: this.round,
-      agent: this.session,
-      at: this.now(),
-      kind: "edit",
-      text: redacted,
-    });
+    this.emit(this.make("edit", redacted, key));
   }
   private flushThinking() {
     if (!this.thinkingBuffer) return;
@@ -383,6 +360,15 @@ export class ActivityAdapter {
     this.cursorMessage++;
     this.cursorBuffer = "";
   }
+}
+// One Cursor tool-name classification for both the activity kind and the lane.
+// It is the union of two sets that had drifted: shell-like names win, "replace"
+// counts as a write, and a name mentioning "read" is never a write.
+function classifyTool(name: string): ActivityLane {
+  if (/shell|terminal|exec|bash/i.test(name)) return "terminal";
+  if (/write|edit|replace|delete/i.test(name) && !/read/i.test(name)) return "write";
+  if (/read|grep|glob|search/i.test(name)) return "read";
+  return "tool";
 }
 function toolArgs(value: unknown): Record<string, unknown> {
   const detail = jsonObject(value) ?? {};

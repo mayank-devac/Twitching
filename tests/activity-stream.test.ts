@@ -204,3 +204,26 @@ test("HTML snapshots emit redacted diffs without reading unrelated files or foll
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("Cursor tool kind and lane share one classification", () => {
+  const events: Activity[] = [];
+  const cursor = new ActivityAdapter("cursor", 1, (s) => s, (event) => events.push(event));
+  const cases = [
+    ["strReplaceToolCall", "edit", "write"],
+    ["shellToolCall", "command", "terminal"],
+    ["readToolCall", "tool", "read"],
+    ["globToolCall", "tool", "read"],
+    ["todoToolCall", "tool", "tool"],
+  ] as const;
+  for (const [tool, kind, lane] of cases) {
+    cursor.receive({
+      type: "tool_call",
+      subtype: "started",
+      call_id: tool,
+      tool_call: { [tool]: { args: {} } },
+    });
+    const own = events.filter((event) => event.id.includes(`:${tool}:`));
+    assert.equal(own.find((event) => !event.lane)?.kind, kind, tool);
+    assert.equal(own.find((event) => event.lane)?.lane, lane, tool);
+  }
+});
