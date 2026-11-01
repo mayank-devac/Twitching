@@ -4,18 +4,25 @@ import {
   GoalStrip,
   usePrivacyShortcuts,
 } from "./presentation-controls.js";
-import { RehearsalCheck } from "./welcome/RehearsalCheck.js";
+// Host CSS stays eager, in its original position, so the cascade order against
+// welcome/overlay/style sheets is unchanged now that the host screens load lazily.
+// break-control.css also styles the arena host's .host-top-tools nav.
+import "./settings/settings.css";
+import "./break-control.css";
 import { sessionCli, sessionLabel } from "../shared/types.js";
-import { QuickSettings } from "./settings/QuickSettings.js";
-import { Welcome } from "./welcome/Welcome.js";
-import { Timeline } from "./welcome/Timeline.js";
 import { OverlayScreen } from "./overlays/OverlayScreen.js";
 import { applyOverlayPatches } from "../shared/overlay-stream.js";
 import { parseServerMessage } from "../shared/server-message.js";
 import { BreakScreen } from "./break-screen.js";
-import { BreakControl } from "./break-control.js";
 import { defaultVisibility } from "../shared/settings.js";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  Suspense,
+  lazy,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createRoot } from "react-dom/client";
 import ReactMarkdown from "react-markdown";
 import { markdownComponents, markdownPlugins } from "./markdown.js";
@@ -40,6 +47,23 @@ const outputId = namedOverlay
   ? location.pathname.slice("/overlay/".length)
   : "default";
 const control = location.pathname === "/control" || settingsPage || welcomePage;
+// Host-only screens are split out so OBS overlay pages never download them.
+// Host routes start fetching at once, before the socket delivers the first state,
+// so the lazy components are normally ready by the time they first render.
+const loadWelcome = () => import("./welcome/Welcome.js");
+const loadQuickSettings = () => import("./settings/QuickSettings.js");
+const loadRehearsalCheck = () => import("./welcome/RehearsalCheck.js");
+if (control) {
+  void (settingsPage ? loadQuickSettings() : loadWelcome()).catch(() => {});
+  if (!settingsPage) void loadRehearsalCheck().catch(() => {});
+}
+const Welcome = lazy(() => loadWelcome().then((m) => ({ default: m.Welcome })));
+const QuickSettings = lazy(() =>
+  loadQuickSettings().then((m) => ({ default: m.QuickSettings })),
+);
+const RehearsalCheck = lazy(() =>
+  loadRehearsalCheck().then((m) => ({ default: m.RehearsalCheck })),
+);
 // Memoised so a parent re-render only re-parses Markdown whose text changed.
 const MarkdownText = React.memo(function MarkdownText({
   children,
@@ -360,22 +384,26 @@ function App() {
     return (
       <>
         {hostError}
-        <QuickSettings state={state} token={csrf} connected={connected} />
+        <Suspense fallback={null}>
+          <QuickSettings state={state} token={csrf} connected={connected} />
+        </Suspense>
       </>
     );
   if (welcomePage || (control && state.experience !== "arena"))
     return (
       <>
         {hostError}
-        <Welcome
-          token={csrf}
-          arenaActive={state.experience === "arena"}
-          publishedId={state.sharedSession?.conversation.id}
-          breakControl={welcomePage}
-          hostControls={
-            <PresentationControls state={state} token={csrf} shortcutsOnly />
-          }
-        />
+        <Suspense fallback={null}>
+          <Welcome
+            token={csrf}
+            arenaActive={state.experience === "arena"}
+            publishedId={state.sharedSession?.conversation.id}
+            breakControl={welcomePage}
+            hostControls={
+              <PresentationControls state={state} token={csrf} shortcutsOnly />
+            }
+          />
+        </Suspense>
       </>
     );
   if (!control && (state.presentation?.hidden || !connected))
@@ -402,18 +430,19 @@ function App() {
   return (
     <main className={control ? "host" : "overlay"}>
       {control ? (
-        <nav className="host-top-tools" aria-label="Show controls">
-          {welcomePage ? <BreakControl token={csrf} /> : null}
-        </nav>
+        // The welcome route returns earlier, so the arena nav never held BreakControl.
+        <nav className="host-top-tools" aria-label="Show controls" />
       ) : (
         <GoalStrip value={state.presentation} />
       )}
       {control && (
-        <RehearsalCheck
-          token={csrf}
-          context="arena"
-          revision={state.quickSettings?.revision}
-        />
+        <Suspense fallback={null}>
+          <RehearsalCheck
+            token={csrf}
+            context="arena"
+            revision={state.quickSettings?.revision}
+          />
+        </Suspense>
       )}
       {control && (
         <section className="prompt-strip" hidden={!round?.task.text}>
