@@ -33,6 +33,8 @@ export class Overlays extends EventEmitter {
   private closed = false;
   private refreshing = false;
   private refreshAgain = false;
+  // Public views at the last refresh emit; the 5 s poll emits only on change.
+  private refreshed?: string;
   private update?: ReturnType<typeof setTimeout>;
   private timer: ReturnType<typeof setInterval>;
   constructor(
@@ -402,7 +404,17 @@ export class Overlays extends EventEmitter {
       await this.read(ids);
       if (epoch === this.epoch) {
         this.prune();
-        this.emit("state");
+        // Every "state" emit makes the HTTP layer rebuild and compare every
+        // channel, so an unchanged poll result is not announced.
+        const signature = JSON.stringify(
+          this.document.overlays
+            .filter((overlay) => overlay.published)
+            .map((overlay) => this.snapshot(overlay.id)),
+        );
+        if (signature !== this.refreshed) {
+          this.refreshed = signature;
+          this.emit("state");
+        }
       }
     } finally {
       this.prune();

@@ -346,3 +346,19 @@ test("two conversations with the same item IDs reconstruct patches independently
     f.close();
   }
 });
+test("a refresh with unchanged public views does not emit state", async () => {
+  const f = fixture();
+  try {
+    await f.save({ ...f.overlays.host().overlays[0], selection: "selected", sessionIds: ["managed:session-0"], published: true });
+    await f.overlays.refresh();
+    let emits = 0;
+    f.overlays.on("state", () => emits++);
+    await f.overlays.refresh();
+    assert.equal(emits, 0);
+    f.values.get("managed:session-0")!.page.items[0].text += " more";
+    await f.overlays.refresh();
+    assert.equal(emits, 1);
+  } finally {
+    f.close();
+  }
+});
