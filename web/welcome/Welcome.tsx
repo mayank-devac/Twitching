@@ -453,7 +453,7 @@ export function Welcome({
           <LastSetup token={token} revision={document?.revision} applied={({ setup, document: saved, selected: restored }) => {
             ++selection.current;
             setDocument(saved); setSelected(restored); setPath(setup.path); setRunner(setup.runner);
-            setNativeConsent(""); setModels(undefined); setChoice(restored?.conversation.config ? { ...restored.conversation.config, ...saved.value.managedModels?.[restored.conversation.id] } : setup.sessions[0]); setCli(restored?.conversation.cli ?? setup.sessions[0].cli);
+            setNativeAccepted(false); setModels(undefined); setChoice(restored?.conversation.config ? { ...restored.conversation.config, ...saved.value.managedModels?.[restored.conversation.id] } : setup.sessions[0]); setCli(restored?.conversation.cli ?? setup.sessions[0].cli);
             setResultUrl(""); setNotice("Choices applied. Review, rehearse, then go live. Nothing started.");
           }} />
           {hostControls}
