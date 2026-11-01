@@ -15,9 +15,14 @@ import type {
   Experience,
   SessionView,
   TimelineItem,
-  TimelinePage,
 } from "../../shared/sessions.js";
-import { defaultVisibility } from "../../shared/settings.js";
+import {
+  projectActivity,
+  publicSessionView,
+  sessionLanePolicy,
+  visibilityFor,
+  visiblePage,
+} from "../../shared/visibility.js";
 import type { QuickSettings } from "../quick-settings.js";
 import type { Store } from "../store.js";
 import { CliRunner, type CapabilityChecks, type RunHandle } from "../runner.js";
@@ -238,25 +243,14 @@ export class Sessions extends EventEmitter {
   }
   private visibility(c: Conversation) {
     const doc = this.preferences.get().value;
-    return (
-      doc.visibility[c.id] ??
-      doc.visibility[
+    return visibilityFor(
+      doc.visibility,
+      c.id,
+      () =>
         c.config?.id ??
-          doc.sessions.find((s) => s.cli === c.cli)?.id ??
-          doc.sessions[0].id
-      ] ??
-      defaultVisibility
+        doc.sessions.find((s) => s.cli === c.cli)?.id ??
+        doc.sessions[0].id,
     );
-  }
-  private filtered(c: Conversation, page: TimelinePage): TimelinePage {
-    const visibility = this.visibility(c);
-    return {
-      ...page,
-      latestRun: page.latestRun ?? page.items.at(-1)?.run,
-      items: page.items.filter(
-        (i) => i.kind === "prompt" || visibility[i.kind],
-      ),
-    };
   }
   private async rawPage(c: Conversation, before?: string, limit = 60) {
     if (
@@ -279,34 +273,14 @@ export class Sessions extends EventEmitter {
       visibility = this.visibility(c);
     return {
       conversation: c,
-      page: this.filtered(c, page),
+      page: visiblePage(page, visibility),
       visibility,
       hidePreviousRuns: !!visibility.hidePreviousRuns,
       published: this.overlays.isPublished(id),
     };
   }
   private safePublic(view: SessionView): SessionView {
-    view = {
-      ...view,
-      visibility: this.visibility(view.conversation),
-      page: this.filtered(view.conversation, view.page),
-      hidePreviousRuns: !!this.visibility(view.conversation).hidePreviousRuns,
-    };
-    const {
-      config: _config,
-      providerId: _provider,
-      pendingRun: _pending,
-      ...c
-    } = view.conversation;
-    return {
-      ...view,
-      conversation: {
-        ...c,
-        project: "",
-        model: view.visibility.model ? c.model : undefined,
-      },
-      published: true,
-    };
+    return publicSessionView(view, this.visibility(view.conversation));
   }
   async publish(id: string) {
     return this.overlays.publishSingle(id);
@@ -509,19 +483,16 @@ export class Sessions extends EventEmitter {
           },
           now,
           (event: Activity) => {
-            // Host-only command lanes remain private unless explicitly selected; read contents are never published.
-            if (event.lane && !(event.lane === "read" && event.publicFile))
-              return;
-            const label = event.lane === "read"
-              ? `Read ${event.publicFile}`
-              : event.kind === "complete" ? "Agent finished" : undefined;
+            // Lanes are filtered before storage: host-only lanes and read contents never reach the timeline.
+            const row = projectActivity(event, sessionLanePolicy);
+            if (!row) return;
             add({
               id: `${run}:${event.id}`,
               run,
               at: event.at,
-              kind: event.lane === "read" ? "read" : event.kind,
-              text: label ?? event.text,
-            }, label === undefined);
+              kind: row.kind,
+              text: row.text,
+            }, !row.labelled);
             c.updatedAt = Date.now();
             // Items are stored per event; the conversation row (a full JSON
             // rewrite) is saved only on status transitions, and the finally

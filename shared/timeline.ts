@@ -1,5 +1,6 @@
 import type { SessionVisibility } from "./settings.js";
 import type { TimelineItem } from "./sessions.js";
+import { kindVisible } from "./visibility.js";
 
 // Hiding old runs filters only this render; loaded and stored items are retained.
 export function visibleTimeline(
@@ -11,7 +12,7 @@ export function visibleTimeline(
 ) {
   return items.filter(
     (item) =>
-      (item.kind === "prompt" || visibility[item.kind]) &&
+      kindVisible(visibility, item.kind) &&
       (!hidePrevious || showPrevious || item.run === latestRun),
   );
 }
