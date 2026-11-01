@@ -1,17 +1,12 @@
 import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
-import {
-  mkdir,
-  cp,
-  writeFile,
-  lstat,
-  rm,
-} from "node:fs/promises";
+import { mkdir, cp, lstat, rm } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { z } from "zod";
 import { resolve } from "node:path";
 import { randomUUID, createHash } from "node:crypto";
 import type { Agent, SessionId } from "../shared/types.js";
+import { writeFileAtomic } from "./atomic-file.js";
 import { CodexAppServerClient } from "./codex-app-server.js";
 import { enforceDiskBudget } from "./disk-budget.js";
 import { removeProbeWorkspace } from "./probe-workspace-cleanup.js";
@@ -149,10 +144,9 @@ export class Docker {
       }, () => fingerprintTree(home, CURSOR_LOGIN_ROOTS, cursorRetainEntry, dir));
     }
     await mkdir(resolve(home, ".codex"), { recursive: true, mode: 0o700 });
-    await writeFile(
+    await writeFileAtomic(
       resolve(home, ".codex/config.toml"),
       'cli_auth_credentials_store = "file"\n',
-      { mode: 0o600 },
     );
     return dir;
   }

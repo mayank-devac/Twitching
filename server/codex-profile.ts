@@ -1,6 +1,6 @@
-import { randomUUID } from "node:crypto";
-import { lstat, mkdir, rename, unlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
+import { writeFileAtomic } from "./atomic-file.js";
 import { copyLoginFile, fingerprintFile, loginGuard } from "./login-guard.js";
 
 // These controls apply to arena invocations, never the user's normal CLI config.
@@ -76,17 +76,9 @@ export async function prepareCodexHome(
   }
   // Session workspaces are reused for every prompt, so the profile is rewritten
   // on each launch (an exclusive create failed from the second prompt on); this
-  // also resets anything the agent changed. Stage under an unguessable name with
-  // "wx" so nothing planted is followed, then rename (replaces a link, never
-  // follows it).
-  const profile = resolve(codexHome, "config.toml");
-  const staged = resolve(codexHome, `.config.${randomUUID()}.tmp`);
-  try {
-    await writeFile(staged, config, { mode: 0o600, flag: "wx" });
-    await rename(staged, profile);
-  } finally {
-    await unlink(staged).catch(() => {});
-  }
+  // also resets anything the agent changed. The atomic write never follows a
+  // planted link.
+  await writeFileAtomic(resolve(codexHome, "config.toml"), config);
   return codexHome;
 }
 

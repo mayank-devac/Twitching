@@ -1,8 +1,10 @@
 import {
   spawn,
+  execFile,
   execFileSync,
   type ChildProcessWithoutNullStreams,
 } from "node:child_process";
+import { promisify } from "node:util";
 import {
   access,
   chmod,
@@ -15,17 +17,20 @@ import {
   rm,
   symlink,
   unlink,
-  writeFile,
 } from "node:fs/promises";
-import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
+import { writeFileAtomic, writeFileAtomicSync } from "./atomic-file.js";
 import { Docker, type RunApproval, type WorkspaceRequest } from "./docker.js";
 import { enforceDiskBudget } from "./disk-budget.js";
 import { removeProbeWorkspace } from "./probe-workspace-cleanup.js";
 import { prepareCodexHome, retainCodexLogin } from "./codex-profile.js";
 import type { Store } from "./store.js";
 import { SESSION_IDS, type Agent, type SessionId } from "../shared/types.js";
+
+const exec = promisify(execFile);
+// lstart+pgid identify one process group launch; a reused pid gets a new start.
+const stampArgs = (pid: number) => ["-p", String(pid), "-o", "lstart=,pgid="];
 
 interface ProcessRecord {
   pid: number;
@@ -64,7 +69,7 @@ export class NativeHost extends Docker {
     await mkdir(dir, { recursive: true, mode: 0o700 });
     // A git root here stops the CLI from walking up to this repo's AGENTS.md and rules.
     await access(resolve(dir, ".git")).catch(() =>
-      execFileSync("git", ["init", "-q"], { cwd: dir, stdio: "ignore" }),
+      exec("git", ["init", "-q"], { cwd: dir }),
     );
     return dir;
   }
@@ -76,17 +81,23 @@ export class NativeHost extends Docker {
       throw new Error("Invalid native runner record");
     return resolve(this.nativeRoot, "runtime/native-processes", `${name}.json`);
   }
-  private stamp(pid: number) {
+  private async stamp(pid: number) {
     try {
-      return execFileSync("ps", ["-p", String(pid), "-o", "lstart=,pgid="], {
-        encoding: "utf8",
-        timeout: 2000,
-      }).trim();
+      return (await exec("ps", stampArgs(pid), { timeout: 2000 })).stdout.trim();
     } catch {
       return "";
     }
   }
-  private groupAlive(pid: number) {
+  // attach() must return its child synchronously, so the launch record is
+  // stamped and written before it returns; everything else polls async.
+  private stampNow(pid: number) {
+    try {
+      return execFileSync("ps", stampArgs(pid), { encoding: "utf8", timeout: 2000 }).trim();
+    } catch {
+      return "";
+    }
+  }
+  private async groupAlive(pid: number) {
     try {
       process.kill(-pid, 0);
       return true;
@@ -96,7 +107,7 @@ export class NativeHost extends Docker {
         // The leader may already have exited. Check every group member before
         // treating this as a stale record; a failed/partial listing is unsafe.
         try {
-          const rows = this.processGroups().trim().split("\n");
+          const rows = (await this.processGroups()).trim().split("\n");
           const members = rows.map((row) => row.match(/^\s*(\d+)\s+(\d+)\s*$/));
           if (
             members.length &&
@@ -113,12 +124,11 @@ export class NativeHost extends Docker {
       throw error;
     }
   }
-  protected processGroups() {
-    return execFileSync("/bin/ps", ["-A", "-o", "pid=,pgid="], {
-      encoding: "utf8",
+  protected async processGroups() {
+    return (await exec("/bin/ps", ["-A", "-o", "pid=,pgid="], {
       timeout: 2000,
       maxBuffer: 1_000_000,
-    });
+    })).stdout;
   }
   private groupPermissionError(pid: number) {
     return Object.assign(
@@ -225,13 +235,7 @@ export class NativeHost extends Docker {
       return env;
     }
     await mkdir(resolve(home, ".cursor"), { recursive: true, mode: 0o700 });
-    await writeFile(
-      resolve(home, ".cursor", "mcp.json"),
-      '{"mcpServers":{}}\n',
-      {
-        mode: 0o600,
-      },
-    );
+    await writeFileAtomic(resolve(home, ".cursor", "mcp.json"), '{"mcpServers":{}}\n');
     if (process.env.HOME) await this.reuseCursorLogin(process.env.HOME, home);
     env.HOME = home;
     env.XDG_CONFIG_HOME = resolve(home, ".config");
@@ -301,14 +305,13 @@ export class NativeHost extends Docker {
     item.process = child;
     const record = () => {
       if (!child.pid) return;
-      const stamp = this.stamp(child.pid);
+      const stamp = this.stampNow(child.pid);
       // A fast CLI can exit before the spawn callback. Preserve any identity
       // already captured rather than overwriting it with an empty stamp.
       if (item.record?.stamp && !stamp) return;
       item.record = { pid: child.pid, stamp };
-      writeFileSync(this.recordPath(name), JSON.stringify(item.record), {
-        mode: 0o600,
-      });
+      // Atomic: a crash mid-write must not leave a record recovery cannot parse.
+      writeFileAtomicSync(this.recordPath(name), JSON.stringify(item.record));
     };
     record();
     child.once("spawn", record);
@@ -337,11 +340,11 @@ export class NativeHost extends Docker {
       throw new Error(
         "Invalid native process record; inspect it before restarting",
       );
-    if (record && this.groupAlive(record.pid)) {
+    if (record && (await this.groupAlive(record.pid))) {
       // A child handle identifies the group launched in this session, even
       // after its leader exits. Recovered groups still need a matching stamp.
       const ownedChild = prepared?.process?.pid === record.pid;
-      const current = ownedChild ? "" : this.stamp(record.pid);
+      const current = ownedChild ? "" : await this.stamp(record.pid);
       if (
         !ownedChild &&
         (!record.stamp || !current || current !== record.stamp)
@@ -352,13 +355,13 @@ export class NativeHost extends Docker {
       }
       this.signalGroup(record.pid, "SIGTERM");
       const until = Date.now() + 2000;
-      while (this.groupAlive(record.pid) && Date.now() < until)
+      while ((await this.groupAlive(record.pid)) && Date.now() < until)
         await new Promise((r) => setTimeout(r, 100));
-      if (this.groupAlive(record.pid)) this.signalGroup(record.pid, "SIGKILL");
+      if (await this.groupAlive(record.pid)) this.signalGroup(record.pid, "SIGKILL");
       const killedUntil = Date.now() + 2000;
-      while (this.groupAlive(record.pid) && Date.now() < killedUntil)
+      while ((await this.groupAlive(record.pid)) && Date.now() < killedUntil)
         await new Promise((r) => setTimeout(r, 100));
-      if (this.groupAlive(record.pid))
+      if (await this.groupAlive(record.pid))
         throw new Error(
           "Native process group did not stop; no new round can start",
         );

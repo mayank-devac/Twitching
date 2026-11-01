@@ -1,8 +1,7 @@
-import { createHash, randomUUID } from "node:crypto";
-import {
-  chmod, cp, lstat, mkdir, readFile, readdir, realpath, rename, unlink,
-} from "node:fs/promises";
-import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { createHash } from "node:crypto";
+import { lstat, mkdir, readFile, readdir, realpath } from "node:fs/promises";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { writeFileAtomic } from "./atomic-file.js";
 import type { Agent } from "../shared/types.js";
 export class LoginRefreshConflict extends Error {}
 const guards = new Map<string, LoginGuard>();
@@ -135,13 +134,6 @@ export async function copyLoginFile(
     throw new Error("Login destination must be a regular file");
   await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
   await assertInside(dirname(destination), destinationRoot);
-  const temporary = resolve(dirname(destination), `.${basename(destination)}.${randomUUID()}.tmp`);
-  try {
-    await cp(source, temporary);
-    await chmod(temporary, 0o600);
-    await rename(temporary, destination);
-  } finally {
-    await unlink(temporary).catch(() => {});
-  }
+  await writeFileAtomic(destination, await readFile(source), 0o600);
   return true;
 }

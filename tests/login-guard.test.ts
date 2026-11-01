@@ -1,10 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { access, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { access, lstat, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { Docker } from "../server/docker.js";
 import { Store } from "../server/store.js";
+import { writeFileAtomic, writeFileAtomicSync } from "../server/atomic-file.js";
 import { loginGuard, LoginRefreshConflict, copyLoginFile } from "../server/login-guard.js";
 
 for (const cli of ["codex", "cursor"] as const)
@@ -103,4 +104,25 @@ test("a retained arena login discards its .home copy; a failed retain keeps it",
     await assert.rejects(host.retainAuth("cursor", kept, { discardHome: true }), LoginRefreshConflict);
     assert.equal(await readFile(resolve(kept, ".home/.cursor/auth.json"), "utf8"), "fixture-refresh-a");
   } finally { store.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test("atomic runtime writes replace a planted link instead of following it", async () => {
+  const root = await mkdtemp(resolve(tmpdir(), "arena-atomic-"));
+  try {
+    const target = resolve(root, "outside.txt");
+    await writeFile(target, "keep");
+    for (const [name, write] of [
+      ["async.json", writeFileAtomic],
+      ["sync.json", writeFileAtomicSync],
+    ] as const) {
+      const path = resolve(root, name);
+      await symlink(target, path);
+      await write(path, "fresh", 0o600);
+      assert.ok((await lstat(path)).isFile());
+      assert.equal((await stat(path)).mode & 0o777, 0o600);
+      assert.equal(await readFile(path, "utf8"), "fresh");
+    }
+    assert.equal(await readFile(target, "utf8"), "keep");
+    assert.deepEqual((await readdir(root)).sort(), ["async.json", "outside.txt", "sync.json"]);
+  } finally { await rm(root, { recursive: true, force: true }); }
 });
