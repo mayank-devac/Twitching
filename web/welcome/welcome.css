@@ -553,9 +553,13 @@ body:has(.welcome-page) {
   border: 0;
   border-radius: 9px;
   background: var(--welcome-accent);
-  color: #14102e !important;
   font-weight: 700;
   text-align: center;
+}
+/* Every .primary-button sits inside .welcome-page; (0,2,0) beats the
+   `.welcome-page button` / `.multi-overlays button` colour rules without !important. */
+.welcome-page .primary-button {
+  color: #14102e;
 }
 .publication-actions .primary-button {
   min-width: 165px;
@@ -614,23 +618,12 @@ body:has(.welcome-page) {
   border: 1px solid var(--welcome-border-strong);
   border-radius: 999px;
   background: transparent;
-  color: var(--welcome-muted) !important;
-  font-size: 11px !important;
   height: 24px;
   line-height: 1;
   transition:
     border-color 0.15s ease,
     background 0.15s ease,
     color 0.15s ease;
-}
-.visibility-chip:hover {
-  border-color: var(--welcome-accent);
-  color: var(--welcome-text) !important;
-}
-.visibility-chip[aria-pressed="true"] {
-  border-color: #4a3fa8;
-  background: #262050;
-  color: #d9d3ff !important;
 }
 .hide-runs-choice {
   flex: 0 0 auto;
@@ -653,7 +646,9 @@ body:has(.welcome-page) {
   font-size: 10px;
 }
 /* Scoped so the panel-wide label/button rules can't inflate the toggles.
-   Inside the output panel, visibility is a column of wrapping chips beside the session controls. */
+   Inside the output panel, visibility is a column of wrapping chips beside the session controls.
+   Visibility chips only ever render inside .multi-overlays, so their colour and size live here:
+   (0,2,0)+ beats `.multi-overlays button` / `.welcome-page button` without !important. */
 .multi-overlays .overlay-visibility {
   margin-top: 0;
   padding-top: 0;
@@ -682,15 +677,18 @@ body:has(.welcome-page) {
   border: 1px solid var(--welcome-border-strong);
   border-radius: 999px;
   background: transparent;
-  font-size: 11px !important;
+  color: var(--welcome-muted);
+  font-size: 11px;
 }
 .multi-overlays .visibility-chip:hover {
   border-color: var(--welcome-accent);
+  color: var(--welcome-text);
 }
+/* After :hover so a pressed chip keeps its colour while hovered. */
 .multi-overlays .visibility-chip[aria-pressed="true"] {
   border-color: #4a3fa8;
   background: #211b3f;
-  color: #d9d3ff !important;
+  color: #d9d3ff;
 }
 .multi-overlays .hide-runs-choice {
   display: flex;
@@ -945,8 +943,9 @@ body:has(.welcome-page) {
   color: var(--welcome-text);
   font-size: 15px;
 }
-.new-session-settings .qs-current {
-  margin: 12px 0 15px !important;
+/* (0,3,0) outranks settings.css `.qs-session .qs-current` in any load order. */
+.new-session-settings .qs-session .qs-current {
+  margin: 12px 0 15px;
   color: #c4cbd8;
 }
 .new-session-settings .qs-session-layout,
@@ -1161,9 +1160,12 @@ body:has(.welcome-page) {
     gap: 7px;
   }
   .footer-actions > * {
-    min-width: 0 !important;
     padding: 10px 5px;
     font-size: 11px;
+  }
+  /* Only min-width needs to outrank `.welcome-footer .primary-button` (0,2,0, earlier). */
+  .welcome-footer .footer-actions > * {
+    min-width: 0;
   }
 }
 

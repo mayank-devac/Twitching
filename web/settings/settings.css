@@ -253,8 +253,10 @@ fieldset.qs-main {
   font-size: 11px;
   padding: 6px 9px;
 }
-.qs-current {
-  margin: 10px 0 18px !important;
+/* Every .qs-current sits in a .qs-session; (0,2,0) beats `.quick-settings p` and
+   `.welcome-page p { margin: 0 }` without !important. */
+.qs-session .qs-current {
+  margin: 10px 0 18px;
   color: #d0d6df;
   font-size: 12px;
 }
@@ -395,7 +397,10 @@ fieldset.qs-main {
 .qs-visual-fit {
   display: grid;
   gap: 7px;
-  margin-top: 12px !important;
+}
+/* Beats `.quick-settings label { margin: 0 }` without !important. */
+.quick-settings .qs-visual-fit {
+  margin-top: 12px;
 }
 .quick-settings .qs-text-button {
   padding: 2px 0;
@@ -428,15 +433,18 @@ fieldset.qs-main {
   height: 36px;
 }
 .qs-upload {
-  display: flex !important;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-top: 20px !important;
   padding: 18px;
   border: 1px dashed #424c5a;
   border-radius: 10px;
+}
+/* Beats `.quick-settings label { display: grid; margin: 0 }` without !important. */
+.quick-settings .qs-upload {
+  display: flex;
+  margin-top: 20px;
 }
 .qs-upload > span {
   display: grid;
@@ -570,7 +578,7 @@ fieldset.qs-main {
   flex-basis: 100%;
 }
 .qs-sr-only {
-  position: absolute !important;
+  position: absolute;
   width: 1px;
   height: 1px;
   padding: 0;
@@ -704,9 +712,12 @@ fieldset.qs-main {
   font-size: 12px;
 }
 .qs-break-toggle {
-  display: flex !important;
   align-items: center;
-  gap: 8px !important;
+}
+/* Beats `.quick-settings label { display: grid }` without !important. */
+.qs-break-form .qs-break-toggle {
+  display: flex;
+  gap: 8px;
 }
 .qs-break-toggle input {
   accent-color: #b8ccef;

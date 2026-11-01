@@ -407,13 +407,19 @@
 }
 .overlay-editor-feedback {
   margin-top: 6px;
-  color: #c9c0ff !important;
   font-size: 11px;
 }
 .overlay-editor-error {
-  color: var(--ov-danger) !important;
   font-size: 11px;
   margin: 2px 0 0;
+}
+/* Both messages render inside .multi-overlays; (0,2,0) beats `.multi-overlays p`'s
+   muted colour without !important. */
+.multi-overlays .overlay-editor-feedback {
+  color: #c9c0ff;
+}
+.multi-overlays .overlay-editor-error {
+  color: var(--ov-danger);
 }
 .session-choice-row {
   display: flex;
