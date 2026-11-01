@@ -31,6 +31,8 @@ export interface TimelineItem {
   at: number;
   kind: ActivityKind | "prompt" | "read";
   text: string;
+  // The text only restates the row label ("Files edited"); clients show the label alone.
+  placeholder?: true;
 }
 export interface TimelinePage {
   latestRun?: string;

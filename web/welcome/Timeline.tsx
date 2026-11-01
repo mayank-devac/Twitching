@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { PromptText } from "./PromptText.js";
 import { TimelineMarkdown } from "./timeline-markdown.js";
-import { groupRows, placeholderText, rowLabel } from "./timeline-rows.js";
+import { groupRows, isPlaceholder, rowLabel } from "./timeline-rows.js";
 import type { SessionView, TimelineItem } from "../../shared/sessions.js";
 import codexLogo from "../../assets/codex/codex.svg";
 import cursorLogo from "../../assets/cursor/Cube/SVG/CUBE_2D_DARK.svg";
@@ -190,7 +190,7 @@ export function Timeline({
               className={`timeline-item kind-${item.kind}`}
             >
               <small>{rowLabel(item.kind, count)}</small>
-              {!placeholderText.has(item.text) &&
+              {!isPlaceholder(item) &&
                 (item.kind === "prompt" ? (
                   <PromptText text={item.text} />
                 ) : (

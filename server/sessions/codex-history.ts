@@ -197,7 +197,8 @@ export class CodexHistory {
           const row = record(entry),
             item = record(row.item);
           let kind: TimelineItem["kind"],
-            text = "";
+            text = "",
+            placeholder = false;
           switch (item.type) {
             case "userMessage":
               kind = "prompt";
@@ -227,6 +228,7 @@ export class CodexHistory {
             case "fileChange":
               kind = "edit";
               text = "Files edited";
+              placeholder = true;
               break;
             case "mcpToolCall":
             case "dynamicToolCall":
@@ -234,6 +236,7 @@ export class CodexHistory {
             case "collabAgentToolCall":
               kind = "tool";
               text = "Recorded tool activity";
+              placeholder = true;
               break;
             default:
               return [];
@@ -251,6 +254,8 @@ export class CodexHistory {
                     (text.length > 16000
                       ? "\n\n[Display excerpt; full text remains in the original Codex session.]"
                       : ""),
+                  // The text stays for older clients; current ones key off the flag.
+                  ...(placeholder && { placeholder: true as const }),
                 },
               ]
             : [];

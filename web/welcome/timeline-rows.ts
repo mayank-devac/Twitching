@@ -1,6 +1,10 @@
+import type { TimelineItem } from "../../shared/sessions.js";
+
 // Row labels and grouping rules for the session timeline.
 
-const kindLabel:Record<string, string> = {
+type Kind = TimelineItem["kind"];
+
+const kindLabel = {
   prompt: "You",
   message: "Message",
   summary: "Summary",
@@ -11,34 +15,34 @@ const kindLabel:Record<string, string> = {
   complete: "Completed",
   output: "Output",
   read: "File read",
-};
+} satisfies Record<Kind, string>;
 
 // Label shown when several label-only rows are merged into one.
-const pluralLabel: Record<string, (count: number) => string> = {
+const pluralLabel: Partial<Record<Kind, (count: number) => string>> = {
   edit: (n) => `${n} file edits`,
   tool: (n) => `${n} tools used`,
 };
 
-// Placeholder bodies that say nothing beyond the label: the row shows only the label.
-export const placeholderText = new Set(["Files edited", "Recorded tool activity"]);
-
-export function rowLabel(kind: string, count: number) {
-  return count > 1 && pluralLabel[kind]
-    ? pluralLabel[kind](count)
-    : (kindLabel[kind] ?? kind);
+export function rowLabel(kind: Kind, count: number) {
+  const plural = pluralLabel[kind];
+  return count > 1 && plural ? plural(count) : kindLabel[kind];
 }
 
+// Placeholder rows say nothing beyond their label, so only the label is shown.
+export const isPlaceholder = (item: Pick<TimelineItem, "placeholder">) =>
+  item.placeholder === true;
+
 // Neighbouring placeholder rows of the same kind and run become one row with a count.
-export function groupRows<T extends { kind: string; run: string; text: string }>(
-  items: T[],
-) {
+export function groupRows<
+  T extends Pick<TimelineItem, "kind" | "run" | "placeholder">,
+>(items: T[]) {
   const rows: Array<{ item: T; count: number }> = [];
   for (const item of items) {
     const last = rows.at(-1);
     const mergesWithLast =
       last &&
-      placeholderText.has(item.text) &&
-      placeholderText.has(last.item.text) &&
+      isPlaceholder(item) &&
+      isPlaceholder(last.item) &&
       last.item.kind === item.kind &&
       last.item.run === item.run;
     if (mergesWithLast) last.count++;
