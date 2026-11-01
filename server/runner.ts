@@ -78,7 +78,12 @@ export class CliRunner implements PairRunner {
   }
   constructor(
     private docker: Docker,
-    private options: SessionOptions & { experience?: "welcome" | "session" | "arena"; workspaceKey?: string },
+    private options: SessionOptions & {
+      experience?: "welcome" | "session" | "arena";
+      workspaceKey?: string;
+      // Set only by the sessions service for a conversation the host approved.
+      nativeApproved?: boolean;
+    },
     private clean: (s: string, limit?: number, streaming?: boolean) => string,
   ) {}
   recover() {
@@ -152,6 +157,7 @@ export class CliRunner implements PairRunner {
             ? await this.docker.workspace({ cli: session.cli, round: this.options.workspaceKey, session: session.id })
             : undefined,
           session.id,
+          { nativeApproved: this.options.nativeApproved },
         );
       // Initialise watchers before starting either process.
       const watchers = new Map<SessionId, HtmlDiffs>();

@@ -36,6 +36,9 @@ test("native coding requires explicit confirmation and leaves no runner when rej
       /not confirmed/,
     );
     assert.deepEqual(store.containers(), []);
+    // A session's explicit per-run approval is accepted without the launcher env.
+    const approved = await host.create("codex", 1, ["codex", "exec", "task"], undefined, "codex", { nativeApproved: true });
+    assert.ok(store.containers().includes(approved.name));
   } finally {
     if (previous === undefined) delete process.env.ARENA_NATIVE_APPROVED;
     else process.env.ARENA_NATIVE_APPROVED = previous;

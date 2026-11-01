@@ -50,6 +50,12 @@ async function assertRealDirectory(path: string) {
     throw new Error("Runner workspace path must be a real directory, not a link");
 }
 
+// An explicit per-run native approval (one consented session conversation).
+// Without it, native coding runs need the launcher's ARENA_NATIVE_APPROVED.
+export interface RunApproval {
+  nativeApproved?: boolean;
+}
+
 export interface DockerOptions {
   root: string;
   image: string;
@@ -153,6 +159,8 @@ export class Docker {
     command: string[],
     dir?: string,
     session: SessionId = agent,
+    // Only the native host reads this; Docker runs are always contained.
+    _approval: RunApproval = {},
   ) {
     const name = this.name(session, round);
     this.store.container(name);

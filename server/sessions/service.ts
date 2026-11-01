@@ -55,6 +55,9 @@ export class Sessions extends EventEmitter {
   private switchingMode = false;
   private modeRequest?: Promise<{ status: "choice" | "waiting" | "ready" }>;
   private rehearsals = new Set<string>();
+  // Per-conversation native consent, kept in memory only. It never touches
+  // process.env, so approving one session cannot approve arena or others.
+  private nativeApprovals = new Set<string>();
   // HTTP supplies the host-confirmed checklist without coupling it to provider connectors.
   requirePresentationRehearsal: (context: string, output?: import("../../shared/sessions.js").OverlayDefinition) => void = () => {};
   get mode() { return this.preferences.get().value.stream.mode; }
@@ -210,8 +213,6 @@ export class Sessions extends EventEmitter {
       .get()
       .value.sessions.find((s) => s.cli === cli);
     if (!config) throw new Error("Choose and save this CLI/model first");
-    // Native approval is an explicit local UI choice, just like the legacy startup policy.
-    if (runner === "native") process.env.ARENA_NATIVE_APPROVED = "1";
     const c: Conversation = {
       id: `managed:${randomUUID()}`,
       source: "managed",
@@ -225,6 +226,7 @@ export class Sessions extends EventEmitter {
       status: "idle",
     };
     this.store.saveConversation(c);
+    if (runner === "native") this.nativeApprovals.add(c.id);
     this.experience = "session";
     this.emit("state");
     return c;
@@ -418,12 +420,18 @@ export class Sessions extends EventEmitter {
       throw new Error(
         "External sessions are read-only. Start a managed session to send prompts.",
       );
-    if (c.runner === "native" && process.env.ARENA_NATIVE_APPROVED !== "1") {
+    // The launcher approval still covers sessions; otherwise each
+    // conversation needs its own consent (again after a server restart).
+    if (
+      c.runner === "native" &&
+      process.env.ARENA_NATIVE_APPROVED !== "1" &&
+      !this.nativeApprovals.has(id)
+    ) {
       if (nativeConsent !== "NATIVE")
         throw new Error(
-          "Choose Yes to approve this server's native runs before sending a prompt",
+          "Choose Yes to approve native runs for this session before sending a prompt",
         );
-      process.env.ARENA_NATIVE_APPROVED = "1";
+      this.nativeApprovals.add(id);
     }
     if (this.active.has(id))
       throw new Error("This session already has a prompt running");
@@ -478,6 +486,7 @@ export class Sessions extends EventEmitter {
             cursorModel: config.model,
             experience: "session",
             workspaceKey: `conversation-${id.slice(8)}`,
+            nativeApproved: c.runner === "native" && this.nativeApprovals.has(id),
           },
           this.clean,
         );

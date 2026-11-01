@@ -20,7 +20,7 @@ import {
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
-import { Docker, type WorkspaceRequest } from "./docker.js";
+import { Docker, type RunApproval, type WorkspaceRequest } from "./docker.js";
 import { enforceDiskBudget } from "./disk-budget.js";
 import { removeProbeWorkspace } from "./probe-workspace-cleanup.js";
 import { prepareCodexHome, retainCodexLogin } from "./codex-profile.js";
@@ -154,6 +154,7 @@ export class NativeHost extends Docker {
     command: string[],
     dir?: string,
     session: SessionId = agent,
+    approval: RunApproval = {},
   ) {
     const codexHelp =
       agent === "codex" &&
@@ -163,7 +164,13 @@ export class NativeHost extends Docker {
       command[2] === "--help";
     const coding =
       !codexHelp && (command.includes("--print") || command[1] === "exec");
-    if (coding && process.env.ARENA_NATIVE_APPROVED !== "1") {
+    // ARENA_NATIVE_APPROVED is set only by the launcher (start_stream.sh);
+    // a session's in-app consent arrives per run as approval.nativeApproved.
+    if (
+      coding &&
+      !approval.nativeApproved &&
+      process.env.ARENA_NATIVE_APPROVED !== "1"
+    ) {
       throw new Error(
         "Native mode is not confirmed. Run ./start_stream.sh and type NATIVE when asked.",
       );

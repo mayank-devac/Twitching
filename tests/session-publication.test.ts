@@ -179,3 +179,29 @@ test("large managed messages preserve their tail through bounded history fragmen
     store.close();
   }
 });
+
+test("native consent stays with one conversation and never reaches process.env", async () => {
+  const store = new Store(":memory:");
+  const preferences = new QuickSettings(store, {
+    sessions: [{ id: "session-1", cli: "codex", model: "fixture-model" }],
+    visibility: { "session-1": { ...defaultVisibility } },
+    stream: { mode: "rehearsal", youtube: false, twitch: false, kick: false, collectionMs: 1000, extensionMs: 1000, resultMs: 1000 },
+    jevCriteria: defaultCriteria,
+    jevProbe: "Explain this function safely",
+    media: {},
+  });
+  const host = new Docker(store, { root: "/unused-fixture-root", image: "unused" });
+  const make = () => new Sessions(store, preferences, { docker: host, native: host }, (text) => text, "welcome", async () => false, () => true);
+  const previous = process.env.ARENA_NATIVE_APPROVED;
+  delete process.env.ARENA_NATIVE_APPROVED;
+  try {
+    const approved = await make().create("codex", "native", "NATIVE");
+    assert.equal(process.env.ARENA_NATIVE_APPROVED, undefined);
+    // A fresh service (e.g. after restart) has no approval for that conversation.
+    await assert.rejects(make().run(approved.id, "Explain this function"), /approve native runs for this session/);
+  } finally {
+    if (previous === undefined) delete process.env.ARENA_NATIVE_APPROVED;
+    else process.env.ARENA_NATIVE_APPROVED = previous;
+    store.close();
+  }
+});
