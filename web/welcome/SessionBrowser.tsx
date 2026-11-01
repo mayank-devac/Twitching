@@ -27,6 +27,7 @@ export function SessionBrowser({
   selectionDisabled,
   toggleOverlay,
   busy,
+  loading = false,
   changeSource,
   changeSearch,
   refresh,
@@ -44,6 +45,8 @@ export function SessionBrowser({
   selectionDisabled?: boolean;
   toggleOverlay?(id: string): void;
   busy: boolean;
+  // A list page is loading: only the list's own buttons wait for it.
+  loading?: boolean;
   changeSource(source: "managed" | Agent): void;
   changeSearch(search: string): void;
   refresh(): void;
@@ -98,7 +101,7 @@ export function SessionBrowser({
                 </span>
                 <button
                   className="refresh-sessions"
-                  disabled={busy}
+                  disabled={busy || loading}
                   onClick={refresh}
                 >
                   Refresh
@@ -196,7 +199,7 @@ export function SessionBrowser({
         {listing.before && (
           <button
             className="load-sessions"
-            disabled={busy}
+            disabled={busy || loading}
             onClick={() => more(listing.before!)}
           >
             Load more sessions

@@ -129,6 +129,7 @@ export function Welcome({
   const [selected, setSelected] = useState<SessionView>();
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
+  const [listBusy, setListBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [resultUrl, setResultUrl] = useState("");
@@ -235,20 +236,31 @@ export function Welcome({
       closed = true;
     };
   }, [token]);
+  // List loads run on every search keystroke, so they keep their own busy flag and
+  // report errors without going through perform(), which wipes notices and
+  // disables unrelated controls. Only the newest load may touch state.
   async function list(before?: string) {
     const version = ++listingVersion.current;
-    const data = await request<Listing>(
-      `/api/sessions/list?${new URLSearchParams({ source, search, ...(before ? { before } : {}) })}`,
-    );
-    if (version === listingVersion.current)
-      setListing((old) => ({
-        ...data,
-        conversations: uniqueConversations(
-          before
-            ? [...old.conversations, ...data.conversations]
-            : data.conversations,
-        ).slice(-120),
-      }));
+    setListBusy(true);
+    try {
+      const data = await request<Listing>(
+        `/api/sessions/list?${new URLSearchParams({ source, search, ...(before ? { before } : {}) })}`,
+      );
+      if (version === listingVersion.current)
+        setListing((old) => ({
+          ...data,
+          conversations: uniqueConversations(
+            before
+              ? [...old.conversations, ...data.conversations]
+              : data.conversations,
+          ).slice(-120),
+        }));
+    } catch (e) {
+      if (version === listingVersion.current)
+        setError(e instanceof Error ? e.message : "Couldn’t load sessions");
+    } finally {
+      if (version === listingVersion.current) setListBusy(false);
+    }
   }
   useEffect(() => {
     if (!token) return;
@@ -256,7 +268,7 @@ export function Welcome({
     ++listingVersion.current;
     setListing({ conversations: [] });
     const timeout = setTimeout(() => {
-      void perform(() => list());
+      void list();
     }, 300);
     return () => {
       clearTimeout(timeout);
@@ -539,10 +551,11 @@ export function Welcome({
               }
               toggleOverlay={overlayEditor.toggle}
               busy={busy}
+              loading={listBusy}
               changeSource={setSource}
               changeSearch={setSearch}
-              refresh={() => void perform(() => list())}
-              more={(before) => void perform(() => list(before))}
+              refresh={() => void list()}
+              more={(before) => void list(before)}
               select={(id) => void preview(id)}
             />
           )}
