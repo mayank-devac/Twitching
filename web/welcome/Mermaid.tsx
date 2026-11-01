@@ -3,14 +3,24 @@ import React, { useEffect, useId, useState } from "react";
 // Mermaid is large, so it loads (and is configured) once, on first use.
 let mermaidReady: Promise<typeof import("mermaid").default> | undefined;
 const loadMermaid = () =>
-  (mermaidReady ??= import("mermaid").then(({ default: mermaid }) => {
-    mermaid.initialize({
-      startOnLoad: false,
-      securityLevel: "strict",
-      theme: "dark",
-    });
-    return mermaid;
-  }));
+  (mermaidReady ??= import("mermaid").then(
+    ({ default: mermaid }) => {
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: "strict",
+        theme: "dark",
+        // Invalid or half-streamed sources fall back to raw code; without this
+        // mermaid appends an orphan "Syntax error" SVG to document.body.
+        suppressErrorRendering: true,
+      });
+      return mermaid;
+    },
+    (error: unknown) => {
+      // Forget a failed chunk load so the next diagram retries instead of failing forever.
+      mermaidReady = undefined;
+      throw error;
+    },
+  ));
 
 // Renders a ```mermaid code block as a diagram. While the source is invalid
 // (for example, a reply that is still streaming) the raw code is shown instead.
