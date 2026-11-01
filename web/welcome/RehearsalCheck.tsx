@@ -1,6 +1,7 @@
 import { playExclusive } from "../audio-owner.js";
 import React, { useEffect, useId, useRef, useState } from "react";
 import { hostRequest } from "../settings/api.js";
+import { useHostAction } from "../use-host-action.js";
 const choices = [
   ["session", "I checked the correct session and its current public content."],
   ["readable", "I can read the preview at my target OBS output dimensions."],
@@ -26,8 +27,7 @@ export function RehearsalCheck({
     hidden: boolean;
   }>();
   const [checked, setChecked] = useState<Record<string, boolean>>({});
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const { busy, error, setError, run } = useHostAction();
   const audio = useRef<HTMLAudioElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const panelId = useId();
@@ -191,10 +191,8 @@ export function RehearsalCheck({
             type="button"
             className="host-button-primary"
             disabled={!review || busy || !choices.every(([id]) => checked[id])}
-            onClick={async () => {
-              setBusy(true);
-              setError("");
-              try {
+            onClick={() =>
+              void run(async () => {
                 await hostRequest(token, "/api/rehearsal", {
                   context,
                   key: review!.key,
@@ -205,14 +203,8 @@ export function RehearsalCheck({
                 });
                 setReview((old) => old && { ...old, confirmed: true });
                 panel.current?.hidePopover();
-              } catch (e) {
-                setError(
-                  e instanceof Error ? e.message : "Confirmation failed",
-                );
-              } finally {
-                setBusy(false);
-              }
-            }}
+              }, "Confirmation failed")
+            }
           >
             Confirm checks
           </button>

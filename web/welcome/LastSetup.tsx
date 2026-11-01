@@ -1,10 +1,11 @@
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { useId, useRef, useState } from "react";
 import type {
   LastSetup as Setup,
   SettingsDocument,
 } from "../../shared/settings.js";
 import type { SessionView } from "../../shared/sessions.js";
 import { hostRequest } from "../settings/api.js";
+import { useHostAction, useHostQuery } from "../use-host-action.js";
 
 // Review is separate from Apply, so a saved choice never silently replaces a draft.
 export function LastSetup({
@@ -23,25 +24,17 @@ export function LastSetup({
   const [setup, setSetup] = useState<Setup>();
   const panelId = useId();
   const panel = useRef<HTMLDivElement>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    let closed = false;
-    if (token)
-      void hostRequest<{ setup?: Setup }>(token, "/api/last-setup")
-        .then((data) => {
-          if (!closed) {
-            setSetup(data.setup);
-            panel.current?.hidePopover();
-          }
-        })
-        .catch((e) => {
-          if (!closed) setError(e.message);
-        });
-    return () => {
-      closed = true;
-    };
-  }, [token, revision]);
+  const { busy, error, setError, run } = useHostAction();
+  useHostQuery(
+    token,
+    () => hostRequest<{ setup?: Setup }>(token, "/api/last-setup"),
+    (data) => {
+      setSetup(data.setup);
+      panel.current?.hidePopover();
+    },
+    (e) => setError((e as Error).message),
+    [revision],
+  );
   return (
     <section className="last-setup">
       <button
@@ -115,10 +108,8 @@ export function LastSetup({
               type="button"
               className="host-button-primary"
               disabled={busy || revision === undefined}
-              onClick={async () => {
-                setBusy(true);
-                setError("");
-                try {
+              onClick={() =>
+                void run(async () => {
                   const result = await hostRequest<{
                     setup: Setup;
                     document: SettingsDocument;
@@ -129,14 +120,8 @@ export function LastSetup({
                   });
                   applied(result);
                   panel.current?.hidePopover();
-                } catch (e) {
-                  setError(
-                    e instanceof Error ? e.message : "Saved setup unavailable",
-                  );
-                } finally {
-                  setBusy(false);
-                }
-              }}
+                }, "Saved setup unavailable")
+              }
             >
               Apply
             </button>

@@ -38,6 +38,8 @@ import botLogo from "../assets/chatgpt/chatgpt-icon.svg";
 import cursorLogo from "../assets/cursor/Cube/SVG/CUBE_2D_DARK.svg";
 import { mergeActivityPatches } from "../shared/activity-stream.js";
 import { useNow } from "./use-now.js";
+import { hostRequest } from "./settings/api.js";
+import { useHostAction } from "./use-host-action.js";
 // The settings tab shares host authentication but renders its own focused page.
 const settingsPage = location.pathname === "/control/settings";
 const welcomePage = location.pathname === "/control/welcome";
@@ -83,8 +85,7 @@ function Countdown({ until }: { until: number }) {
 function App() {
   const [state, setState] = useState<ShowState>();
   const [connected, setConnected] = useState(false);
-  const [error, setError] = useState("");
-  const [working, setWorking] = useState(false);
+  const { busy: working, error, setError, run } = useHostAction();
   const [suggestion, setSuggestion] = useState(
     "!prompt Create a colourful bouncing ball animation with gravity controls",
   );
@@ -106,14 +107,8 @@ function App() {
     let delay = 1000;
     let context = "";
     const refresh = hostRefresh(
-      async (signal) => {
-        const response = await fetch("/api/host-state", {
-          signal,
-          headers: { "X-Host-Token": csrfRef.current },
-        });
-        if (!response.ok) throw new Error("Host refresh failed");
-        return response.json() as Promise<ShowState>;
-      },
+      (signal) =>
+        hostRequest<ShowState>(csrfRef.current, "/api/host-state", undefined, "GET", { signal }),
       (hostState) =>
         setState((current) => ({
           ...hostState,
@@ -323,25 +318,14 @@ function App() {
     const t = setTimeout(() => setPop(false), 4500);
     return () => clearTimeout(t);
   }, [pop]);
-  async function action(name: string, extra: Record<string, unknown> = {}) {
-    setWorking(true);
-    setError("");
-    try {
-      const response = await fetch("/api/action", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Host-Token": csrf },
-        body: JSON.stringify({ action: name, text: suggestion, ...extra }),
+  // Resolves true once the server accepted the action; failures show in `error`.
+  const action = (name: string, extra: Record<string, unknown> = {}) =>
+    run(async () => {
+      await hostRequest(csrf, "/api/action", { action: name, text: suggestion, ...extra }, "POST", {
+        error: "Action failed",
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error ?? "Action failed");
       return true;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Action failed");
-      return false;
-    } finally {
-      setWorking(false);
-    }
-  }
+    }, "Action failed");
   async function pickStop(choice: string) {
     const ok = await action("stop-choice", {
       choice,

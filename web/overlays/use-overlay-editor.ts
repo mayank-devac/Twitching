@@ -7,6 +7,7 @@ import {
 } from "../../shared/sessions.js";
 import { hostRequest } from "../settings/api.js";
 import { useUnsavedWarning } from "../settings/use-unsaved-warning.js";
+import { useHostAction } from "../use-host-action.js";
 
 // Draft assignments stay private until Apply; revisions reject another tab's stale edits.
 export function useOverlayEditor(token: string) {
@@ -14,10 +15,8 @@ export function useOverlayEditor(token: string) {
   const [draft, setDraft] = useState<OverlayDefinition>();
   const [baseline, setBaseline] = useState("");
   const [revision, setRevision] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const { busy, error, notice, setError, setNotice, run } = useHostAction();
   const [loadError, setLoadError] = useState("");
-  const [notice, setNotice] = useState("");
   const [captureRequested, setCaptureRequested] = useState(false);
   const dirty =
     !!draft && (JSON.stringify(draft) !== baseline || captureRequested);
@@ -91,22 +90,15 @@ export function useOverlayEditor(token: string) {
   }, [token]);
   async function mutate(body: unknown) {
     if (busy) return false;
-    setBusy(true);
-    setError("");
-    setNotice("");
-    try {
+    const saved = await run(async () => {
       const next = await hostRequest<
         OverlayHostDocument & { createdId?: string }
       >(token, "/api/sessions/overlays", body);
       accept(next, next.createdId ?? draft?.id);
       setNotice("Overlay saved. Coding sessions keep running.");
       return true;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Overlay change failed");
-      return false;
-    } finally {
-      setBusy(false);
-    }
+    }, "Overlay change failed");
+    return saved ?? false;
   }
   function select(id: string) {
     if (overlayDoc && confirmLeave()) {

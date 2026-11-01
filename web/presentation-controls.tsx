@@ -2,6 +2,7 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import type { ShowState } from "../shared/types.js";
 import { elapsed, stopwatch, privacyCommand, type Presentation, type PresentationSelection } from "../shared/presentation.js";
 import { hostRequest } from "./settings/api.js";
+import { useHostAction } from "./use-host-action.js";
 import "./presentation.css";
 
 // Use the server's clock at receipt, then monotonic browser time to avoid wall-clock drift.
@@ -51,19 +52,13 @@ export function PresentationControls({ state, value, token, overlayId, privacyHi
   const shortcutsPanel = useId();
   const [goal, setGoal] = useState(p?.goal ?? "");
   const [show, setShow] = useState(p?.showGoal ?? true);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const { busy, error, run } = useHostAction();
   const ms = useElapsed(p);
   useEffect(() => { setGoal(p?.goal ?? ""); setShow(p?.showGoal ?? true); }, [p?.goal, p?.showGoal, overlayId, source]);
-  async function act(body: Record<string, unknown>) {
-    setBusy(true); setError("");
-    try {
-      const result = await hostRequest<PresentationSelection>(token, "/api/presentation", { ...body, ...(overlayId ? { overlay: overlayId } : {}), ...(["goal", "start", "pause", "reset"].includes(String(body.action)) && source ? { source } : {}) });
-      if (overlayId) onUpdated?.(result);
-    }
-    catch (e) { setError(e instanceof Error ? e.message : "Presentation action failed"); }
-    finally { setBusy(false); }
-  }
+  const act = (body: Record<string, unknown>) => run(async () => {
+    const result = await hostRequest<PresentationSelection>(token, "/api/presentation", { ...body, ...(overlayId ? { overlay: overlayId } : {}), ...(["goal", "start", "pause", "reset"].includes(String(body.action)) && source ? { source } : {}) });
+    if (overlayId) onUpdated?.(result);
+  }, "Presentation action failed");
   return <section className="presentation-controls" aria-label="Public overlay controls">
     {!shortcutsOnly && <>
       <button className={`privacy-action${hidden ? " is-hidden" : ""}`} disabled={!token || (!!overlayId && !!globalHidden && !!hidden)}

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import type { ShowState } from "../../shared/types.js";
 import { hostRequest } from "./api.js";
+import { useHostAction } from "../use-host-action.js";
 
 // The server checks the captured prompt version again when Save is pressed.
 export function PreparedPrompt({
@@ -13,8 +14,7 @@ export function PreparedPrompt({
   onDirtyChange?(dirty: boolean): void;
 }) {
   const [edit, setEdit] = useState<{ text: string; version: string }>();
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const { busy, error, setError, run } = useHostAction();
   // Parent navigation guards include text typed into this independent editor.
   useEffect(() => {
     onDirtyChange?.(!!edit && edit.text !== state.prepared?.text);
@@ -23,19 +23,13 @@ export function PreparedPrompt({
   const stale = edit && edit.version !== state.preparedVersion;
   async function save() {
     if (!edit) return;
-    setBusy(true);
-    setError("");
-    try {
+    await run(async () => {
       await hostRequest(token, "/api/quick-action", {
         action: "edit-prompt",
         ...edit,
       });
       setEdit(undefined);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Prompt was not saved");
-    } finally {
-      setBusy(false);
-    }
+    }, "Prompt was not saved");
   }
   return (
     <section className="qs-card qs-prepared" aria-labelledby="prepared-title">

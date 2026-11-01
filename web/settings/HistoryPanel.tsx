@@ -2,29 +2,22 @@ import React, { useEffect, useState } from "react";
 import type { HistoryPage } from "../../shared/settings.js";
 import type { Round } from "../../shared/types.js";
 import { hostRequest } from "./api.js";
+import { useHostAction } from "../use-host-action.js";
 
 // History is read-only and paginated; opening this panel never reruns a prompt.
 export function HistoryPanel({ token }: { token: string }) {
   const [rounds, setRounds] = useState<Round[]>([]);
   const [before, setBefore] = useState<number>();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  async function load(cursor?: number) {
-    setBusy(true);
-    setError("");
-    try {
+  const { busy, error, run } = useHostAction();
+  const load = (cursor?: number) =>
+    run(async () => {
       const page = await hostRequest<HistoryPage>(
         token,
         `/api/history${cursor ? `?before=${cursor}` : ""}`,
       );
       setRounds((old) => (cursor ? [...old, ...page.rounds] : page.rounds));
       setBefore(page.before);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "History unavailable");
-    } finally {
-      setBusy(false);
-    }
-  }
+    }, "History unavailable");
   useEffect(() => {
     if (token) void load();
   }, [token]);

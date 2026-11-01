@@ -14,6 +14,7 @@ import type { SessionVisibility } from "../../shared/settings.js";
 import { defaultVisibility } from "../../shared/settings.js";
 import { SessionCard } from "../settings/SessionCard.js";
 import { hostRequest } from "../settings/api.js";
+import { useHostAction, useHostQuery } from "../use-host-action.js";
 import { Timeline } from "./Timeline.js";
 import {
   SessionBrowser,
@@ -128,10 +129,8 @@ export function Welcome({
   const [listing, setListing] = useState<Listing>({ conversations: [] });
   const [selected, setSelected] = useState<SessionView>();
   const [prompt, setPrompt] = useState("");
-  const [busy, setBusy] = useState(false);
+  const { busy, error, notice, setError, setNotice, run } = useHostAction();
   const [listBusy, setListBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [resultUrl, setResultUrl] = useState("");
   const overlayEditor = useOverlayEditor(token);
   const publishedKeys = (
@@ -150,19 +149,7 @@ export function Welcome({
   }, [publishedId, publishedKeys]);
   const request = <T,>(url: string, body?: unknown, method?: string) =>
     hostRequest<T>(token, url, body, method);
-  async function perform<T>(fn: () => Promise<T>): Promise<T | undefined> {
-    setBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      return await fn();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Request failed");
-      return undefined;
-    } finally {
-      setBusy(false);
-    }
-  }
+  const perform = <T,>(fn: () => Promise<T>) => run(fn, "Request failed");
   // Change tabs only after the server has transferred ownership of the arena.
   async function switchPath(target: "existing" | "new" | "arena") {
     setFailedMode(target);
@@ -209,34 +196,27 @@ export function Welcome({
     void check();
     return () => { closed = true; clearTimeout(timer); };
   }, [handover, token]);
-  useEffect(() => {
-    if (!token) return;
-    let closed = false;
-    void Promise.all([
-      request<SettingsDocument>("/api/settings"),
-      request<Readiness>("/api/sessions/readiness"),
-    ])
-      .then(([doc, status]) => {
-        if (!closed) {
-          setSettingsDoc(doc);
-          setReady(status);
-          // `at(0)` keeps an empty sessions list from being treated as defined.
-          setChoice({
-            ...doc.value.sessions.at(0),
-            id: "session-1",
-            cli: "codex",
-            model: "",
-            effort: undefined,
-          });
-        }
-      })
-      .catch((e) => {
-        if (!closed) setError(String(e.message));
+  useHostQuery(
+    token,
+    () =>
+      Promise.all([
+        request<SettingsDocument>("/api/settings"),
+        request<Readiness>("/api/sessions/readiness"),
+      ]),
+    ([doc, status]) => {
+      setSettingsDoc(doc);
+      setReady(status);
+      // `at(0)` keeps an empty sessions list from being treated as defined.
+      setChoice({
+        ...doc.value.sessions.at(0),
+        id: "session-1",
+        cli: "codex",
+        model: "",
+        effort: undefined,
       });
-    return () => {
-      closed = true;
-    };
-  }, [token]);
+    },
+    (e) => setError(String((e as Error).message)),
+  );
   // List loads run on every search keystroke, so they keep their own busy flag and
   // report errors without going through perform(), which wipes notices and
   // disables unrelated controls. Only the newest load may touch state.

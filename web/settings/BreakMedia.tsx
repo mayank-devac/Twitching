@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import type { QuickPreferences } from "../../shared/settings.js";
 import { breakVisualObjectFit } from "../../shared/settings.js";
 import { hostRequest } from "./api.js";
+import { useHostAction, useHostQuery } from "../use-host-action.js";
 type Asset = { id: string; name: string; type: string; bytes: number };
 type Defaults = Record<"audio" | "visual", { name: string; url?: string }>;
 
@@ -43,22 +44,19 @@ export function BreakMedia({
     visual: { name: "break-visual.gif", url: "/media/break-visual.gif" },
   });
   const [preview, setPreview] = useState<"audio" | "visual">();
-  const [busy, setBusy] = useState(false);
+  const { busy, error, setError, run } = useHostAction();
   const [dragging, setDragging] = useState(false);
   const dragDepth = useRef(0);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    if (token)
-      hostRequest<{ files: Asset[]; defaults?: Defaults }>(
-        token,
-        "/api/break-media",
-      )
-        .then((r) => {
-          setFiles(r.files);
-          if (r.defaults) setDefaults(r.defaults);
-        })
-        .catch(() => setError("Could not load saved media"));
-  }, [token]);
+  // A token change or closing this tab drops a late library response.
+  useHostQuery(
+    token,
+    () => hostRequest<{ files: Asset[]; defaults?: Defaults }>(token, "/api/break-media"),
+    (r) => {
+      setFiles(r.files);
+      if (r.defaults) setDefaults(r.defaults);
+    },
+    () => setError("Could not load saved media"),
+  );
   async function upload(file?: File) {
     if (!file) return;
     setError("");
@@ -66,32 +64,25 @@ export function BreakMedia({
       setError("Choose a file smaller than 12 MB");
       return;
     }
-    setBusy(true);
+    // The parent's busy flag is always released, even if this tab closed meanwhile.
     onBusy(true);
-    try {
-      const response = await fetch("/api/break-media", {
-        method: "POST",
+    await run(async () => {
+      const asset = await hostRequest<Asset>(token, "/api/break-media", file, "POST", {
+        raw: true,
         headers: {
-          "X-Host-Token": token,
           "Content-Type": "application/octet-stream",
           "X-File-Name": encodeURIComponent(file.name),
         },
-        body: file,
+        error: "Upload failed",
       });
-      const asset = await response.json();
-      if (!response.ok) throw new Error(asset.error ?? "Upload failed");
       setFiles((old) => [...old, asset]);
       change({
         ...value,
         [asset.type.startsWith("audio/") ? "audio" : "visual"]: asset.id,
       });
       setPreview(undefined);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed");
-    } finally {
-      setBusy(false);
-      onBusy(false);
-    }
+    }, "Upload failed");
+    onBusy(false);
   }
   return (
     <section className="qs-card">

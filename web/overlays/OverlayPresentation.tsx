@@ -2,6 +2,7 @@ import React, { useEffect, useId, useState } from "react";
 import type { PresentationSelection } from "../../shared/presentation.js";
 import { PresentationControls } from "../presentation-controls.js";
 import { hostRequest } from "../settings/api.js";
+import { useHostAction } from "../use-host-action.js";
 
 // Presentation controls live in the top nav as a compact status button;
 // the popover carries the goal source, privacy buttons and notes.
@@ -9,18 +10,14 @@ export function OverlayPresentation({ token, overlayId, name, initial, published
   token: string; overlayId: string; name: string; initial?: PresentationSelection; published: boolean;
 }) {
   const [selection, setSelection] = useState(initial);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const { busy, error, run } = useHostAction();
   const panelId = useId();
   useEffect(() => {
     if (initial) setSelection((current) => !current || initial.revision >= current.revision ? initial : current);
   }, [initial]);
-  async function action(body: Record<string, unknown>) {
-    setBusy(true); setError("");
-    try { setSelection(await hostRequest<PresentationSelection>(token, "/api/presentation", { ...body, overlay: overlayId })); }
-    catch (e) { setError(e instanceof Error ? e.message : "Output controls unavailable"); }
-    finally { setBusy(false); }
-  }
+  const action = (body: Record<string, unknown>) => run(async () => {
+    setSelection(await hostRequest<PresentationSelection>(token, "/api/presentation", { ...body, overlay: overlayId }));
+  }, "Output controls unavailable");
   if (!selection) return null;
   const dot = selection.globalHidden ? "danger" : selection.own.hidden ? "warn" : "ok";
   const status = selection.globalHidden ? "All overlays hidden" : selection.own.hidden ? "This overlay hidden" : "Visible when published";

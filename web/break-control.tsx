@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useState } from "react";
 import type { OverlayHostDocument } from "../shared/sessions.js";
 import { hostRequest } from "./settings/api.js";
+import { useHostAction } from "./use-host-action.js";
 import "./break-control.css";
 
 // Breaks cover public output only; the host must acknowledge that coding continues.
@@ -20,8 +21,7 @@ export function BreakControl({
   const [timed, setTimed] = useState(true);
   const [minutes, setMinutes] = useState(5);
   const [acknowledged, setAcknowledged] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const { busy, error, setError, run } = useHostAction();
   const [now, setNow] = useState(Date.now());
   useEffect(() => setSelectedId(preferredId), [preferredId]);
   useEffect(() => {
@@ -54,9 +54,7 @@ export function BreakControl({
       !overlayDoc.overlays.some((output) => output.id === selectedId)
     )
       return;
-    setBusy(true);
-    setError("");
-    try {
+    await run(async () => {
       await hostRequest(token, "/api/presentation", {
         action: name,
         ...(scope === "selected" ? { overlay: selectedId } : {}),
@@ -66,11 +64,7 @@ export function BreakControl({
       });
       setAcknowledged(false);
       await refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Break change failed");
-    } finally {
-      setBusy(false);
-    }
+    }, "Break change failed");
   }
   const selected = overlayDoc?.overlays.find(
     (output) => output.id === selectedId,

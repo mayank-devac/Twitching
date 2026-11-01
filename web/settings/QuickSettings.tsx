@@ -8,6 +8,7 @@ import type {
 } from "../../shared/settings.js";
 import { useUnsavedWarning } from "./use-unsaved-warning.js";
 import { hostRequest } from "./api.js";
+import { useHostAction } from "../use-host-action.js";
 import { SessionCard } from "./SessionCard.js";
 import { PreparedPrompt } from "./PreparedPrompt.js";
 import { HistoryPanel } from "./HistoryPanel.js";
@@ -33,9 +34,7 @@ export function QuickSettings({
   const [models, setModels] = useState<Partial<Record<Agent, ModelChoice[]>>>(
     {},
   );
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const { busy, error, notice, setBusy, setError, setNotice, run } = useHostAction();
   const [section, setSection] = useState<
     "sessions" | "stream" | "media" | "jev"
   >("sessions");
@@ -53,44 +52,28 @@ export function QuickSettings({
     [settingsDoc, draft],
   );
   const confirmLeave = useUnsavedWarning(dirty || promptDirty);
-  async function reload() {
-    setBusy(true);
-    setError("");
-    try {
+  // The notice is cleared only once the reload succeeds.
+  const reload = () =>
+    run(async () => {
       const doc = await hostRequest<SettingsDocument>(token, "/api/settings");
       setSettingsDoc(doc);
       setDraft(structuredClone(doc.value));
       setNotice("");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Settings unavailable");
-    } finally {
-      setBusy(false);
-    }
-  }
+    }, "Settings unavailable", { keepNotice: true });
   useEffect(() => {
     if (token) void reload();
   }, [token]);
-  async function discover(cli: Agent) {
-    setBusy(true);
-    setError("");
-    try {
+  const discover = (cli: Agent) =>
+    run(async () => {
       const result = await hostRequest<{ models: ModelChoice[] }>(
         token,
         `/api/models/${cli}${state.sharedSession?.conversation.source === "managed" && state.sharedSession.conversation.cli === cli ? `?runner=${state.sharedSession.conversation.runner}` : ""}`,
       );
       setModels((old) => ({ ...old, [cli]: result.models }));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Model discovery failed");
-    } finally {
-      setBusy(false);
-    }
-  }
+    }, "Model discovery failed", { keepNotice: true });
   async function save(value?: QuickPreferences, visibilityOnly = false) {
     if (!settingsDoc || !draft) return;
-    setBusy(true);
-    setError("");
-    setNotice("");
-    try {
+    await run(async () => {
       const saved = await hostRequest<SettingsDocument>(
         token,
         "/api/settings",
@@ -108,11 +91,7 @@ export function QuickSettings({
           ? "Overlay visibility saved."
           : "Settings saved. Changes apply at the next safe boundary.",
       );
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Settings were not saved");
-    } finally {
-      setBusy(false);
-    }
+    }, "Settings were not saved");
   }
   // Immediate visibility writes merge with the last saved document, preserving other local edits.
   function toggle(id: string, value: SessionVisibility) {
@@ -184,17 +163,10 @@ export function QuickSettings({
     );
   const stale =
     (state.quickSettings?.revision ?? settingsDoc.revision) > settingsDoc.revision;
-  async function controlAction(action: string) {
-    setBusy(true);
-    setError("");
-    try {
-      await hostRequest(token, "/api/action", { action });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Control failed");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const controlAction = (action: string) =>
+    run(() => hostRequest(token, "/api/action", { action }), "Control failed", {
+      keepNotice: true,
+    });
   return (
     <main className="quick-settings">
       <header className="qs-header">
