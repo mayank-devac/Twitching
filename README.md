@@ -215,7 +215,8 @@ With a prompt list, the next task starts after the result hold. After the last t
 | Live readiness + verification | `./check_stream_start.sh --mode live --verify` |
 | Non-interactive live readiness | `./check_stream_start.sh --mode live --non-interactive` |
 | Live chat, skipping YouTube and kick | `./start_stream.sh --mode live --no-prompts --skip yt --skip kick` |
-| Optional native agents | `./start_stream.sh --mode live --runner native` |
+| Optional native agents | `./start_stream.sh --mode rehearsal --runner native` |
+| Native live, prompt list only | `./start_stream.sh --mode live --runner native --prompts` |
 
 Without explicit session choices, legacy settings select **both CLIs** unless `singleAgent` is set. Rebuild the frontend with `npm run build` after UI code changes. Use `--help` for all options.
 
@@ -247,6 +248,8 @@ Failures print specific fixes. Interactive checks offer image builds, network se
 
 - **Consent:** Type `NATIVE` through `start_stream.sh`
 - **Lifetime:** `ARENA_NATIVE_APPROVED` applies only to the launched app process; never saved in settings
+- **Coding sessions:** Without the launcher approval, each managed native session asks for its own consent; it is kept in memory for that conversation only and asked again after a restart
+- **Live chat:** Refused on the native runner, because viewer prompts would run as your user. Live native shows are limited to the host's prompt list
 - **Direct app start:** Cannot launch native coding jobs without confirmation
 - **Codex login:** Private arena login
 - **Cursor login:** Native subscription login; CLI must expose `--sandbox`
@@ -290,7 +293,7 @@ Or set a `sessions` array in `settings.json`:
 
 Both sessions receive the same prompt with separate workspaces, previews and exports, stored under the session ID. One session uses full width; two sessions split it. Two Codex sessions share one account allowance, polled once.
 
-Startup settings are parsed and normalized by `server/startup-config.ts` in both the guided script and the app. `/api/boot` identifies those startup inputs before saved web preferences are applied. Explicit guided session, mode and chat choices override previous web choices for that launch; other saved web preferences remain effective. Changing preferences during a show does not change its original boot identity.
+Startup settings are parsed and normalized by `server/startup-config.ts` in both the guided script and the app. `/api/boot` identifies those startup inputs before saved web preferences are applied; `shared/boot.ts` defines that identity and the launchers read it through `scripts/boot-client.ts`. Explicit guided session, mode and chat choices override previous web choices for that launch; other saved web preferences remain effective. Changing preferences during a show does not change its original boot identity.
 
 CLI host and help checks are cached for the current runner. Account and model discovery is refreshed before each round, once per selected CLI, so unavailable models are still rejected without substitution. Restart the app after changing CLI installations or images to repeat the fixed capability checks.
 
@@ -298,7 +301,7 @@ CLI host and help checks are cached for the current runner. Account and model di
 
 `server/cli/events.ts` validates external CLI event shapes before activity parsing. `viewportFor(1)` and `viewportFor(2)` define result sizes of 1920 × 1044 and 960 × 1044. Every result validation, restoration and startup probe supplies its session count explicitly. Old rounds retain their directory IDs while stored model IDs and reasoning efforts are separated for display and history.
 
-The adapter registry is `server/cli/index.ts`. An adapter provides fixed capability checks, fresh account/model discovery, command construction, an activity parser and edit-event detection. Session selection lives in `scripts/session-selection.ts`; the round controller is shared across CLIs.
+The adapter registry is `server/cli/index.ts`. An adapter provides fixed capability checks, fresh account/model discovery, command construction, an activity parser and edit-event detection. The supported CLIs are listed once as `CLIS` in `shared/types.ts`. Session selection lives in `scripts/session-selection.ts`; the round controller (`server/controller.ts`, with its options and round bookkeeping in `server/controller/`) is shared across CLIs.
 
 
 ### Exact model selection
@@ -477,7 +480,7 @@ This diagram shows the default Docker mode. Native mode gives agent commands hos
 - **User and filesystem:** Non-root; read-only root filesystem
 - **Persistent writes:** One agent workspace mount
 - **Host access:** No Docker socket; removed capabilities; resource limits
-- **Authentication:** That agent's saved subscription copied into its private workspace
+- **Authentication:** That agent's saved subscription copied into its private workspace. After an arena round the refreshed login is saved back (for Cursor only `auth.json`, so agent edits to its config never persist) and the workspace copy is deleted; archived rounds never keep a login copy
 - **Network:** Internal network + HTTPS allowlist proxy for provider traffic
 - **CLI bypass flags:** Apply inside the Docker boundary; do not grant host access
 - **Proxy incompatibility:** Startup fails; never switches to native automatically
@@ -506,8 +509,10 @@ The relay supports Docker versions that do not publish ports on internal network
 - **Published activity:** Assistant messages/public summaries, command/tool names, file basenames and output counts
 - **Private activity:** Tool argument bodies, file-read results, full command output and raw stderr
 - **Redaction:** Known credentials, token-shaped strings and private home paths
+- **Visibility rules:** One module, `shared/visibility.ts`, decides what the arena and session overlays publish
 - **Partial messages:** Assembled before redaction; published at message/tool boundaries to prevent fragment leaks
-- **SQLite:** Eligible candidates, evaluation cache, decisions, rounds and sanitized event history
+- **SQLite (`runtime/show.sqlite`):** Eligible candidates, evaluation cache, decisions, rounds, sanitized event history, saved conversations and settings documents
+- **Retention:** Old rows are pruned at startup and hourly — see [Stored data and retention](guides.md#stored-data-and-retention)
 - **Browser refresh:** Snapshot plus the most recent **160 events**
 
 ## Verification
@@ -557,14 +562,35 @@ STRAM_SANDBOX_TEST=1 npx tsx --test tests/sandbox.test.ts
 ## Project layout
 
 ```text
-server/       Controller, adapters, database, runners and isolated previews
-shared/       Shared event and state types
-web/          React overlay and host desk
-sandbox/      Containers and network policy
-tests/        Focused acceptance checks
-main/         Generated HTML examples and round output
-assets/       Provider images in chatgpt/, codex/, grok/ and cursor/
+server/             Control server: controller, runners, database, previews, routes
+  controller/       Controller options and pure round bookkeeping
+  chat/             One ChatSource per platform (YouTube, Twitch, Kick) + shared backoff
+  cli/              Codex and Cursor adapters and CLI event validation
+  sessions/         Managed/external coding sessions and named overlays
+shared/             Types, zod schemas and rules used by server and web
+web/                React overlay and host desk
+  arena/            Arena layout, agent panels, CLI boards and host controls
+  welcome/          Welcome page, session browser and timeline
+  settings/         Quick Settings page
+  overlays/         Multiple-overlay manager and session overlay screen
+  styles/           Arena stylesheet partials (imported in order by style.css)
+scripts/            Launchers, logins, replay and cleanup
+  stream/           Guided start_stream.sh checklist steps
+sandbox/            Containers and network policy
+tests/              Unit and integration tests (node:test)
+main/               Generated HTML examples and round output
+assets/             Break visual and provider logos (codex/, cursor/ and chatgpt/ are used by the UI)
 ```
+
+A few shared building blocks worth knowing before editing:
+
+- `server/store.ts` — the SQLite store. Single-row settings live in one `documents` table keyed by name (`quick_settings`, `presentation`, `overlays`, `last_setup`, `state`); `prune()` applies retention.
+- `server/http-kit.ts` — host guard (cookie + header token) and route error mapping shared by the JSON routes.
+- `shared/schema.ts` — zod building blocks shared by request, settings and startup schemas.
+- `shared/visibility.ts` — the public visibility rules for arena and session output.
+- `web/markdown.tsx` — `SafeMarkdown`, the only Markdown renderer (no raw HTML, no remote images).
+- `web/use-host-action.ts` — busy/error/notice state around host requests.
+- `web/tokens.css` — shared colour tokens for every stylesheet.
 
 See [`initial_plan.md`](initial_plan.md) for the original project brief. Operating runbook with checklists, Kick tokens and troubleshooting: [`guides.md`](guides.md).
 
@@ -583,7 +609,7 @@ New here — start with [Quick start](#quick-start) for the full setup, then:
 | --- | --- |
 | `npm run dev` | Run the controller + web UI locally |
 | `npm run check` | Type-check (`tsc --noEmit`) |
-| `npm test` | Run acceptance tests via `tsx --test tests/*.test.ts` |
+| `npm test` | Run the unit and integration tests (`tsx --test tests/*.test.ts tests/*.test.tsx`) |
 | `npm run build` | Build the overlay/`dist/` bundle |
 | `npm run replay` | Replay fixtures through the controller without live chat or CLIs |
 | `npm run cleanup:probes` | Remove leftover probe workspaces |
@@ -591,15 +617,16 @@ New here — start with [Quick start](#quick-start) for the full setup, then:
 ### Before opening a PR
 
 1. `npm run check`, `npm test` and `npm run build` must pass; `--verify` runs all of them in one go via `check_stream_start.sh`.
-2. Run `npx prettier --write .` on files you touched.
-3. Keep changes scoped; the acceptance tests in `tests/` are the definition of done for round logic.
+2. Match the surrounding code style. There is no repository formatter configuration yet, so do not reformat whole files.
+3. Keep changes scoped; the tests in `tests/` are the definition of done for round logic.
 
 ### Ground rules
 
 - Git-ignored and never commit: `.env.local`, `runtime/auth/` .
 - Docker is the default agent boundary; changes that weaken the coding-agent isolation will be rejected.
 - Platform chat events are untrusted input — treat all chat content as data, never as instructions.
-- Useful starting points to extend: CLI runners live in `server/` around `server/runner.ts` (`parseQuota`), platform chat adapters under `server/chat.ts`, shared types in `shared/`.
+- Useful starting points to extend: CLI runners live in `server/` around `server/runner.ts` (`parseQuota`), CLI adapters in `server/cli/`, platform chat clients in `server/chat/` (each implements `ChatSource` from `server/chat/source.ts`), shared types in `shared/`.
+- Planned larger refactors, with step-by-step migration notes, are in [`plans/`](plans/README.md).
 
 ## Official references
 
