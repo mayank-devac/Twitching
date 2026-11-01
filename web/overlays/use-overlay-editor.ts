@@ -10,7 +10,7 @@ import { useUnsavedWarning } from "../settings/use-unsaved-warning.js";
 
 // Draft assignments stay private until Apply; revisions reject another tab's stale edits.
 export function useOverlayEditor(token: string) {
-  const [document, setDocument] = useState<OverlayHostDocument>();
+  const [overlayDoc, setOverlayDoc] = useState<OverlayHostDocument>();
   const [draft, setDraft] = useState<OverlayDefinition>();
   const [baseline, setBaseline] = useState("");
   const [revision, setRevision] = useState(0);
@@ -22,13 +22,13 @@ export function useOverlayEditor(token: string) {
   const dirty =
     !!draft && (JSON.stringify(draft) !== baseline || captureRequested);
   const confirmLeave = useUnsavedWarning(dirty);
-  const current = useRef({ document, draft, dirty, busy });
-  current.current = { document, draft, dirty, busy };
+  const current = useRef({ overlayDoc, draft, dirty, busy });
+  current.current = { overlayDoc, draft, dirty, busy };
   // Last poll payload, the document object it produced, and whether the draft
   // was reset from it; an identical poll then needs no state update at all.
   const polled = useRef<{
     text: string;
-    document?: OverlayHostDocument;
+    overlayDoc?: OverlayHostDocument;
     accepted: boolean;
   }>({ text: "", accepted: false });
   function accept(
@@ -37,7 +37,7 @@ export function useOverlayEditor(token: string) {
   ) {
     const overlay =
       next.overlays.find((value) => value.id === id) ?? next.overlays[0];
-    setDocument(next);
+    setOverlayDoc(next);
     setDraft(structuredClone(overlay));
     setBaseline(JSON.stringify(overlay));
     setRevision(next.revision);
@@ -65,13 +65,13 @@ export function useOverlayEditor(token: string) {
           const editing = !!shown.draft && shown.dirty;
           if (
             text === last.text &&
-            shown.document === last.document &&
+            shown.overlayDoc === last.overlayDoc &&
             (editing || last.accepted)
           )
             return;
-          setDocument(next);
+          setOverlayDoc(next);
           if (!editing) accept(next);
-          polled.current = { text, document: next, accepted: !editing };
+          polled.current = { text, overlayDoc: next, accepted: !editing };
         }
       } catch (e) {
         if (!closed)
@@ -109,8 +109,8 @@ export function useOverlayEditor(token: string) {
     }
   }
   function select(id: string) {
-    if (document && confirmLeave()) {
-      accept(document, id);
+    if (overlayDoc && confirmLeave()) {
+      accept(overlayDoc, id);
       setError("");
       setNotice("");
     }
@@ -134,7 +134,7 @@ export function useOverlayEditor(token: string) {
     setNotice("");
   }
   function selection(mode: OverlaySelection) {
-    if (!draft || !document) return;
+    if (!draft || !overlayDoc) return;
     setError("");
     setNotice("");
     setDraft({
@@ -143,7 +143,7 @@ export function useOverlayEditor(token: string) {
       sessionIds:
         mode === "selected"
           ? draft.sessionIds
-          : document.running
+          : overlayDoc.running
               .slice(0, MAX_OVERLAY_SESSIONS)
               .map((conversation) => conversation.id),
     });
@@ -165,21 +165,21 @@ export function useOverlayEditor(token: string) {
     });
   }
   return {
-    document,
+    overlayDoc,
     draft,
     busy,
     dirty,
     error: error || loadError,
     notice,
-    stale: !!document && document.revision !== revision,
+    stale: !!overlayDoc && overlayDoc.revision !== revision,
     select,
     toggle,
     selection,
     capture: () => {
-      if (draft && document) {
+      if (draft && overlayDoc) {
         setDraft({
           ...draft,
-          sessionIds: document.running
+          sessionIds: overlayDoc.running
             .slice(0, MAX_OVERLAY_SESSIONS)
             .map((conversation) => conversation.id),
         });
@@ -189,10 +189,10 @@ export function useOverlayEditor(token: string) {
     apply,
     setDraft,
     create: (name: string) =>
-      mutate({ action: "create", revision: document?.revision, name }),
+      mutate({ action: "create", revision: overlayDoc?.revision, name }),
     remove: () => draft && mutate({ action: "delete", revision, id: draft.id }),
     stop: () => draft && mutate({ action: "stop", id: draft.id }),
-    reload: () => document && accept(document),
+    reload: () => overlayDoc && accept(overlayDoc),
   };
 }
 export type OverlayEditor = ReturnType<typeof useOverlayEditor>;

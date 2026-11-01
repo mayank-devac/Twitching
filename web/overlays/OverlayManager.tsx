@@ -32,8 +32,8 @@ export function OverlayManager({
   useEffect(() => {
     if (comboOpen) optionRefs.current[activeOption]?.focus();
   }, [comboOpen, activeOption]);
-  const { document, draft } = editor;
-  if (!document || !draft)
+  const { overlayDoc, draft } = editor;
+  if (!overlayDoc || !draft)
     return (
       <section className="multi-overlays">
         <h2>Overlay output</h2>
@@ -45,16 +45,16 @@ export function OverlayManager({
     location.origin +
     (draft.id === "default" ? "/overlay" : "/overlay/" + draft.id);
   const titles = new Map(
-    [...conversations, ...document.running].map((conversation) => [
+    [...conversations, ...overlayDoc.running].map((conversation) => [
       conversation.id,
       conversation.title,
     ]),
   );
   const runningOverflow = Math.max(
     0,
-    document.running.length - MAX_OVERLAY_SESSIONS,
+    overlayDoc.running.length - MAX_OVERLAY_SESSIONS,
   );
-  const applied = document.overlays.find((overlay) => overlay.id === draft.id);
+  const applied = overlayDoc.overlays.find((overlay) => overlay.id === draft.id);
   async function copyUrl() {
     try {
       await navigator.clipboard.writeText(url);
@@ -65,7 +65,7 @@ export function OverlayManager({
       // Clipboard permission denied; the input stays selectable.
     }
   }
-  const outputs = document.overlays;
+  const outputs = overlayDoc.overlays;
   const openCombo = () => {
     setActiveOption(
       Math.max(0, outputs.findIndex((overlay) => overlay.id === draft.id)),
@@ -118,8 +118,8 @@ export function OverlayManager({
       <header className="overlay-heading">
         <h2>Overlay output</h2>
         <span className="overlay-heading-meta">
-          {document.overlays.length}{" "}
-          {document.overlays.length === 1 ? "output" : "outputs"} ·{" "}
+          {overlayDoc.overlays.length}{" "}
+          {overlayDoc.overlays.length === 1 ? "output" : "outputs"} ·{" "}
           {applied?.published ? "On stream" : "Not published"}
         </span>
         <details className="overlay-menu">
@@ -144,7 +144,7 @@ export function OverlayManager({
               disabled={
                 editor.busy ||
                 editor.dirty ||
-                document.overlays.length >= MAX_OVERLAYS ||
+                overlayDoc.overlays.length >= MAX_OVERLAYS ||
                 !name.trim()
               }
               onClick={async () => {
@@ -176,7 +176,7 @@ export function OverlayManager({
                 Last captured {new Date(draft.capturedAt).toLocaleString()}.
               </p>
             )}
-            {document.overlays.length >= MAX_OVERLAYS && (
+            {overlayDoc.overlays.length >= MAX_OVERLAYS && (
               <p>All {MAX_OVERLAYS} output slots are in use.</p>
             )}
           </div>
@@ -354,7 +354,7 @@ export function OverlayManager({
           ? ""
           : draft.selection === "running-snapshot"
             ? "Apply captures running sessions; they stay selected after finishing."
-            : document.running.length
+            : overlayDoc.running.length
               ? "Running managed sessions join and leave automatically."
               : "Waiting for verified running activity."}
       </p>

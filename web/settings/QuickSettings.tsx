@@ -28,7 +28,7 @@ export function QuickSettings({
   token: string;
   connected: boolean;
 }) {
-  const [document, setDocument] = useState<SettingsDocument>();
+  const [settingsDoc, setSettingsDoc] = useState<SettingsDocument>();
   const [draft, setDraft] = useState<QuickPreferences>();
   const [models, setModels] = useState<Partial<Record<Agent, ModelChoice[]>>>(
     {},
@@ -46,11 +46,11 @@ export function QuickSettings({
   const dirty = useMemo(
     () =>
       !!(
-        document &&
+        settingsDoc &&
         draft &&
-        JSON.stringify(document.value) !== JSON.stringify(draft)
+        JSON.stringify(settingsDoc.value) !== JSON.stringify(draft)
       ),
-    [document, draft],
+    [settingsDoc, draft],
   );
   const confirmLeave = useUnsavedWarning(dirty || promptDirty);
   async function reload() {
@@ -58,7 +58,7 @@ export function QuickSettings({
     setError("");
     try {
       const doc = await hostRequest<SettingsDocument>(token, "/api/settings");
-      setDocument(doc);
+      setSettingsDoc(doc);
       setDraft(structuredClone(doc.value));
       setNotice("");
     } catch (e) {
@@ -86,7 +86,7 @@ export function QuickSettings({
     }
   }
   async function save(value?: QuickPreferences, visibilityOnly = false) {
-    if (!document || !draft) return;
+    if (!settingsDoc || !draft) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -94,10 +94,10 @@ export function QuickSettings({
       const saved = await hostRequest<SettingsDocument>(
         token,
         "/api/settings",
-        { revision: document.revision, value: value ?? draft },
+        { revision: settingsDoc.revision, value: value ?? draft },
         "PUT",
       );
-      setDocument(saved);
+      setSettingsDoc(saved);
       setDraft((old) =>
         visibilityOnly && old
           ? { ...old, visibility: saved.value.visibility }
@@ -116,11 +116,11 @@ export function QuickSettings({
   }
   // Immediate visibility writes merge with the last saved document, preserving other local edits.
   function toggle(id: string, value: SessionVisibility) {
-    if (!document) return;
+    if (!settingsDoc) return;
     void save(
       {
-        ...document.value,
-        visibility: { ...document.value.visibility, [id]: value },
+        ...settingsDoc.value,
+        visibility: { ...settingsDoc.value.visibility, [id]: value },
       },
       true,
     );
@@ -174,7 +174,7 @@ export function QuickSettings({
       "Harness configured for the next round. Save settings to queue it; the current sessions continue.",
     );
   }
-  if (!document || !draft)
+  if (!settingsDoc || !draft)
     return (
       <main className="quick-settings">
         <h1>Quick Settings</h1>
@@ -183,7 +183,7 @@ export function QuickSettings({
       </main>
     );
   const stale =
-    (state.quickSettings?.revision ?? document.revision) > document.revision;
+    (state.quickSettings?.revision ?? settingsDoc.revision) > settingsDoc.revision;
   async function controlAction(action: string) {
     setBusy(true);
     setError("");

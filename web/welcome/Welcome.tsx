@@ -112,7 +112,7 @@ export function Welcome({
   breakControl?: boolean;
   arenaActive?: boolean;
 }) {
-  const [document, setDocument] = useState<SettingsDocument>();
+  const [settingsDoc, setSettingsDoc] = useState<SettingsDocument>();
   const [ready, setReady] = useState<Readiness>();
   // Reflect server ownership on entry; loading this page must never switch modes.
   const [path, setPath] = useState<"existing" | "new" | "arena">(arenaActive ? "arena" : "existing");
@@ -135,7 +135,7 @@ export function Welcome({
   const [resultUrl, setResultUrl] = useState("");
   const overlayEditor = useOverlayEditor(token);
   const publishedKeys = (
-    overlayEditor.document?.publishedSessionIds ??
+    overlayEditor.overlayDoc?.publishedSessionIds ??
     (publishedId ? [publishedId] : [])
   ).join("|");
   const selection = useRef(0);
@@ -218,7 +218,7 @@ export function Welcome({
     ])
       .then(([doc, status]) => {
         if (!closed) {
-          setDocument(doc);
+          setSettingsDoc(doc);
           setReady(status);
           // `at(0)` keeps an empty sessions list from being treated as defined.
           setChoice({
@@ -321,7 +321,7 @@ export function Welcome({
           view.conversation.config
             ? {
                 ...view.conversation.config,
-                ...document?.value.managedModels?.[id],
+                ...settingsDoc?.value.managedModels?.[id],
               }
             : undefined,
         );
@@ -329,7 +329,7 @@ export function Welcome({
       }
     });
   }
-  async function save(next = document) {
+  async function save(next = settingsDoc) {
     if (!next) throw new Error("Settings are still loading");
     if (
       path === "existing" &&
@@ -356,7 +356,7 @@ export function Welcome({
       next,
       "PUT",
     );
-    setDocument(saved);
+    setSettingsDoc(saved);
     return saved;
   }
   async function discover() {
@@ -400,7 +400,7 @@ export function Welcome({
         if (selected) await remember("existing", selected.conversation.id, selected.conversation.runner ?? "docker");
         return;
       }
-      if (!choice || !document || !models?.some((m) => m.id === choice.model)) {
+      if (!choice || !settingsDoc || !models?.some((m) => m.id === choice.model)) {
         setNotice("Load models, then choose one before continuing.");
         return;
       }
@@ -409,8 +409,8 @@ export function Welcome({
         return;
       }
       const next = {
-        ...document,
-        value: { ...document.value, sessions: [{ ...choice, cli }] },
+        ...settingsDoc,
+        value: { ...settingsDoc.value, sessions: [{ ...choice, cli }] },
       };
       await save(next);
       const c = await request<Conversation>("/api/sessions/action", {
@@ -436,17 +436,17 @@ export function Welcome({
     (path === "new"
       ? choice?.id
       : (selected?.conversation.id ??
-        document?.value.sessions.find(
+        settingsDoc?.value.sessions.find(
           (s) => s.cli === selected?.conversation.cli,
         )?.id)) ??
     choice?.id ??
     "session-1";
   const visibility =
-    document?.value.visibility[slot] ??
+    settingsDoc?.value.visibility[slot] ??
     selected?.visibility ??
     defaultVisibility;
   const updateVisibility = (next: SessionVisibility) =>
-    setDocument(
+    setSettingsDoc(
       (current) =>
         current && {
           ...current,
@@ -459,7 +459,7 @@ export function Welcome({
   const toolStatus = (name: string) =>
     ready?.tools.find((tool) => tool.name === name);
   const overlayDraft = overlayEditor.draft;
-  const overlayApplied = overlayEditor.document?.overlays.find(
+  const overlayApplied = overlayEditor.overlayDoc?.overlays.find(
     (overlay) => overlayDraft && overlay.id === overlayDraft.id,
   );
   return (
@@ -469,25 +469,25 @@ export function Welcome({
           <span className="welcome-eyebrow">TWITCHING</span>
         </div>
         <div className="welcome-header-tools">
-          <LastSetup token={token} revision={document?.revision} applied={({ setup, document: saved, selected: restored }) => {
+          <LastSetup token={token} revision={settingsDoc?.revision} applied={({ setup, document: saved, selected: restored }) => {
             ++selection.current;
             // A saved setup may list no sessions; keep the current CLI rather than crash.
             const firstSession = setup.sessions.at(0);
-            setDocument(saved); setSelected(restored); setPath(setup.path); setRunner(setup.runner);
+            setSettingsDoc(saved); setSelected(restored); setPath(setup.path); setRunner(setup.runner);
             setNativeAccepted(false); setModels(undefined); setChoice(restored?.conversation.config ? { ...restored.conversation.config, ...saved.value.managedModels?.[restored.conversation.id] } : firstSession); setCli((current) => restored?.conversation.cli ?? firstSession?.cli ?? current);
             setResultUrl(""); setNotice("Choices applied. Review, rehearse, then go live. Nothing started.");
           }} />
           {hostControls}
           {breakControl && (
-            <BreakControl token={token} preferredId={overlayDraft?.id} initial={overlayEditor.document} />
+            <BreakControl token={token} preferredId={overlayDraft?.id} initial={overlayEditor.overlayDoc} />
           )}
-          {overlayDraft && overlayEditor.document && (
+          {overlayDraft && overlayEditor.overlayDoc && (
             <OverlayPresentation
               key={overlayDraft.id}
               token={token}
               overlayId={overlayDraft.id}
               name={overlayApplied?.name ?? overlayDraft.name}
-              initial={overlayEditor.document.presentation?.[overlayDraft.id]}
+              initial={overlayEditor.overlayDoc.presentation?.[overlayDraft.id]}
               published={!!overlayApplied?.published}
             />
           )}
@@ -548,7 +548,7 @@ export function Welcome({
               selectedId={selected?.conversation.id}
               publishedId={listing.publishedId}
               publishedIds={
-                overlayEditor.document?.publishedSessionIds ??
+                overlayEditor.overlayDoc?.publishedSessionIds ??
                 listing.publishedIds
               }
               checkedIds={overlayEditor.draft?.sessionIds ?? []}
@@ -568,7 +568,7 @@ export function Welcome({
               select={(id) => void preview(id)}
             />
           )}
-          {path === "new" && document && (
+          {path === "new" && settingsDoc && (
             <div className="new-session-settings">
               <LaunchChoices
                 newSession
@@ -670,7 +670,7 @@ export function Welcome({
               </span>
               <button
                 className="ghost-button"
-                disabled={busy || !(overlayEditor.document?.overlays.find((overlay) => overlay.id === "default")?.published ?? !!listing.publishedId)}
+                disabled={busy || !(overlayEditor.overlayDoc?.overlays.find((overlay) => overlay.id === "default")?.published ?? !!listing.publishedId)}
                 onClick={() =>
                   void perform(async () => {
                     await request("/api/sessions/action", {
@@ -795,7 +795,7 @@ export function Welcome({
                   </p>
                 )}
                 {selected.published &&
-                  document?.value.stream.mode === "rehearsal" && (
+                  settingsDoc?.value.stream.mode === "rehearsal" && (
                     <button
                       className="ghost-button"
                       disabled={busy}
@@ -857,10 +857,10 @@ export function Welcome({
           <label className="footer-mode">
             Mode
             <select
-              value={document?.value.stream.mode ?? "rehearsal"}
-              disabled={!document || busy}
+              value={settingsDoc?.value.stream.mode ?? "rehearsal"}
+              disabled={!settingsDoc || busy}
               onChange={(event) =>
-                setDocument(
+                setSettingsDoc(
                   (current) =>
                     current && {
                       ...current,
@@ -937,7 +937,7 @@ export function Welcome({
           >
             Prompt arena
           </button>
-          <RehearsalCheck token={token} context={path === "arena" ? "arena" : selected?.conversation.id ?? "unselected"} revision={document?.revision} />
+          <RehearsalCheck token={token} context={path === "arena" ? "arena" : selected?.conversation.id ?? "unselected"} revision={settingsDoc?.revision} />
           <a
             className="ghost-button"
             href="/overlay"
@@ -951,7 +951,7 @@ export function Welcome({
             disabled={
               busy ||
               !!handover ||
-              !document ||
+              !settingsDoc ||
               (path === "new" &&
                 (!models?.some((model) => model.id === choice?.model) ||
                   (runner === "native" && !nativeAccepted)))

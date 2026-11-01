@@ -14,7 +14,7 @@ export function BreakControl({
   initial?: OverlayHostDocument;
 }) {
   const id = useId();
-  const [document, setDocument] = useState(initial);
+  const [overlayDoc, setOverlayDoc] = useState(initial);
   const [selectedId, setSelectedId] = useState(preferredId);
   const [scope, setScope] = useState<"selected" | "all">("selected");
   const [timed, setTimed] = useState(true);
@@ -25,7 +25,7 @@ export function BreakControl({
   const [now, setNow] = useState(Date.now());
   useEffect(() => setSelectedId(preferredId), [preferredId]);
   useEffect(() => {
-    if (initial) setDocument(initial);
+    if (initial) setOverlayDoc(initial);
   }, [initial]);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -39,7 +39,7 @@ export function BreakControl({
         "/api/sessions/overlays",
       );
       // Keep the current object when nothing changed to skip a re-render.
-      setDocument((old) =>
+      setOverlayDoc((old) =>
         old && JSON.stringify(old) === JSON.stringify(next) ? old : next,
       );
       if (!next.overlays.some((output) => output.id === selectedId))
@@ -50,8 +50,8 @@ export function BreakControl({
   }
   async function action(name: "break-start" | "break-end") {
     if (
-      !document ||
-      !document.overlays.some((output) => output.id === selectedId)
+      !overlayDoc ||
+      !overlayDoc.overlays.some((output) => output.id === selectedId)
     )
       return;
     setBusy(true);
@@ -72,10 +72,10 @@ export function BreakControl({
       setBusy(false);
     }
   }
-  const selected = document?.overlays.find(
+  const selected = overlayDoc?.overlays.find(
     (output) => output.id === selectedId,
   );
-  const presentation = document?.presentation?.[selectedId];
+  const presentation = overlayDoc?.presentation?.[selectedId];
   const until =
     scope === "all"
       ? presentation?.value.breakUntil
@@ -156,7 +156,7 @@ export function BreakControl({
                 setAcknowledged(false);
               }}
             >
-              {document?.overlays.map((output) => (
+              {overlayDoc?.overlays.map((output) => (
                 <option key={output.id} value={output.id}>
                   {output.name}
                 </option>
@@ -186,12 +186,12 @@ export function BreakControl({
           </label>
         )}
         <p className="break-warning" role="alert">
-          <strong>{document?.running.length ? "A session is running. " : "A session may be running. "}Coding continues during this break.</strong>{" "}
+          <strong>{overlayDoc?.running.length ? "A session is running. " : "A session may be running. "}Coding continues during this break.</strong>{" "}
           {scope === "all"
             ? "All public overlays show the break."
             : `Only ${selected?.name ?? "the selected overlay"} shows the break.`}{" "}
-          {document?.running.length
-            ? `${document.running.length} managed session(s) are listed as running.`
+          {overlayDoc?.running.length
+            ? `${overlayDoc.running.length} managed session(s) are listed as running.`
             : "External session activity may be unknown."}{" "}
           Check the private host view before leaving.
         </p>
@@ -215,7 +215,7 @@ export function BreakControl({
             type="button"
             className="host-button-primary"
             disabled={
-              !document || busy || !!active || invalidTimer || !acknowledged
+              !overlayDoc || busy || !!active || invalidTimer || !acknowledged
             }
             onClick={() => void action("break-start")}
           >
