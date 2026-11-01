@@ -18,6 +18,8 @@ test("agent response renders a safe, readable GFM table", () => {
     "```",
     "<script>alert('unsafe')</script>",
     "![remote image](https://example.com/pixel.png)",
+    "",
+    "[docs](https://example.com/docs)",
   ].join("\n");
   const html = renderToStaticMarkup(
     <ReactMarkdown skipHtml remarkPlugins={markdownPlugins} components={markdownComponents}>
@@ -33,4 +35,7 @@ test("agent response renders a safe, readable GFM table", () => {
   assert.match(html, /<pre><code[^>]*>\| Plain \| code \|/);
   assert.equal((html.match(/<table>/g) ?? []).length, 1);
   assert.doesNotMatch(html, /<script|<img|pixel\.png/);
+  // Links open externally and never leak react-markdown's hast node as an attribute.
+  assert.match(html, /<a href="https:\/\/example\.com\/docs" target="_blank" rel="noreferrer">docs<\/a>/);
+  assert.doesNotMatch(html, /node=/);
 });

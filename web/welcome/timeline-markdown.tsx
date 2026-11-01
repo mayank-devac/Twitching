@@ -1,17 +1,13 @@
 import React from "react";
-import ReactMarkdown from "react-markdown";
-import { markdownComponents, markdownPlugins } from "../markdown.js";
+import ReactMarkdown, { type Components } from "react-markdown";
+import { MarkdownLink, markdownComponents, markdownPlugins } from "../markdown.js";
 import { MermaidDiagram } from "./Mermaid.js";
-
-const SharedLink = markdownComponents.a as React.ComponentType<
-  React.ComponentProps<"a"> & { node?: unknown }
->;
 
 // Markdown rules for timeline rows: the shared safe rules, plus
 // mermaid diagrams and "Annotation N" tags.
-const timelineComponents = {
+const timelineComponents: Components = {
   ...markdownComponents,
-  pre: ({ children, node: _node, ...props }: React.ComponentProps<"pre"> & { node?: unknown }) => {
+  pre: ({ children, node: _node, ...props }) => {
     const code = React.Children.toArray(children)[0];
     if (React.isValidElement<{ className?: string; children?: React.ReactNode }>(code)) {
       if (/\blanguage-mermaid\b/.test(code.props.className ?? ""))
@@ -19,11 +15,11 @@ const timelineComponents = {
     }
     return <pre {...props}>{children}</pre>;
   },
-  a: (props: React.ComponentProps<"a"> & { node?: unknown }) =>
+  a: (props) =>
     props.href?.startsWith("#annotation-") ? (
       <span className="tag tag-annotation">{props.children}</span>
     ) : (
-      <SharedLink {...props} />
+      <MarkdownLink {...props} />
     ),
 };
 
