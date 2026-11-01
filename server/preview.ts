@@ -239,7 +239,11 @@ export class Previews {
     return [...this.views.values()].find((v) => v.token === token);
   }
   private viewer(view: View) {
-    // Only this trusted viewer runs inside OBS. Generated JavaScript stays in the network-isolated browser.
+    // jpeg mode only: OBS runs this trusted viewer, and generated JavaScript
+    // stays in the network-isolated preview browser that renders the frames.
+    // live mode (the default) instead serves the raw generated page to OBS
+    // under previewPolicy; that CSP blocks fetch/frames/workers, but its
+    // `webrtc 'block'` directive is not reliably enforced by Chromium/CEF.
     const base = JSON.stringify(this.origin);
     const token = JSON.stringify(view.token);
     return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;width:100%;height:100%;background:#11161d;overflow:hidden}body{display:grid;place-items:center}img{width:100%;height:100%;object-fit:contain}#error{display:none;color:#dbe3ee;font:20px system-ui;padding:30px;text-align:center}</style></head><body tabindex="0"><img alt="Live rendered HTML result"><div id="error">The result preview stopped responding.</div><script>
