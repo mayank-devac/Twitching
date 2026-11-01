@@ -340,20 +340,35 @@ function App() {
         <p>OBS refreshes reconnect to the same round.</p>
       </main>
     );
+  // Host bootstrap and privacy-shortcut failures land in App's error, which the
+  // arena layout renders inline; the settings and welcome routes need it shown too.
+  const hostError = error ? (
+    <p className="error" role="alert">
+      {error}
+    </p>
+  ) : null;
   // A normal route keeps Quick Settings separate from the broadcast layout.
   if (settingsPage)
-    return <QuickSettings state={state} token={csrf} connected={connected} />;
+    return (
+      <>
+        {hostError}
+        <QuickSettings state={state} token={csrf} connected={connected} />
+      </>
+    );
   if (welcomePage || (control && state.experience !== "arena"))
     return (
-      <Welcome
-        token={csrf}
-        arenaActive={state.experience === "arena"}
-        publishedId={state.sharedSession?.conversation.id}
-        breakControl={welcomePage}
-        hostControls={
-          <PresentationControls state={state} token={csrf} shortcutsOnly />
-        }
-      />
+      <>
+        {hostError}
+        <Welcome
+          token={csrf}
+          arenaActive={state.experience === "arena"}
+          publishedId={state.sharedSession?.conversation.id}
+          breakControl={welcomePage}
+          hostControls={
+            <PresentationControls state={state} token={csrf} shortcutsOnly />
+          }
+        />
+      </>
     );
   if (!control && (state.presentation?.hidden || !connected))
     return <main className="privacy-screen">Back shortly</main>;
