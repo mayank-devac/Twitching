@@ -1,7 +1,14 @@
+import { z } from "zod";
 import { secrets } from "./config.js";
 import { chatSkips } from "./chat-skips.js";
 
 const youtubeBroadcasts = "https://www.googleapis.com/youtube/v3/liveBroadcasts";
+// Only liveChatId is read; an unexpected body counts as "no broadcast found".
+const broadcastListSchema = z.object({
+  items: z
+    .array(z.object({ snippet: z.object({ liveChatId: z.unknown() }).nullish() }))
+    .optional(),
+});
 
 export function twitchStatus(
   twitch: {
@@ -109,10 +116,8 @@ async function chatIdForBroadcasts(
     throw new Error(
       `YouTube live broadcast lookup failed (HTTP ${response.status})`,
     );
-  const data = (await response.json()) as {
-    items?: Array<{ snippet?: { liveChatId?: unknown } }>;
-  };
-  for (const item of data.items ?? []) {
+  const data = broadcastListSchema.safeParse(await response.json());
+  for (const item of (data.success && data.data.items) || []) {
     const id = item.snippet?.liveChatId;
     if (typeof id === "string" && id.trim()) return id.trim();
   }

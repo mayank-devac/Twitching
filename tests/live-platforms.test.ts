@@ -145,6 +145,17 @@ test("YouTube live chat lookup prefers an active broadcast and fails when none e
     ),
     /update YOUTUBE_ACCESS_TOKEN/,
   );
+  // A malformed list body reads as "no broadcast" rather than a TypeError.
+  await assert.rejects(
+    resolveYoutubeLiveChatId(
+      "ya29.example",
+      (async () =>
+        new Response(JSON.stringify({ items: "nope" }), {
+          status: 200,
+        })) as typeof fetch,
+    ),
+    /No YouTube live chat ID found/,
+  );
 });
 
 test("an empty saved chat ID is filled from the lookup without reading other secrets", async () => {
