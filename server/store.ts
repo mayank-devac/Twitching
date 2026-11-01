@@ -1,4 +1,5 @@
 import { legacyCli, legacyModel } from "../shared/types.js";
+import type { RunnerMode } from "../shared/schema.js";
 import { DatabaseSync, type StatementSync } from "node:sqlite";
 import { z } from "zod";
 import { mkdirSync } from "node:fs";
@@ -194,7 +195,7 @@ export class Store {
     return { items: rows.slice(0,size).reverse().map((r) => JSON.parse(r.value)), before: rows.length > size ? String(rows[size - 1]!.seq) : undefined };
   }
   disconnectConversations() {
-    const runners = new Set<"docker" | "native">();
+    const runners = new Set<RunnerMode>();
     // A previous process being alive is never inferred from a saved status badge.
     this.transaction(() => {
       for (const row of this.sql("SELECT value FROM conversations").all() as {value: string}[]) {

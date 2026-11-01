@@ -1,6 +1,7 @@
 // Controller configuration and integration contracts, kept apart from the
 // round state machine so callers can import them without the controller.
 import type { Agent, Round, SessionConfig } from "../../shared/types.js";
+import type { RunnerMode } from "../../shared/schema.js";
 import { sessionCount, type SessionCount } from "../../shared/types.js";
 // Saved rounds keep their own session list; older ones fall back to the attempts that ran.
 export const roundSessionCount = (round: Round): SessionCount =>
@@ -8,7 +9,7 @@ export const roundSessionCount = (round: Round): SessionCount =>
 export interface ControllerOptions {
   jevCriteria?: string;
   mode: "live" | "rehearsal";
-  runnerMode?: "docker" | "native";
+  runnerMode?: RunnerMode;
   sessions?: SessionConfig[];
   singleAgent?: Agent;
   codexModel: string;

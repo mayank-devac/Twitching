@@ -1,13 +1,14 @@
+import type { RunnerMode } from "../shared/schema.js";
 import type { Agent } from "../shared/types.js";
 
-export function cliLoginCommand(agent: Agent, mode: "docker" | "native") {
+export function cliLoginCommand(agent: Agent, mode: RunnerMode) {
   // Codex always uses the private arena profile, including native sessions.
   if (agent === "codex" || mode === "docker")
     return { program: "npm", args: ["run", `sandbox:login:${agent}`] };
   return { program: "cursor-agent", args: ["login"] };
 }
 
-export function missingLoginError(agent: Agent, mode: "docker" | "native") {
+export function missingLoginError(agent: Agent, mode: RunnerMode) {
   if (agent === "codex")
     return new Error(
       "Codex arena login is missing; run npm run sandbox:login:codex with your ChatGPT subscription",
@@ -35,7 +36,7 @@ export function failedLoginAgent(error: unknown): Agent | undefined {
     return "codex";
 }
 
-export function cliStartupAdvice(error: unknown, mode: "docker" | "native") {
+export function cliStartupAdvice(error: unknown, mode: RunnerMode) {
   const message = error instanceof Error ? error.message : String(error);
   const code = (error as NodeJS.ErrnoException | undefined)?.code;
   if (/native process group|native process record|kill EPERM/i.test(message))

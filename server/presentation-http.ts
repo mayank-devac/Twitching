@@ -7,6 +7,7 @@ import type { PresentationControls } from "./presentation-controls.js";
 import type { Sessions } from "./sessions/service.js";
 import { validateModel } from "./cli/index.js";
 import type { OverlayDefinition } from "../shared/sessions.js";
+import { runnerModeSchema } from "../shared/schema.js";
 import { preferencesSchema } from "./quick-settings.js";
 import { routeAction, type HostOnly } from "./http-kit.js";
 
@@ -122,7 +123,7 @@ export function presentationRoutes(
         .object({
           path: z.enum(["existing", "new", "arena"]),
           sessionId: contextSchema.optional(),
-          runner: z.enum(["docker", "native"]),
+          runner: runnerModeSchema,
         })
         .strict()
         .parse(req.body);
