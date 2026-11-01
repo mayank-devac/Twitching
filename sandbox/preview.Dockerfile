@@ -1,3 +1,5 @@
+# npm run sandbox:build:preview passes package.json's pinned playwright
+# version, so the image always matches the host client; this is a fallback.
 ARG PLAYWRIGHT_VERSION=1.63.0
 FROM mcr.microsoft.com/playwright:v${PLAYWRIGHT_VERSION}-noble
 ARG PLAYWRIGHT_VERSION
