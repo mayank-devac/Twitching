@@ -32,9 +32,14 @@ const clientVersion = (
   }
 ).version;
 const CURSOR_LOGIN_ROOTS = [".config/cursor", ".cursor"] as const;
-const cursorLoginEntry = (path: string, directory: boolean) => directory
+// Seeding copies the whole trusted runtime/auth/cursor folder (config.toml,
+// cli-config.json included). Only auth.json flows back from the
+// agent-writable home: config files there could carry agent-chosen settings
+// into every later round. Baseline, candidate and saved fingerprints all use
+// this one filter so the login guard compares like with like.
+const cursorRetainEntry = (path: string, directory: boolean) => directory
   ? !path.split("/").some((part) => ["sessions", "logs", "projects", "skills", "plugins"].includes(part))
-  : ["auth.json", "config.toml", "cli-config.json"].includes(path.split("/").at(-1)!);
+  : path.split("/").at(-1) === "auth.json";
 
 // Session workspaces are reused and agent-writable: a planted symlink at
 // .home or .tmp would redirect login seeding outside the round folder.
@@ -102,7 +107,7 @@ export class Docker {
         if (!info || info.isSymbolicLink() || !info.isDirectory()) throw missingLoginError(agent, "docker");
         await cp(source, home, { recursive: true, dereference: false,
           filter: async (path) => !(await lstat(path)).isSymbolicLink() });
-      }, () => fingerprintTree(home, CURSOR_LOGIN_ROOTS, cursorLoginEntry, dir));
+      }, () => fingerprintTree(home, CURSOR_LOGIN_ROOTS, cursorRetainEntry, dir));
     }
     await mkdir(resolve(home, ".codex"), { recursive: true, mode: 0o700 });
     await writeFile(
@@ -342,10 +347,10 @@ export class Docker {
     const home = resolve(dir, ".home");
     const dest = resolve(this.options.root, "runtime/auth", agent);
     await loginGuard(this.options.root, agent).retain(home,
-      () => fingerprintTree(home, CURSOR_LOGIN_ROOTS, cursorLoginEntry, dir),
-      () => fingerprintTree(dest, CURSOR_LOGIN_ROOTS, cursorLoginEntry, this.options.root),
+      () => fingerprintTree(home, CURSOR_LOGIN_ROOTS, cursorRetainEntry, dir),
+      () => fingerprintTree(dest, CURSOR_LOGIN_ROOTS, cursorRetainEntry, this.options.root),
       async () => {
-        for (const name of await loginFiles(home, CURSOR_LOGIN_ROOTS, cursorLoginEntry, dir))
+        for (const name of await loginFiles(home, CURSOR_LOGIN_ROOTS, cursorRetainEntry, dir))
           await copyLoginFile(resolve(home, name), resolve(dest, name), dir, this.options.root);
       });
   }

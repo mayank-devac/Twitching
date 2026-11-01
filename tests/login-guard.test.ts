@@ -65,3 +65,23 @@ test("a reused workspace whose .home is a planted symlink is refused", async () 
     assert.deepEqual(await readdir(outside), []);
   } finally { store.close(); await rm(root, { recursive: true, force: true }); }
 });
+
+test("cursor retains only auth.json; agent-edited config is seeded but never copied back", async () => {
+  const root = await mkdtemp(resolve(tmpdir(), "arena-cursor-retain-"));
+  const store = new Store(":memory:");
+  try {
+    const saved = resolve(root, "runtime/auth/cursor/.cursor");
+    await mkdir(saved, { recursive: true });
+    await writeFile(resolve(saved, "auth.json"), "fixture-original");
+    await writeFile(resolve(saved, "cli-config.json"), "fixture-trusted");
+    const host = new Docker(store, { root, image: "unused" });
+    const dir = await host.workspace({ cli: "cursor", round: 1 });
+    const home = resolve(dir, ".home/.cursor");
+    assert.equal(await readFile(resolve(home, "cli-config.json"), "utf8"), "fixture-trusted");
+    await writeFile(resolve(home, "cli-config.json"), "fixture-agent");
+    await writeFile(resolve(home, "auth.json"), "fixture-refresh");
+    await host.retainAuth("cursor", dir);
+    assert.equal(await readFile(resolve(saved, "auth.json"), "utf8"), "fixture-refresh");
+    assert.equal(await readFile(resolve(saved, "cli-config.json"), "utf8"), "fixture-trusted");
+  } finally { store.close(); await rm(root, { recursive: true, force: true }); }
+});
