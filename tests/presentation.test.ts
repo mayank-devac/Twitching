@@ -230,9 +230,16 @@ test("hide clears public snapshots, reconnect stays hidden, reveal sends a full 
     assert.equal(hidden.state.presentation.hidden, true);
     assert.equal(JSON.stringify(hidden).includes("Private answer"), false);
     current.events[0].text += " while hidden";
-    const update = once(socket, "message");
+    // An unchanged hidden view may send no frame at all (broadcast dedupe), so
+    // collect whatever arrives in a bounded window instead of awaiting one.
+    const frames: string[] = [];
+    const collect = (data: unknown) => frames.push(String(data));
+    socket.on("message", collect);
     controller.emit("state");
-    assert.equal(String((await update)[0]).includes("while hidden"), false);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    socket.off("message", collect);
+    assert.equal(frames.some((frame) => frame.includes("while hidden")), false);
+    assert.equal(JSON.stringify(await (await fetch(origin + "/api/state")).json()).includes("while hidden"), false);
     const reconnect = new WebSocket(origin.replace("http", "ws") + "/events", { origin });
     const reconnected = JSON.parse(String((await once(reconnect, "message"))[0]));
     assert.equal(reconnected.state.presentation.hidden, true);
