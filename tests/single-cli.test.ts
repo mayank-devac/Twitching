@@ -34,8 +34,9 @@ for (const agent of ["codex", "cursor"] as const) {
       },
       attach: (selected: Agent) => {
         assert.equal(selected, agent);
+        // Mirror Docker.attach's piped stdio: CliRunner closes stdin so the CLI sees EOF.
         const child = Object.assign(new EventEmitter(), {
-          stdout: new PassThrough(), stderr: new PassThrough(),
+          stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(),
         });
         queueMicrotask(() => {
           child.stdout.write(JSON.stringify(agent === "codex"
