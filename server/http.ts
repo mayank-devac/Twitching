@@ -13,6 +13,7 @@ import type { Controller } from "./controller.js";
 import { activityPatches } from "../shared/activity-stream.js";
 import { overlayPatches } from "../shared/overlay-stream.js";
 import type { ShowState } from "../shared/types.js";
+import type { SnapshotMessage, UpdateMessage } from "../shared/server-message.js";
 import { sessionRoutes } from "./sessions/http.js";
 import type { Sessions } from "./sessions/service.js";
 const requestSchema = z.object({
@@ -256,7 +257,7 @@ export function makeHttp(
   const channels = new WeakMap<WebSocket, string>();
   const previous = new Map<string, ShowState>();
   // A browser source receives only its named output, never the assignments of another output.
-  const wireState = (state: ShowState, patch = false) => ({
+  const wireState = (state: ShowState, patch = false): ShowState => ({
     ...state,
     sharedSession: state.sharedOverlay ? undefined : state.sharedSession,
     sharedOverlay: state.sharedOverlay ? { ...state.sharedOverlay, frames: state.sharedOverlay.frames.map((frame) => ({ ...frame, page: { ...frame.page, items: patch ? [] : frame.page.items } })) } : undefined,
@@ -273,13 +274,16 @@ export function makeHttp(
       channels.set(ws, overlay); sockets.emit("connection", ws, req);
     });
   });
+  // Typed against the client's parser so the wire shape cannot drift silently.
+  const snapshot = (state: ShowState): SnapshotMessage =>
+    ({ type: "snapshot", state: wireState(state), previewOrigin: options.previewOrigin });
   // Sockets that answered the last ping; others are dead and get terminated.
   const alive = new WeakSet<WebSocket>();
   sockets.on("connection", (socket) => {
     const channel = channels.get(socket) ?? "default";
     const state = publicState(channel);
     if (!previous.has(channel)) previous.set(channel, state);
-    socket.send(JSON.stringify({ type: "snapshot", state: wireState(state), previewOrigin: options.previewOrigin }));
+    socket.send(JSON.stringify(snapshot(state)));
     alive.add(socket);
     socket.on("pong", () => alive.add(socket));
     socket.on("error", () => socket.terminate());
@@ -294,7 +298,7 @@ export function makeHttp(
       const previousItems = before?.sharedSession?.conversation.id === session?.conversation.id ? before?.sharedSession?.page.items ?? [] : [];
       // Privacy transitions always send complete snapshots before any further patches.
       const privacyChanged = before?.presentation?.hidden !== state.presentation?.hidden || before?.presentation?.breakActive !== state.presentation?.breakActive;
-      const payload = privacyChanged ? JSON.stringify({ type: "snapshot", state: wireState(state), previewOrigin: options.previewOrigin }) : JSON.stringify({
+      const update = (): UpdateMessage => ({
         type: "update", state: { ...wireState(state, true), events: [], sharedSession: session ? { ...session, page: { ...session.page, items: [] } } : undefined },
         overlayPatches: overlayPatches(before?.sharedOverlay, state.sharedOverlay),
         sessionPatches: activityPatches(previousItems, session?.page.items ?? []),
@@ -302,6 +306,7 @@ export function makeHttp(
         patches: activityPatches(before?.events ?? [], state.events), eventIds: state.events.map((event) => event.id),
         previewOrigin: options.previewOrigin,
       });
+      const payload = JSON.stringify(privacyChanged ? snapshot(state) : update());
       previous.set(channel, state);
       for (const socket of sockets.clients) if ((channels.get(socket) ?? "default") === channel && socket.readyState === WebSocket.OPEN) {
         if (socket.bufferedAmount > 8_000_000) socket.terminate();
