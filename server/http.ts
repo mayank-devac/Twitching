@@ -16,6 +16,7 @@ import type { ShowState } from "../shared/types.js";
 import type { SnapshotMessage, UpdateMessage } from "../shared/server-message.js";
 import { sessionRoutes } from "./sessions/http.js";
 import { hostCheck, hostOnly, HttpError, routeAction } from "./http-kit.js";
+import { urlHost, type BootIdentity, type BootResponse } from "../shared/boot.js";
 import type { Sessions } from "./sessions/service.js";
 const requestSchema = z.object({
   action: z.enum([
@@ -39,8 +40,8 @@ const requestSchema = z.object({
   twitch: z.boolean().optional(),
   kick: z.boolean().optional(),
 });
-// IPv6 literals such as ::1 must be bracketed inside URLs and Host headers.
-export const urlHost = (host: string) => (host.includes(":") ? `[${host}]` : host);
+// Re-exported for callers that already import it from here.
+export { urlHost };
 export function makeHttp(
   controller: Controller,
   options: {
@@ -53,7 +54,7 @@ export function makeHttp(
     presentation?: PresentationControls;
     sessions?: Sessions;
     openObs?: () => Promise<void>;
-    boot?: { rootId: string; configurationId: string; startedAt: number };
+    boot?: BootIdentity;
   },
 ) {
   const origin = `http://${urlHost(options.host)}:${options.port}`;
@@ -91,7 +92,7 @@ export function makeHttp(
     return { ...(options.presentation?.publicSnapshot(base, overlay, options.quick?.preferences.get().value.media) ?? base), hostContext: context.version };
   };
   app.get("/api/state", (_req, res) => res.json(publicState()));
-  app.get("/api/boot", (_req, res) => res.json(options.boot ?? {}));
+  app.get("/api/boot", (_req, res) => res.json((options.boot ?? {}) satisfies BootResponse));
   const guard = hostOnly(hostCheck(csrf, origin));
   app.get("/api/host", (req, res) => {
     if (
