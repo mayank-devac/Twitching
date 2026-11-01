@@ -58,8 +58,19 @@ export function parseQuota(limits: any) {
     resetsAt: fiveHour.resetsAt * 1000,
   };
 }
+// Fixed host/help checks per CLI; a caller may share one map across runners on
+// the same execution host so each new runner does not re-probe with containers.
+export type CapabilityChecks = Map<Agent, Promise<void>>;
+// Settles every task, then rethrows the first failure in input order, so a
+// parallel step reports the same error the sequential loop used to.
+async function allInOrder<T>(tasks: Promise<T>[]) {
+  const results = await Promise.allSettled(tasks);
+  const failed = results.find((r) => r.status === "rejected");
+  if (failed) throw failed.reason;
+  return results.map((r) => (r as PromiseFulfilledResult<T>).value);
+}
 export class CliRunner implements PairRunner {
-  private capabilityChecks = new Map<Agent, Promise<void>>();
+  private capabilityChecks: CapabilityChecks;
   private async ensureCapabilities(cli: Agent) {
     let check = this.capabilityChecks.get(cli);
     if (!check) {
@@ -86,7 +97,10 @@ export class CliRunner implements PairRunner {
       nativeApproved?: boolean;
     },
     private clean: (s: string, limit?: number, streaming?: boolean) => string,
-  ) {}
+    capabilityChecks: CapabilityChecks = new Map(),
+  ) {
+    this.capabilityChecks = capabilityChecks;
+  }
   recover() {
     return this.docker.recover();
   }
@@ -106,14 +120,14 @@ export class CliRunner implements PairRunner {
         ? "Native agent terminals: no execution boundary; previews stay in Docker"
         : "Docker isolation and internal egress network ready",
     ];
+    // Each CLI's discovery is independent; run them together, validate in order.
+    const clis = [...new Set(sessions.map((s) => s.cli))];
+    const catalogs = await allInOrder(clis.map(async (cli) => {
+      await this.ensureCapabilities(cli);
+      return cliAdapters[cli].discover(this.docker);
+    }));
+    clis.forEach((cli, index) => models.set(cli, catalogs[index]));
     for (const session of sessions) {
-      if (!models.has(session.cli)) {
-        await this.ensureCapabilities(session.cli);
-        models.set(
-          session.cli,
-          await cliAdapters[session.cli].discover(this.docker),
-        );
-      }
       validateModel(session, models.get(session.cli)!.models);
       checks.push(
         `${session.id}: ${session.cli} · ${sessionLabel(session)} available`,
@@ -149,8 +163,10 @@ export class CliRunner implements PairRunner {
     const containers: Record<SessionId, { name: string; dir: string }> = {};
     const handles: Record<SessionId, RunHandle> = {};
     try {
-      for (const session of sessions)
-        containers[session.id] = await this.docker.create(
+      // Containers are created together; every one that was created is recorded
+      // before a failure is rethrown, so the catch below stops all of them.
+      const created = await Promise.allSettled(sessions.map(async (session) => {
+        const container = await this.docker.create(
           session.cli,
           round,
           cliAdapters[session.cli].command(session, prompt),
@@ -160,6 +176,11 @@ export class CliRunner implements PairRunner {
           session.id,
           { nativeApproved: this.options.nativeApproved },
         );
+        containers[session.id] = container;
+        return container;
+      }));
+      const failed = created.find((r) => r.status === "rejected");
+      if (failed) throw failed.reason;
       // Initialise watchers before starting either process.
       const watchers = new Map<SessionId, HtmlDiffs>();
       for (const session of sessions) {

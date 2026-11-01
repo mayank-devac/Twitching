@@ -19,7 +19,7 @@ import type {
 import { defaultVisibility } from "../../shared/settings.js";
 import type { QuickSettings } from "../quick-settings.js";
 import type { Store } from "../store.js";
-import { CliRunner, type RunHandle } from "../runner.js";
+import { CliRunner, type CapabilityChecks, type RunHandle } from "../runner.js";
 import type { Docker } from "../docker.js";
 import { CodexHistory } from "./codex-history.js";
 import { Overlays } from "./overlays.js";
@@ -58,6 +58,9 @@ export class Sessions extends EventEmitter {
   // Per-conversation native consent, kept in memory only. It never touches
   // process.env, so approving one session cannot approve arena or others.
   private nativeApprovals = new Set<string>();
+  // Capability probes are fixed per host, so prompts and model loads share them
+  // instead of starting fresh probe containers for every new CliRunner.
+  private capabilities: Record<"docker" | "native", CapabilityChecks> = { docker: new Map(), native: new Map() };
   // HTTP supplies the host-confirmed checklist without coupling it to provider connectors.
   requirePresentationRehearsal: (context: string, output?: import("../../shared/sessions.js").OverlayDefinition) => void = () => {};
   get mode() { return this.preferences.get().value.stream.mode; }
@@ -195,6 +198,7 @@ export class Sessions extends EventEmitter {
         experience: "session",
       },
       this.clean,
+      this.capabilities[runner],
     ).discover(cli);
   }
   async create(
@@ -491,6 +495,7 @@ export class Sessions extends EventEmitter {
             nativeApproved: c.runner === "native" && this.nativeApprovals.has(id),
           },
           this.clean,
+          this.capabilities[c.runner!],
         );
         const handles = await runner.launch(
           round,
@@ -516,9 +521,15 @@ export class Sessions extends EventEmitter {
               kind: event.lane === "read" ? "read" : event.kind,
               text: label ?? event.text,
             }, label === undefined);
-            c.status = "running";
             c.updatedAt = Date.now();
-            this.store.saveConversation(c);
+            // Items are stored per event; the conversation row (a full JSON
+            // rewrite) is saved only on status transitions, and the finally
+            // block below saves the final updatedAt. schedule() coalesces
+            // overlay refreshes into one per 250 ms.
+            if (c.status !== "running") {
+              c.status = "running";
+              this.store.saveConversation(c);
+            }
             if (this.overlays.hasPublished()) this.overlays.schedule();
           },
         );

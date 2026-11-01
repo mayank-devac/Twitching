@@ -215,8 +215,10 @@ test("two Codex models have separate handles, prompts, files and exports; discov
       f.host.created[0].command.at(-1),
       f.host.created[1].command.at(-1),
     );
-    assert.ok(f.host.created[0].command.includes("model-a"));
-    assert.ok(f.host.created[1].command.includes("model-b"));
+    // Containers are created in parallel, so look each session up by id.
+    const byId = (id: string) => f.host.created.find((c) => c.id === id)!;
+    assert.ok(byId("session-1").command.includes("model-a"));
+    assert.ok(byId("session-2").command.includes("model-b"));
     for (const created of f.host.created) {
       await writeFile(
         resolve(created.dir, "prompt_1.html"),
@@ -372,6 +374,17 @@ test("fixed CLI checks are cached while account/model availability is refreshed"
     f.host.models = ["model-a"];
     await assert.rejects(runner.preflight(), /model-b.*unavailable/);
     assert.equal(f.host.probes, 3);
+  } finally { await f.close(); }
+});
+
+test("runners sharing one capability map probe the host once", async () => {
+  const f = await fixture();
+  try {
+    const shared = new Map();
+    await new CliRunner(f.host, options, (text) => text, shared).preflight();
+    await new CliRunner(f.host, options, (text) => text, shared).preflight();
+    assert.equal(f.host.inspections, 1);
+    assert.equal(f.host.helpChecks, 1);
   } finally { await f.close(); }
 });
 
