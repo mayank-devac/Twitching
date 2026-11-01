@@ -29,17 +29,23 @@ export interface SessionOptions {
   cursorModel: string;
   codexEffort?: string;
 }
+// settings.json keeps flat codexModel/cursorModel/codexEffort keys; this reads them as one per-CLI map.
+export function startupModels(
+  options: Pick<SessionOptions, "codexModel" | "cursorModel" | "codexEffort">,
+): Record<Agent, Pick<SessionConfig, "model" | "effort">> {
+  return {
+    codex: { model: options.codexModel, effort: options.codexEffort ?? "high" },
+    // Cursor sessions carry no effort key at all.
+    cursor: { model: options.cursorModel },
+  };
+}
 export function configuredSessions(options: SessionOptions): SessionConfig[] {
   if (options.sessions) return options.sessions;
   const clis: Agent[] = options.singleAgent
     ? [options.singleAgent]
     : ["cursor", "codex"];
-  return clis.map((cli) => ({
-    id: cli,
-    cli,
-    model: cli === "codex" ? options.codexModel : options.cursorModel,
-    ...(cli === "codex" ? { effort: options.codexEffort ?? "high" } : {}),
-  }));
+  const models = startupModels(options);
+  return clis.map((cli) => ({ id: cli, cli, ...models[cli] }));
 }
 export function sessionLabel(session: Pick<SessionConfig, "model" | "effort">) {
   return session.model + (session.effort ? ` · ${session.effort}` : "");

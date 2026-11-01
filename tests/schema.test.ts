@@ -9,7 +9,14 @@ import {
   sessionListSchema,
   streamModeSchema,
 } from "../shared/schema.js";
-import { CLIS, SESSION_IDS, isCli, legacyCli } from "../shared/types.js";
+import {
+  CLIS,
+  SESSION_IDS,
+  configuredSessions,
+  isCli,
+  legacyCli,
+  startupModels,
+} from "../shared/types.js";
 import { startupSchema } from "../server/startup-config.js";
 
 const ok = (schema: z.ZodType, value: unknown) =>
@@ -83,4 +90,20 @@ test("startup sessions keep their looser text limits and error messages", () => 
   bad(startupSchema.shape.singleAgent, "claude");
   assert.equal(startupSchema.shape.runnerMode.parse(undefined), "docker");
   bad(startupSchema.shape.runnerMode, "host");
+});
+
+test("flat startup model keys read as a per-CLI map without changing session shape", () => {
+  const options = { codexModel: "a", cursorModel: "b" };
+  assert.deepEqual(startupModels(options), {
+    codex: { model: "a", effort: "high" },
+    cursor: { model: "b" },
+  });
+  assert.deepEqual(configuredSessions(options), [
+    { id: "cursor", cli: "cursor", model: "b" },
+    { id: "codex", cli: "codex", model: "a", effort: "high" },
+  ]);
+  assert.deepEqual(
+    Object.keys(configuredSessions({ ...options, codexEffort: "low", singleAgent: "codex" })[0]),
+    ["id", "cli", "model", "effort"],
+  );
 });
