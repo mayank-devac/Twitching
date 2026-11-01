@@ -1,3 +1,4 @@
+@import "./tokens.css";
 :root {
   font-family:
     Inter,
@@ -8,7 +9,7 @@
     "Segoe UI",
     sans-serif;
   color: #e6e8ed;
-  background: #0d1016;
+  background: var(--color-bg);
   font-synthesis: none;
   --muted: #88909f;
   --border: #282f3a;
@@ -1035,7 +1036,7 @@ textarea {
   flex-shrink: 0;
   padding: 1px 6px 2px;
   border-bottom: 1px solid #2c3848;
-  background: #0d1016;
+  background: var(--color-bg);
 }
 
 .overlay-prompt p {
@@ -1123,9 +1124,9 @@ textarea {
   transform: translate(-50%, -50%);
   color: #f4f6fa;
   text-shadow:
-    0 0 9px #0d1016,
-    0 1px 0 #0d1016;
-  background: #0d1016;
+    0 0 9px var(--color-bg),
+    0 1px 0 var(--color-bg);
+  background: var(--color-bg);
 }
 .overlay .activity-log {
   height: 100%;

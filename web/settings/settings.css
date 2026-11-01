@@ -1,4 +1,5 @@
 /* Host settings use one spacing scale and separate navigation, editing and live context. */
+@import "../tokens.css";
 body:has(.quick-settings) {
   overflow: auto;
   height: auto;
@@ -240,7 +241,7 @@ fieldset.qs-main {
   min-width: 0;
   padding: 18px;
   background: #15191d;
-  border: 1px solid #303741;
+  border: 1px solid var(--color-divider);
   border-radius: 10px;
 }
 .qs-session > .qs-row {
@@ -275,7 +276,7 @@ fieldset.qs-main {
 .qs-details {
   padding-top: 16px;
   margin-top: 20px;
-  border-top: 1px solid #303741;
+  border-top: 1px solid var(--color-divider);
   color: #969fab;
   font-size: 12px;
 }
@@ -346,7 +347,7 @@ fieldset.qs-main {
   align-items: center;
   gap: 24px;
   padding: 22px 0;
-  border-top: 1px solid #303741;
+  border-top: 1px solid var(--color-divider);
 }
 .qs-setting-block h3 + .qs-hint {
   margin-top: 5px;
@@ -413,7 +414,7 @@ fieldset.qs-main {
   position: relative;
   margin-top: 14px;
   padding-top: 14px;
-  border-top: 1px solid #303741;
+  border-top: 1px solid var(--color-divider);
   /* Native audio controls follow the same dark palette as their preview card. */
   color-scheme: dark;
 }
@@ -515,7 +516,7 @@ fieldset.qs-main {
   margin: 0;
 }
 .qs-history li {
-  border-top: 1px solid #303741;
+  border-top: 1px solid var(--color-divider);
   padding: 16px 0;
 }
 .qs-history li p {
@@ -691,7 +692,7 @@ fieldset.qs-main {
   margin: 0;
   padding: 0 0 0 24px;
   border-top: 0;
-  border-left: 1px solid #303741;
+  border-left: 1px solid var(--color-divider);
 }
 .qs-visibility-details summary {
   flex-wrap: wrap;
@@ -753,6 +754,6 @@ fieldset.qs-main {
   .qs-session-layout .qs-visibility-details {
     padding: 18px 0 0;
     border-left: 0;
-    border-top: 1px solid #303741;
+    border-top: 1px solid var(--color-divider);
   }
 }

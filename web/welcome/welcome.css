@@ -1,18 +1,8 @@
-:root {
-  --welcome-bg: #0d1016;
-  --welcome-panel: #151922;
-  --welcome-panel-hover: #171c28;
-  --welcome-border: #232a36;
-  --welcome-border-strong: #2a3140;
-  --welcome-text: #e8ecf3;
-  --welcome-muted: #8f9bb0;
-  --welcome-accent: #a99bff;
-}
-
+@import "../tokens.css";
 body:has(.welcome-page) {
   height: 100%;
   overflow: hidden;
-  background: var(--welcome-bg);
+  background: var(--color-bg);
 }
 .welcome-page,
 .welcome-page * {
@@ -28,8 +18,8 @@ body:has(.welcome-page) {
   margin: 0;
   padding: 20px 3% 0;
   overflow: hidden;
-  background: var(--welcome-bg);
-  color: var(--welcome-text);
+  background: var(--color-bg);
+  color: var(--color-text);
   font:
     14px/1.5 Inter,
     system-ui,
@@ -76,7 +66,7 @@ body:has(.welcome-page) {
   gap: 5px;
 }
 .welcome-eyebrow {
-  color: var(--welcome-accent);
+  color: var(--color-accent);
   font-size: 12px;
   font-weight: 650;
   letter-spacing: 0.18em;
@@ -101,16 +91,16 @@ body:has(.welcome-page) {
   justify-content: center;
   min-height: 42px;
   padding: 9px 15px;
-  border: 1px solid var(--welcome-border-strong);
+  border: 1px solid var(--color-line-strong);
   border-radius: 9px;
   background: transparent;
-  color: #c4cbd8;
+  color: var(--color-text-soft);
   font-weight: 550;
   white-space: nowrap;
 }
 .quick-settings-link:hover,
 .ghost-button:hover {
-  background: #1b2030;
+  background: var(--color-control);
 }
 .welcome-layout {
   display: grid;
@@ -137,9 +127,9 @@ body:has(.welcome-page) {
   flex: 0 0 auto;
   gap: 4px;
   padding: 5px;
-  border: 1px solid var(--welcome-border);
+  border: 1px solid var(--color-line);
   border-radius: 13px;
-  background: var(--welcome-panel);
+  background: var(--color-surface);
 }
 .welcome-options button {
   flex: 1 1 0;
@@ -148,25 +138,25 @@ body:has(.welcome-page) {
   border: 0;
   border-radius: 9px;
   background: transparent;
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
   font-size: 13px;
   font-weight: 620;
   white-space: normal;
 }
 /* Mode controls retain their selected appearance while a handover is pending. */
 .welcome-options button[aria-pressed="true"] {
-  background: #262050;
+  background: var(--color-accent-fill);
   color: #fff;
 }
 .welcome-options button:focus-visible,
 .mode-handover button:focus-visible,
 .mode-switch-warning button:focus-visible {
-  outline: 2px solid var(--welcome-accent);
+  outline: 2px solid var(--color-accent);
   outline-offset: 3px;
 }
 .mode-switch-hint {
   margin: -3px 4px 2px;
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
   font-size: 12px;
 }
 .mode-handover {
@@ -175,17 +165,17 @@ body:has(.welcome-page) {
   margin: auto;
   padding: 28px;
   overflow-y: auto;
-  border: 1px solid var(--welcome-border-strong);
+  border: 1px solid var(--color-line-strong);
   border-radius: 18px;
-  background: var(--welcome-panel);
-  color: var(--welcome-text);
+  background: var(--color-surface);
+  color: var(--color-text);
   box-shadow: 0 24px 80px #0008;
 }
 .mode-handover::backdrop {
   background: #05070bc9;
 }
 .mode-handover-eyebrow {
-  color: var(--welcome-accent);
+  color: var(--color-accent);
   font-size: 12px;
   font-weight: 600;
 }
@@ -196,14 +186,14 @@ body:has(.welcome-page) {
 }
 .mode-handover p {
   margin: 0 0 14px;
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
   line-height: 1.6;
 }
 .mode-handover .mode-handover-note {
   padding: 10px 12px;
   border-radius: 8px;
   background: #a99bff0d;
-  color: var(--welcome-text);
+  color: var(--color-text);
   font-size: 13px;
 }
 .mode-handover-actions,
@@ -224,10 +214,10 @@ body:has(.welcome-page) {
 }
 .mode-handover .mode-handover-stay {
   background: transparent;
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
 }
 .mode-handover-progress {
-  color: var(--welcome-accent);
+  color: var(--color-accent);
   font-size: 13px;
 }
 /* Keep each consequence visually attached to its action on narrow dialogs too. */
@@ -271,7 +261,7 @@ body:has(.welcome-page) {
   padding: 10px 12px;
   border: 1px solid #4b303a;
   border-radius: 9px;
-  color: #ffc4ca;
+  color: var(--color-danger-text);
   background: #24191f;
 }
 .welcome-notice {
@@ -298,9 +288,9 @@ body:has(.welcome-page) {
   align-items: center;
   min-width: 0;
   min-height: 46px;
-  border: 1px solid var(--welcome-border);
+  border: 1px solid var(--color-line);
   border-radius: 11px;
-  background: var(--welcome-panel);
+  background: var(--color-surface);
 }
 .session-search {
   flex: 1 1 auto;
@@ -311,7 +301,7 @@ body:has(.welcome-page) {
   width: 17px;
   height: 17px;
   fill: none;
-  stroke: var(--welcome-muted);
+  stroke: var(--color-text-muted);
   stroke-width: 2;
   stroke-linecap: round;
   flex: 0 0 auto;
@@ -323,7 +313,7 @@ body:has(.welcome-page) {
   border: 0;
   outline: 0;
   background: transparent;
-  color: var(--welcome-text);
+  color: var(--color-text);
   font-size: 14px;
 }
 .session-search input::placeholder {
@@ -337,7 +327,7 @@ body:has(.welcome-page) {
   border: 0;
   border-radius: inherit;
   background: transparent;
-  color: var(--welcome-text);
+  color: var(--color-text);
   font-size: 13px;
 }
 .session-source {
@@ -345,20 +335,20 @@ body:has(.welcome-page) {
 }
 .session-source option,
 .footer-mode option {
-  background: var(--welcome-panel);
-  color: var(--welcome-text);
+  background: var(--color-surface);
+  color: var(--color-text);
 }
 .session-list-card {
   min-height: 0;
   flex: 1 1 auto;
   overflow-y: auto;
-  border: 1px solid var(--welcome-border);
+  border: 1px solid var(--color-line);
   border-radius: 15px;
-  background: var(--welcome-panel);
+  background: var(--color-surface);
   scrollbar-width: thin;
 }
 .session-group + .session-group {
-  border-top: 1px solid var(--welcome-border);
+  border-top: 1px solid var(--color-line);
 }
 .session-group > header {
   display: flex;
@@ -366,18 +356,18 @@ body:has(.welcome-page) {
   justify-content: space-between;
   gap: 12px;
   padding: 9px 14px;
-  border-bottom: 1px solid var(--welcome-border);
-  color: var(--welcome-muted);
+  border-bottom: 1px solid var(--color-line);
+  color: var(--color-text-muted);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.12em;
 }
 .refresh-sessions {
   padding: 5px 10px;
-  border: 1px solid var(--welcome-border-strong);
+  border: 1px solid var(--color-line-strong);
   border-radius: 8px;
   background: transparent;
-  color: #c4cbd8;
+  color: var(--color-text-soft);
   font-size: 12px;
   letter-spacing: 0;
 }
@@ -396,10 +386,10 @@ body:has(.welcome-page) {
 }
 .session-choice:hover,
 .session-choice[aria-pressed="true"] {
-  background: var(--welcome-panel-hover);
+  background: var(--color-surface-hover);
 }
 .session-choice[aria-pressed="true"] {
-  box-shadow: inset 3px 0 var(--welcome-accent);
+  box-shadow: inset 3px 0 var(--color-accent);
 }
 .session-choice-copy,
 .session-choice-meta {
@@ -410,7 +400,7 @@ body:has(.welcome-page) {
 }
 .session-choice-copy b {
   overflow: hidden;
-  color: var(--welcome-text);
+  color: var(--color-text);
   font-size: 14px;
   font-weight: 620;
   text-overflow: ellipsis;
@@ -420,7 +410,7 @@ body:has(.welcome-page) {
 .session-choice-meta small,
 .session-choice-meta time {
   overflow: hidden;
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -436,7 +426,7 @@ body:has(.welcome-page) {
 .session-list-empty,
 .session-list-note {
   padding: 12px 14px;
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
   font-size: 13px;
 }
 .load-sessions {
@@ -444,7 +434,7 @@ body:has(.welcome-page) {
   padding: 12px;
   border: 0;
   background: transparent;
-  color: #c4cbd8;
+  color: var(--color-text-soft);
 }
 .welcome-content {
   display: flex;
@@ -456,9 +446,9 @@ body:has(.welcome-page) {
 .preview-card {
   flex: 0 0 auto;
   overflow: hidden;
-  border: 1px solid var(--welcome-border);
+  border: 1px solid var(--color-line);
   border-radius: 15px;
-  background: var(--welcome-panel);
+  background: var(--color-surface);
   display: flex;
   flex-direction: column;
   min-height: 400px;
@@ -471,7 +461,7 @@ body:has(.welcome-page) {
   gap: 14px;
   min-height: 54px;
   padding: 10px 16px;
-  border-bottom: 1px solid var(--welcome-border);
+  border-bottom: 1px solid var(--color-line);
   font-size: 15px;
   font-weight: 650;
   letter-spacing: -0.01em;
@@ -483,9 +473,9 @@ body:has(.welcome-page) {
 }
 .preview-card-heading small {
   padding: 4px 10px;
-  border: 1px solid var(--welcome-border-strong);
+  border: 1px solid var(--color-line-strong);
   border-radius: 999px;
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
   font-size: 12px;
   font-weight: 500;
 }
@@ -504,13 +494,13 @@ body:has(.welcome-page) {
   border: 1px solid transparent;
   border-radius: 7px;
   background: transparent;
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
   font-size: 12px;
 }
 .preview-tabs button[aria-pressed="true"] {
-  border-color: var(--welcome-border-strong);
-  background: #1b2030;
-  color: var(--welcome-text);
+  border-color: var(--color-line-strong);
+  background: var(--color-control);
+  color: var(--color-text);
 }
 .preview-scroll {
   min-height: 0;
@@ -535,7 +525,7 @@ body:has(.welcome-page) {
 }
 .preview-empty p {
   max-width: 460px;
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
   font-size: 13px;
 }
 .publication-actions {
@@ -545,14 +535,14 @@ body:has(.welcome-page) {
   justify-content: flex-end;
   gap: 9px;
   padding: 10px 12px;
-  border-top: 1px solid var(--welcome-border);
+  border-top: 1px solid var(--color-line);
 }
 .primary-button {
   min-height: 44px;
   padding: 10px 22px;
   border: 0;
   border-radius: 9px;
-  background: var(--welcome-accent);
+  background: var(--color-accent);
   font-weight: 700;
   text-align: center;
 }
@@ -568,7 +558,7 @@ body:has(.welcome-page) {
 .overlay-visibility {
   margin-top: 6px;
   padding-top: 8px;
-  border-top: 1px solid var(--welcome-border);
+  border-top: 1px solid var(--color-line);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -581,14 +571,14 @@ body:has(.welcome-page) {
 }
 .overlay-visibility h3 {
   margin: 0;
-  color: var(--welcome-text);
+  color: var(--color-text);
   font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.02em;
   text-transform: uppercase;
 }
 .overlay-visibility > header > span {
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
   font-size: 10px;
 }
 .visibility-row {
@@ -615,7 +605,7 @@ body:has(.welcome-page) {
   flex: 0 0 auto;
   white-space: nowrap;
   padding: 3px 9px;
-  border: 1px solid var(--welcome-border-strong);
+  border: 1px solid var(--color-line-strong);
   border-radius: 999px;
   background: transparent;
   height: 24px;
@@ -632,17 +622,17 @@ body:has(.welcome-page) {
   align-items: center;
   gap: 7px;
   margin-top: 4px;
-  color: var(--welcome-text);
+  color: var(--color-text);
   font-size: 11px;
 }
 .hide-runs-choice input {
   width: 13px;
   height: 13px;
   margin: 0;
-  accent-color: var(--welcome-accent);
+  accent-color: var(--color-accent);
 }
 .hide-runs-choice span {
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
   font-size: 10px;
 }
 /* Scoped so the panel-wide label/button rules can't inflate the toggles.
@@ -654,7 +644,7 @@ body:has(.welcome-page) {
   padding-top: 0;
   border-top: 0;
   padding-left: 14px;
-  border-left: 1px solid var(--welcome-border);
+  border-left: 1px solid var(--color-line);
 }
 .multi-overlays .visibility-row {
   flex-direction: column;
@@ -674,21 +664,21 @@ body:has(.welcome-page) {
   min-height: 0;
   height: 24px;
   padding: 3px 9px;
-  border: 1px solid var(--welcome-border-strong);
+  border: 1px solid var(--color-line-strong);
   border-radius: 999px;
   background: transparent;
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
   font-size: 11px;
 }
 .multi-overlays .visibility-chip:hover {
-  border-color: var(--welcome-accent);
-  color: var(--welcome-text);
+  border-color: var(--color-accent);
+  color: var(--color-text);
 }
 /* After :hover so a pressed chip keeps its colour while hovered. */
 .multi-overlays .visibility-chip[aria-pressed="true"] {
-  border-color: #4a3fa8;
+  border-color: var(--color-accent-line);
   background: #211b3f;
-  color: #d9d3ff;
+  color: var(--color-accent-ink);
 }
 .multi-overlays .hide-runs-choice {
   display: flex;
@@ -711,8 +701,8 @@ body:has(.welcome-page) {
   min-height: 64px;
   margin: 0 -3.1%;
   padding: 10px 3%;
-  border-top: 1px solid var(--welcome-border);
-  background: var(--welcome-bg);
+  border-top: 1px solid var(--color-line);
+  background: var(--color-bg);
 }
 .footer-status,
 .footer-actions {
@@ -734,9 +724,9 @@ body:has(.welcome-page) {
   width: 22px;
   height: 22px;
   place-items: center;
-  border: 1px solid var(--welcome-border-strong);
+  border: 1px solid var(--color-line-strong);
   border-radius: 50%;
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
   cursor: help;
   font-size: 13px;
   font-weight: 700;
@@ -748,8 +738,8 @@ body:has(.welcome-page) {
 .footer-info:hover > summary,
 .footer-info:focus-within > summary,
 .footer-info[open] > summary {
-  border-color: var(--welcome-accent);
-  color: var(--welcome-text);
+  border-color: var(--color-accent);
+  color: var(--color-text);
 }
 .footer-info-popover {
   display: none;
@@ -761,11 +751,11 @@ body:has(.welcome-page) {
   max-height: min(56vh, 430px);
   overflow-y: auto;
   padding: 16px;
-  border: 1px solid var(--welcome-border-strong);
+  border: 1px solid var(--color-line-strong);
   border-radius: 12px;
   background: #171c27;
   box-shadow: 0 14px 38px #0009;
-  color: #c4cbd8;
+  color: var(--color-text-soft);
   font-size: 12px;
 }
 .footer-info:hover .footer-info-popover,
@@ -775,34 +765,34 @@ body:has(.welcome-page) {
 }
 .footer-info-popover h2 {
   margin: 0 0 11px;
-  color: var(--welcome-text);
+  color: var(--color-text);
   font-size: 14px;
 }
 .footer-info-popover p + p {
   margin-top: 8px;
 }
 .footer-info-popover b {
-  color: var(--welcome-text);
+  color: var(--color-text);
   font-weight: 600;
 }
 .footer-mode {
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
   font-size: 13px;
 }
 .footer-mode select {
   min-height: 38px;
-  border: 1px solid var(--welcome-border);
+  border: 1px solid var(--color-line);
   border-radius: 9px;
-  background: var(--welcome-panel);
+  background: var(--color-surface);
 }
 .readiness-pill {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
   font-size: 12px;
   white-space: nowrap;
 }
@@ -816,7 +806,7 @@ body:has(.welcome-page) {
   background: #4ade80;
 }
 .readiness-pill b {
-  color: #c4cbd8;
+  color: var(--color-text-soft);
   font-weight: 500;
 }
 .welcome-footer .primary-button {
@@ -838,9 +828,9 @@ body:has(.welcome-page) {
 .arena-hint {
   flex: 0 0 auto;
   padding: 15px;
-  border: 1px solid var(--welcome-border);
+  border: 1px solid var(--color-line);
   border-radius: 12px;
-  background: var(--welcome-panel);
+  background: var(--color-surface);
 }
 .new-session-settings {
   display: flex;
@@ -855,17 +845,17 @@ body:has(.welcome-page) {
   min-width: 0;
   margin: 0;
   padding: 14px 16px;
-  border: 1px solid var(--welcome-border);
+  border: 1px solid var(--color-line);
   border-radius: 12px;
-  background: var(--welcome-panel);
-  color: var(--welcome-text);
+  background: var(--color-surface);
+  color: var(--color-text);
 }
 .model-readiness {
   padding: 10px 12px;
-  border: 1px solid var(--welcome-border);
+  border: 1px solid var(--color-line);
   border-radius: 9px;
-  background: #10141c;
-  color: var(--welcome-muted);
+  background: var(--color-field);
+  color: var(--color-text-muted);
   font-size: 12px;
 }
 .model-readiness[role="status"] {
@@ -876,7 +866,7 @@ body:has(.welcome-page) {
 }
 .new-session-settings fieldset legend {
   padding: 0 6px;
-  color: var(--welcome-text);
+  color: var(--color-text);
   font-size: 14px;
   font-weight: 620;
 }
@@ -886,7 +876,7 @@ body:has(.welcome-page) {
   min-width: 0;
   gap: 7px;
   margin: 0;
-  color: #c4cbd8;
+  color: var(--color-text-soft);
   font-size: 13px;
   font-weight: 550;
 }
@@ -903,34 +893,34 @@ body:has(.welcome-page) {
   min-height: 42px;
   margin: 0;
   padding: 9px 12px;
-  border: 1px solid var(--welcome-border-strong);
+  border: 1px solid var(--color-line-strong);
   border-radius: 8px;
-  background: #10141c;
-  color: var(--welcome-text);
+  background: var(--color-field);
+  color: var(--color-text);
   color-scheme: dark;
   font-size: 13px;
 }
 .new-session-settings select:focus-visible,
 .new-session-settings input:focus-visible,
 .session-model-settings select:focus-visible {
-  outline: 2px solid var(--welcome-accent);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 .new-session-settings button,
 .session-model-settings > button {
   min-height: 40px;
   padding: 9px 12px;
-  border: 1px solid var(--welcome-border-strong);
+  border: 1px solid var(--color-line-strong);
   border-radius: 8px;
-  background: #1b2030;
-  color: var(--welcome-text);
+  background: var(--color-control);
+  color: var(--color-text);
   font-size: 13px;
   text-align: center;
 }
 .new-session-settings .qs-hint,
 .session-model-settings .qs-hint {
   margin-top: 10px;
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
   font-size: 12px;
 }
 .new-session-settings .qs-session {
@@ -940,13 +930,13 @@ body:has(.welcome-page) {
   align-items: baseline;
 }
 .new-session-settings .qs-session > .qs-row h3 {
-  color: var(--welcome-text);
+  color: var(--color-text);
   font-size: 15px;
 }
 /* (0,3,0) outranks settings.css `.qs-session .qs-current` in any load order. */
 .new-session-settings .qs-session .qs-current {
   margin: 12px 0 15px;
-  color: #c4cbd8;
+  color: var(--color-text-soft);
 }
 .new-session-settings .qs-session-layout,
 .new-session-settings .qs-session-models,
@@ -967,13 +957,13 @@ body:has(.welcome-page) {
   margin-top: 5px;
 }
 .new-session-settings .qs-current > span {
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
 }
 .new-session-settings .qs-session .qs-row > small {
   display: none;
 }
 .session-model-settings summary {
-  color: var(--welcome-text);
+  color: var(--color-text);
   font-weight: 600;
   cursor: pointer;
 }
@@ -996,11 +986,11 @@ body:has(.welcome-page) {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
   font-size: 13px;
 }
 .arena-hint b {
-  color: var(--welcome-text);
+  color: var(--color-text);
 }
 .welcome-prompt {
   display: flex;
@@ -1008,7 +998,7 @@ body:has(.welcome-page) {
   align-items: flex-end;
   gap: 9px;
   padding: 12px 16px;
-  border-top: 1px solid var(--welcome-border);
+  border-top: 1px solid var(--color-line);
 }
 .welcome-prompt textarea {
   flex: 1 1 auto;
@@ -1017,10 +1007,10 @@ body:has(.welcome-page) {
   max-height: 100px;
   resize: vertical;
   padding: 10px 12px;
-  border: 1px solid var(--welcome-border-strong);
+  border: 1px solid var(--color-line-strong);
   border-radius: 9px;
   background: #0f131b;
-  color: var(--welcome-text);
+  color: var(--color-text);
 }
 .welcome-prompt textarea::placeholder {
   color: #727d91;
@@ -1028,28 +1018,28 @@ body:has(.welcome-page) {
 .welcome-prompt .send-prompt {
   min-height: 42px;
   padding: 9px 13px;
-  border: 1px solid var(--welcome-border-strong);
+  border: 1px solid var(--color-line-strong);
   border-radius: 9px;
-  background: #1b2030;
+  background: var(--color-control);
   white-space: nowrap;
 }
 .native-consent {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
   font-size: 11px;
 }
 .native-consent button {
   padding: 6px 12px;
-  border: 1px solid var(--welcome-border-strong);
+  border: 1px solid var(--color-line-strong);
   border-radius: 7px;
-  background: #10141c;
-  color: var(--welcome-muted);
+  background: var(--color-field);
+  color: var(--color-text-muted);
   font-size: 12px;
 }
 .native-consent button[aria-pressed="true"] {
-  background: #262050;
+  background: var(--color-accent-fill);
   color: #fff;
 }
 /* Shares a row with Show on stream in the publication actions. */
@@ -1057,14 +1047,14 @@ body:has(.welcome-page) {
   flex: 1 1 auto;
   margin: 0 auto 0 0;
   padding: 0 4px;
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
   font-size: 12px;
 }
 .session-result {
   width: 100%;
   height: clamp(320px, 40vh, 480px);
   border: 0;
-  background: #10141c;
+  background: var(--color-field);
 }
 
 @media (max-width: 1050px) {
@@ -1170,7 +1160,7 @@ body:has(.welcome-page) {
 }
 
 .footer-actions .ghost-button[aria-pressed="true"] {
-  background: #262050;
+  background: var(--color-accent-fill);
   color: #fff;
 }
 .footer-actions .rehearsal-check {

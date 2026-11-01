@@ -1,10 +1,11 @@
 /* Host tools belong to the existing dark header; secondary controls use native popovers. */
+@import "./tokens.css";
 .presentation-controls {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  color: #c4cbd8;
+  color: var(--color-text-soft);
   font: 13px/1.5 Inter, system-ui, sans-serif;
 }
 .presentation-controls > button,
@@ -16,10 +17,10 @@
   gap: 8px;
   min-height: 38px;
   padding: 8px 12px;
-  border: 1px solid #2a3140;
+  border: 1px solid var(--color-line-strong);
   border-radius: 8px;
   background: transparent;
-  color: #c4cbd8;
+  color: var(--color-text-soft);
   font: inherit;
   font-weight: 550;
   white-space: nowrap;
@@ -27,18 +28,18 @@
 }
 .presentation-controls > button:hover,
 .host-tool-button:hover,
-.host-popover button:hover { background: #1b2030; border-color: #45405e; }
+.host-popover button:hover { background: var(--color-control); border-color: #45405e; }
 .presentation-controls button:focus-visible,
 .host-popover button:focus-visible,
-.host-popover input:focus-visible { outline: 2px solid #a99bff; outline-offset: 3px; }
+.host-popover input:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
 .presentation-controls button:disabled,
 .last-setup button:disabled,
 .host-popover button:disabled { opacity: .4; cursor: not-allowed; }
 .presentation-controls .privacy-action { background: #211c32; border-color: #504471; color: #e5ddff; }
 .presentation-controls .privacy-action.is-hidden { color: #f2d5ac; border-color: #705b3d; background: #2a241c; }
-.privacy-dot { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: #a99bff; }
+.privacy-dot { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: var(--color-accent); }
 .is-hidden .privacy-dot { background: #e4bb80; }
-.toolbar-stopwatch { color: #8f9bb0; font-size: 12px; font-variant-numeric: tabular-nums; }
+.toolbar-stopwatch { color: var(--color-text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .welcome-header > .welcome-header-tools { display: flex; flex-direction: row; flex-wrap: nowrap; justify-content: flex-end; align-items: center; gap: 8px; min-width: 0; }
 .welcome-header-tools > .presentation-controls { display: inline-flex; flex-wrap: nowrap; flex: 0 0 auto; }
 .welcome-header-tools > .last-setup { display: inline-flex; flex: 0 0 auto; }
@@ -55,40 +56,40 @@
   box-sizing: border-box;
   border: 1px solid #32394a;
   border-radius: 14px;
-  background: #151922;
-  color: #c4cbd8;
+  background: var(--color-surface);
+  color: var(--color-text-soft);
   box-shadow: 0 18px 60px #0008;
   font: 13px/1.6 Inter, system-ui, sans-serif;
   text-align: left;
 }
 .host-popover::backdrop { background: transparent; }
 .host-popover-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
-.host-popover-heading h2 { margin: 0; color: #e8ecf3; font-size: 16px; font-weight: 650; letter-spacing: -.02em; }
-.host-popover-heading p { margin: 3px 0 0; color: #8f9bb0; font-size: 12px; }
+.host-popover-heading h2 { margin: 0; color: var(--color-text); font-size: 16px; font-weight: 650; letter-spacing: -.02em; }
+.host-popover-heading p { margin: 3px 0 0; color: var(--color-text-muted); font-size: 12px; }
 .host-popover-heading > button { min-height: 28px; width: 28px; padding: 0; font-size: 20px; border-color: transparent; }
-.host-popover h3 { margin: 22px 0 10px; font-size: 12px; font-weight: 650; color: #e8ecf3; }
+.host-popover h3 { margin: 22px 0 10px; font-size: 12px; font-weight: 650; color: var(--color-text); }
 .host-popover p { overflow-wrap: anywhere; }
-.host-popover input:not([type=checkbox]) { display: block; box-sizing: border-box; width: 100%; margin-top: 7px; padding: 11px 12px; border: 1px solid #32394a; border-radius: 8px; background: #0d1016; color: #e8ecf3; font: inherit; }
-.goal-input-label { display: block; color: #c4cbd8; font-size: 12px; font-weight: 550; }
+.host-popover input:not([type=checkbox]) { display: block; box-sizing: border-box; width: 100%; margin-top: 7px; padding: 11px 12px; border: 1px solid #32394a; border-radius: 8px; background: var(--color-bg); color: var(--color-text); font: inherit; }
+.goal-input-label { display: block; color: var(--color-text-soft); font-size: 12px; font-weight: 550; }
 .goal-save-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
 .host-check { display: flex; align-items: center; gap: 7px; flex: 1; font-size: 12px; }
-.host-popover input[type=checkbox], .rehearsal-check input { accent-color: #a99bff; }
+.host-popover input[type=checkbox], .rehearsal-check input { accent-color: var(--color-accent); }
 .host-popover .host-button-primary { background: #30264c; border-color: #65518c; color: #e5ddff; }
 .stopwatch-controls { display: flex; align-items: center; gap: 8px; border-top: 1px solid #292f3c; padding-top: 18px; margin-top: 20px; }
 .stopwatch-controls > div { flex: 1; }
-.stopwatch-controls span { display: block; color: #8f9bb0; font-size: 10px; font-weight: 650; letter-spacing: .12em; }
-.stopwatch-controls time { display: block; color: #e8ecf3; font-size: 27px; font-weight: 550; font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
-.host-popover .host-panel-note { margin-top: 12px; color: #8f9bb0; font-size: 12px; }
+.stopwatch-controls span { display: block; color: var(--color-text-muted); font-size: 10px; font-weight: 650; letter-spacing: .12em; }
+.stopwatch-controls time { display: block; color: var(--color-text); font-size: 27px; font-weight: 550; font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
+.host-popover .host-panel-note { margin-top: 12px; color: var(--color-text-muted); font-size: 12px; }
 .shortcut-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: 9px 0; }
 .shortcut-row kbd { padding: 4px 8px; border: 1px solid #343a4b; border-radius: 5px; background: #10141d; color: #b9afd9; font: 11px/1.4 system-ui, sans-serif; }
 .host-popover ol { padding-left: 18px; }
 .host-popover li { padding: 0 0 10px 4px; }
-.host-popover a, .rehearsal-popover a { color: #b9aaff; }
+.host-popover a, .rehearsal-popover a { color: var(--color-accent-hover); }
 .host-control-error { color: #f0a7ab; font-size: 12px; max-width: 360px; }
-.privacy-screen { position: fixed; inset: 0; display: grid; place-items: center; background: #0d1016; color: #e8ecf3; font: 600 clamp(32px,5vw,90px)/1.2 system-ui,sans-serif; }
-.goal-strip { position: fixed; bottom: 18px; left: 18px; z-index: 100; display: flex; gap: 18px; align-items: center; max-width: min(380px, calc(100vw - 36px)); box-sizing: border-box; padding: 12px 16px; border: 1px solid #49405f; border-radius: 12px; color: #e8ecf3; background: #17141f; box-shadow: 0 6px 24px #0005; font: 14px/1.4 system-ui,sans-serif; }
+.privacy-screen { position: fixed; inset: 0; display: grid; place-items: center; background: var(--color-bg); color: var(--color-text); font: 600 clamp(32px,5vw,90px)/1.2 system-ui,sans-serif; }
+.goal-strip { position: fixed; bottom: 18px; left: 18px; z-index: 100; display: flex; gap: 18px; align-items: center; max-width: min(380px, calc(100vw - 36px)); box-sizing: border-box; padding: 12px 16px; border: 1px solid #49405f; border-radius: 12px; color: var(--color-text); background: #17141f; box-shadow: 0 6px 24px #0005; font: 14px/1.4 system-ui,sans-serif; }
 .goal-caption { min-width: 0; }
-.goal-caption > span { display: block; margin-bottom: 4px; color: #a99bff; font-size: 9px; font-weight: 650; letter-spacing: .12em; }
+.goal-caption > span { display: block; margin-bottom: 4px; color: var(--color-accent); font-size: 9px; font-weight: 650; letter-spacing: .12em; }
 .goal-strip strong { display: block; overflow-wrap: anywhere; font-size: 14px; font-weight: 550; }
 .goal-strip time { padding-left: 16px; border-left: 1px solid #3a3348; font-size: 23px; font-weight: 550; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .public-surface { height: 100dvh; display: flex; flex-direction: column; }
@@ -97,7 +98,7 @@
 /* Pre-live check sits in the nav bar; its full checklist opens in a popover. */
 .rehearsal-check { position: relative; margin: 0; }
 .rehearsal-check > .host-tool-button { flex: 0 0 auto; }
-.rehearsal-check .rehearsal-plus { color: #b9aaff; font-weight: 650; }
+.rehearsal-check .rehearsal-plus { color: var(--color-accent-hover); font-weight: 650; }
 .rehearsal-popover { width: min(460px, calc(100vw - 32px)); }
 .rehearsal-popover .rehearsal-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; }
 .rehearsal-popover .rehearsal-actions a { display: inline-flex; align-items: center; padding: 8px 10px; border: 1px solid #343a4b; border-radius: 7px; background: #1a1e29; }
@@ -109,14 +110,14 @@
 .presentation-dot.warn { background: #e4bb80; }
 .presentation-dot.danger { background: #ff9aa4; }
 .presentation-popover { width: min(460px, calc(100vw - 32px)); }
-.presentation-popover .presentation-source-label { display: grid; gap: 6px; margin-bottom: 12px; color: #c4cbd8; font-size: 12px; font-weight: 550; }
-.presentation-popover select { width: 100%; padding: 10px 11px; border: 1px solid #32394a; border-radius: 8px; background: #0d1016; color: #e8ecf3; color-scheme: dark; font: inherit; }
+.presentation-popover .presentation-source-label { display: grid; gap: 6px; margin-bottom: 12px; color: var(--color-text-soft); font-size: 12px; font-weight: 550; }
+.presentation-popover select { width: 100%; padding: 10px 11px; border: 1px solid #32394a; border-radius: 8px; background: var(--color-bg); color: var(--color-text); color-scheme: dark; font: inherit; }
 .presentation-popover .presentation-controls { display: flex; flex-wrap: wrap; gap: 8px; }
 .presentation-popover .presentation-controls > button { flex: 1 1 auto; }
 .presentation-popover .presentation-controls .privacy-action { background: #211c32; border-color: #504471; color: #e5ddff; }
 .presentation-popover .presentation-controls .privacy-action.is-hidden { color: #f2d5ac; border-color: #705b3d; background: #2a241c; }
 .presentation-popover .overlay-presentation-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
-.presentation-popover .overlay-presentation-footer small { flex: 1; min-width: 200px; color: #8f9bb0; font-size: 11px; line-height: 1.6; }
+.presentation-popover .overlay-presentation-footer small { flex: 1; min-width: 200px; color: var(--color-text-muted); font-size: 11px; line-height: 1.6; }
 @media (max-width: 760px) {  .welcome-header { flex-wrap: wrap; gap: 12px; }
   .welcome-header > .welcome-header-tools { justify-content: flex-start; max-width: 100%; overflow-x: auto; padding: 3px 0; }
   .host-popover { inset: 100px 16px auto auto; max-height: calc(100dvh - 120px); }

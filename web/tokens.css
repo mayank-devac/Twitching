@@ -1,0 +1,24 @@
+/* Shared colour tokens for every surface (arena host, welcome, settings, overlays).
+   Each token replaces a raw hex value that was repeated verbatim across stylesheets. */
+:root {
+  --color-bg: #0d1016;
+  --color-surface: #151922;
+  --color-surface-hover: #171c28;
+  --color-surface-raised: #1a2030;
+  --color-field: #10141c;
+  --color-control: #1b2030;
+  --color-control-hover: #232a3d;
+  --color-line: #232a36;
+  --color-line-strong: #2a3140;
+  --color-line-heavy: #343b4c;
+  --color-divider: #303741;
+  --color-text: #e8ecf3;
+  --color-text-soft: #c4cbd8;
+  --color-text-muted: #8f9bb0;
+  --color-accent: #a99bff;
+  --color-accent-hover: #b9aaff;
+  --color-accent-ink: #d9d3ff;
+  --color-accent-line: #4a3fa8;
+  --color-accent-fill: #262050;
+  --color-danger-text: #ffc4ca;
+}

@@ -1,5 +1,6 @@
 /* Session timeline: header, scrolling list, rows, prompt attachments, diagrams.
    Spacing uses two units only: --gap between things, --pad inside boxes. */
+@import "../tokens.css";
 
 /* ---------- Frame ---------- */
 .session-timeline {
@@ -13,7 +14,7 @@
   min-height: 0;
   overflow: hidden;
   background: #11151d;
-  color: var(--welcome-text);
+  color: var(--color-text);
   font: 14px/1.6 Inter, system-ui, sans-serif;
 }
 .welcome-content .session-timeline {
@@ -29,7 +30,7 @@
   align-items: center;
   gap: 9px;
   padding: 5px 12px;
-  border-bottom: 1px solid var(--welcome-border);
+  border-bottom: 1px solid var(--color-line);
 }
 .welcome-content .timeline-heading {
   padding: 8px 16px;
@@ -50,7 +51,7 @@
 }
 .timeline-model {
   flex: 0 0 auto;
-  color: var(--welcome-text);
+  color: var(--color-text);
   font-size: 14px;
   font-weight: 650;
 }
@@ -72,21 +73,21 @@
   height: 1px;
 }
 .timeline-empty {
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
 }
 .timeline-history-choice {
   padding: 7px 12px;
   border: 0;
-  border-bottom: 1px solid var(--welcome-border);
+  border-bottom: 1px solid var(--color-line);
   background: #1d2030;
-  color: var(--welcome-text);
+  color: var(--color-text);
   cursor: pointer;
 }
 .run-boundary {
   margin-top: var(--pad);
   padding-top: var(--pad);
-  border-top: 1px solid var(--welcome-border);
-  color: var(--welcome-muted);
+  border-top: 1px solid var(--color-line);
+  color: var(--color-text-muted);
   font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -97,7 +98,7 @@
   display: grid;
   gap: 2px;
   padding: var(--gap) 0;
-  border-bottom: 1px solid #1b2030;
+  border-bottom: 1px solid var(--color-control);
   overflow-wrap: anywhere;
 }
 .timeline-item small {
@@ -110,7 +111,7 @@
 }
 .timeline-item.kind-edit small,
 .timeline-item.kind-tool small {
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
 }
 .timeline-item.kind-error {
   color: #ffb1b6;
@@ -170,7 +171,7 @@
   max-width: 100%;
   overflow: auto;
   padding: 13px;
-  border: 1px solid var(--welcome-border);
+  border: 1px solid var(--color-line);
   border-radius: 8px;
   background: #0b0d12;
   white-space: pre;
@@ -198,10 +199,10 @@
   align-items: center;
   gap: 5px;
   padding: 2px 8px;
-  border: 1px solid #4a3fa8;
+  border: 1px solid var(--color-accent-line);
   border-radius: 999px;
   background: #211b3f;
-  color: #d9d3ff;
+  color: var(--color-accent-ink);
   font-size: 10px;
   font-weight: 650;
   letter-spacing: 0.04em;
@@ -214,13 +215,13 @@
   color: #bff0dc;
 }
 .tag-file {
-  border-color: var(--welcome-border-strong);
+  border-color: var(--color-line-strong);
   background: #161a25;
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
   font-weight: 500;
 }
 .tag-file b {
-  color: #d9d3ff;
+  color: var(--color-accent-ink);
   font-weight: 700;
 }
 
@@ -237,7 +238,7 @@
   gap: var(--gap);
   justify-items: start;
   padding: var(--pad) 12px;
-  border: 1px solid var(--welcome-border);
+  border: 1px solid var(--color-line);
   border-radius: 8px;
   background: #151925;
 }
@@ -249,17 +250,17 @@
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  color: var(--welcome-text);
+  color: var(--color-text);
 }
 .card-note {
-  color: var(--welcome-muted);
+  color: var(--color-text-muted);
 }
 .card-note b {
   color: #aaa0ff;
   font-weight: 650;
 }
 .card-answer {
-  color: var(--welcome-text);
+  color: var(--color-text);
   font-weight: 600;
 }
 
@@ -269,7 +270,7 @@
   overflow-x: auto;
   margin: 0 0 var(--gap);
   padding: var(--pad);
-  border: 1px solid var(--welcome-border);
+  border: 1px solid var(--color-line);
   border-radius: 8px;
   background: #0b0d12;
 }

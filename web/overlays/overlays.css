@@ -1,3 +1,4 @@
+@import "../tokens.css";
 .overlay-grid-screen {
   width: 100%;
   max-width: none;
@@ -7,8 +8,8 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  background: #0d1016;
-  color: #e8ecf3;
+  background: var(--color-bg);
+  color: var(--color-text);
   box-sizing: border-box;
 }
 .overlay-grid {
@@ -52,8 +53,8 @@
   height: 100dvh;
   max-width: none;
   margin: 0;
-  background: #0d1016;
-  color: #8f9bb0;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
   font: 500 16px/1.5 system-ui;
   letter-spacing: 0.01em;
   text-align: center;
@@ -72,22 +73,24 @@
 
 /* --- Overlay output panel: modern, compact --- */
 .multi-overlays {
-  --ov-bg: #151922;
-  --ov-panel: #1a2030;
-  --ov-border: #2a3140;
-  --ov-border-strong: #343b4c;
-  --ov-text: #e8ecf3;
-  --ov-muted: #8f9bb0;
-  --ov-accent: #a99bff;
+  /* Panel-scoped aliases of the shared tokens. They stay on .multi-overlays (not :root)
+     so any var(--ov-*) read outside the panel keeps resolving exactly as before. */
+  --ov-bg: var(--color-surface);
+  --ov-panel: var(--color-surface-raised);
+  --ov-border: var(--color-line-strong);
+  --ov-border-strong: var(--color-line-heavy);
+  --ov-text: var(--color-text);
+  --ov-muted: var(--color-text-muted);
+  --ov-accent: var(--color-accent);
   --ov-accent-soft: #2b2550;
-  --ov-danger: #ffc4ca;
+  --ov-danger: var(--color-danger-text);
   --ov-radius: 10px;
   --ov-radius-sm: 7px;
   padding: 12px 14px;
   border: 1px solid var(--ov-border);
   border-radius: var(--ov-radius);
   background:
-    linear-gradient(180deg, #1a1f2c 0%, #151922 100%);
+    linear-gradient(180deg, #1a1f2c 0%, var(--color-surface) 100%);
   box-shadow: 0 8px 24px #00000033;
   display: flex;
   flex-direction: column;
@@ -156,7 +159,7 @@
   display: none;
 }
 .overlay-menu summary:hover {
-  background: #232a3d;
+  background: var(--color-control-hover);
   border-color: var(--ov-accent);
 }
 .overlay-menu-panel {
@@ -224,7 +227,7 @@
   padding: 4px 9px;
   border: 1px solid var(--ov-border);
   border-radius: var(--ov-radius-sm);
-  background: #10141c;
+  background: var(--color-field);
   color: var(--ov-text);
   color-scheme: dark;
   font-size: 12px;
@@ -248,7 +251,7 @@
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
 .multi-overlays button:hover:not(:disabled) {
-  background: #232a3d;
+  background: var(--color-control-hover);
   border-color: var(--ov-accent);
 }
 .multi-overlays button:active:not(:disabled) {
@@ -261,8 +264,8 @@
   border-color: var(--ov-accent);
 }
 .multi-overlays .primary-button:hover:not(:disabled) {
-  background: #b9aaff;
-  border-color: #b9aaff;
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
 }
 .session-selection-target {
   color: var(--ov-muted);
@@ -306,10 +309,10 @@
   max-width: 100%;
   min-width: 0;
   padding: 4px 8px 4px 10px;
-  border: 1px solid #4a3fa8;
+  border: 1px solid var(--color-accent-line);
   border-radius: var(--ov-radius-sm);
   background: var(--ov-accent-soft);
-  color: #d9d3ff;
+  color: var(--color-accent-ink);
   font-size: 11px;
   line-height: 1.2;
 }
@@ -388,7 +391,7 @@
   text-decoration: none;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
-.overlay-url-row > a:hover { border-color: var(--ov-accent); background: #232a3d; }
+.overlay-url-row > a:hover { border-color: var(--ov-accent); background: var(--color-control-hover); }
 .overlay-url-note {
   margin-top: 4px;
   font-size: 10px;
@@ -471,7 +474,7 @@
   display: flex;
   border: 1px solid var(--ov-border-strong);
   border-radius: var(--ov-radius-sm);
-  background: #0d1016;
+  background: var(--color-bg);
 }
 .overlay-combo-box:focus-within {
   border-color: var(--ov-accent);
@@ -535,7 +538,7 @@
   background: var(--ov-accent-soft);
 }
 .overlay-combo-list [role="option"]:hover {
-  background: #232a3d;
+  background: var(--color-control-hover);
 }
 .overlay-combo-list [role="option"]:active {
   transform: translateY(1px);
