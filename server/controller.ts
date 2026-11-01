@@ -5,62 +5,33 @@ import { ManualBreakControls } from "./manual-break.js";
 import { EventEmitter } from "node:events";
 import type {
   Activity,
-  Agent,
   SessionId,
-  SessionConfig,
   ChatMessage,
-  Round,
   ShowState,
   Task,
 } from "../shared/types.js";
-import {
-  configuredSessions,
-  sessionLabel,
-  sessionCount,
-  type SessionCount,
-} from "../shared/types.js";
+import { configuredSessions, type SessionCount } from "../shared/types.js";
 import { Collection } from "./collection.js";
 import { Filter, MAX_PROMPT_CHARS } from "./filter.js";
 import type { Judge } from "./jev.js";
 import type { PairRunner, RunHandle } from "./runner.js";
 import { Store } from "./store.js";
-// Saved rounds keep their own session list; older ones fall back to the attempts that ran.
-export const roundSessionCount = (round: Round): SessionCount =>
-  sessionCount(round.sessions ?? Object.values(round.attempts).filter((a) => a.status !== "idle"));
-export interface ControllerOptions {
-  jevCriteria?: string;
-  mode: "live" | "rehearsal";
-  runnerMode?: "docker" | "native";
-  sessions?: SessionConfig[];
-  singleAgent?: Agent;
-  codexModel: string;
-  codexEffort?: string;
-  cursorModel: string;
-  collectionMs: number;
-  extensionMs: number;
-  resultMs: number;
-  reconnectLimitMs: number;
-  quotaGraceMs: number;
-  quotaPollMs: number;
-  safetyThreshold: number;
-  relevanceThreshold: number;
-  minScore: number;
-  playlist?: string[];
-}
-export type StopChoice =
-  "chat-now" | "chat-after" | "stream-now" | "stream-after";
-export type ChatPlatforms = {
-  youtube?: boolean;
-  twitch?: boolean;
-  kick?: boolean;
-};
-export interface Integrations {
-  start(): Promise<void>;
-  startChats(platforms: ChatPlatforms): Promise<void>;
-  stop(): void;
-  preflight(): Promise<string[]>;
-  stopBroadcast(): Promise<void>;
-}
+import {
+  roundSessionCount,
+  selectedPlatforms,
+  type ChatPlatforms,
+  type ControllerOptions,
+  type Integrations,
+  type StopChoice,
+} from "./controller/options.js";
+import { newRound, recordActivity, stateView } from "./controller/round-state.js";
+export {
+  roundSessionCount,
+  type ChatPlatforms,
+  type ControllerOptions,
+  type Integrations,
+  type StopChoice,
+} from "./controller/options.js";
 export class Controller extends EventEmitter {
   state: ShowState;
   collection: Collection;
@@ -317,16 +288,6 @@ export class Controller extends EventEmitter {
         (this.state.resultUntil ?? 0) > this.now())
     );
   }
-  private selectedPlatforms(platforms: ChatPlatforms) {
-    const selected = {
-      youtube: !!platforms.youtube,
-      twitch: !!platforms.twitch,
-      kick: !!platforms.kick,
-    };
-    if (!selected.youtube && !selected.twitch && !selected.kick)
-      throw new Error("Pick YouTube, Twitch, or Kick before switching to chat");
-    return selected;
-  }
   private armPlaylist() {
     const list = this.options.playlist ?? [];
     if (this.playlistCursor >= list.length) return false;
@@ -357,42 +318,13 @@ export class Controller extends EventEmitter {
     return this.view();
   }
   private view() {
-    const value = structuredClone(this.state);
-    const doc = this.quick?.get();
-    if (doc)
-      value.quickSettings = {
-        revision: doc.revision,
-        visibility: doc.value.visibility,
-        media: doc.value.media,
-      };
-    if (this.collection?.prepared)
-      value.preparedVersion = this.preparedVersion();
-    // A saved result keeps its own configuration, even after startup choices change.
-    const sessions = value.round?.sessions ?? configuredSessions(this.options);
-    value.sessions = sessions;
-    value.agents = sessions.map((s) => s.id);
-    value.models = Object.fromEntries(
-      sessions.map((s) => [s.id, sessionLabel(s)]),
+    return stateView(
+      this.state,
+      this.quick?.get(),
+      this.collection?.prepared ? this.preparedVersion() : undefined,
+      configuredSessions(this.options),
+      this.clean,
     );
-    if (value.round) {
-      value.round.task.text = this.clean(value.round.task.text, MAX_PROMPT_CHARS);
-      value.round.task.author = this.clean(value.round.task.author, 80);
-    }
-    if (value.prepared) {
-      value.prepared.text = this.clean(value.prepared.text, MAX_PROMPT_CHARS);
-      value.prepared.author = this.clean(value.prepared.author, 80);
-    }
-    value.candidates = value.candidates.map((c) => ({
-      ...c,
-      text: this.clean(c.text, MAX_PROMPT_CHARS),
-      message: {
-        ...c.message,
-        text: this.clean(c.message.text, MAX_PROMPT_CHARS),
-        author: this.clean(c.message.author, 80),
-      },
-    }));
-    value.reason = this.clean(value.reason);
-    return value;
   }
   // The serialized state last written, so idle ticks can skip identical writes.
   private persisted?: string;
@@ -591,25 +523,10 @@ export class Controller extends EventEmitter {
     };
     this.syncCollection();
   }
-  // Runner activity is already redacted at its source (accumulated text, never
-  // a fragment; see PairRunner.launch), and the redactor is idempotent, so a
-  // second full pass here would only repeat work on every streamed delta.
   private activity(event: Activity) {
-    const index = this.state.events.findIndex((e) => e.id === event.id);
-    if (index >= 0) {
-      if (this.state.events[index].text === event.text) return;
-      this.state.events[index] = event;
-      this.store.replaceEvent(event);
-      this.emit("activity", event);
-      this.persist();
-      return;
-    }
-    if (this.store.event(event)) {
-      this.state.events.push(event);
-      this.state.events = this.state.events.slice(-160);
-      this.emit("activity", event);
-      this.persist();
-    }
+    if (!recordActivity(this.state, this.store, event)) return;
+    this.emit("activity", event);
+    this.persist();
   }
   async tick() {
     if (this.busy || this.ending || this.breaks.transitioning || this.switchingToSession || !this.arenaEnabled()) return;
@@ -746,24 +663,7 @@ export class Controller extends EventEmitter {
       const sessions = configuredSessions(this.options);
       const id = this.store.roundId();
       const at = this.now();
-      this.state.round = {
-        id,
-        task,
-        launchedAt: at,
-        sessions: structuredClone(sessions),
-        attempts: Object.fromEntries(
-          sessions.map((session) => [
-            session.id,
-            {
-              cli: session.cli,
-              model: session.model,
-              effort: session.effort,
-              status: "running",
-              startedAt: at,
-            },
-          ]),
-        ),
-      };
+      this.state.round = newRound(id, task, sessions, at);
       this.state.events = [];
       this.state.status = "running";
       const launching =
@@ -933,7 +833,7 @@ export class Controller extends EventEmitter {
       return;
     }
     if (choice === "chat-after") {
-      this.pendingPlatforms = this.selectedPlatforms(platforms);
+      this.pendingPlatforms = selectedPlatforms(platforms);
       if (!this.roundStillOpen())
         return this.switchToChat(this.pendingPlatforms);
       this.pendingStop = "chat";
@@ -950,7 +850,7 @@ export class Controller extends EventEmitter {
     this.persist();
   }
   private async switchToChat(platforms: ChatPlatforms, cancel = false) {
-    const selected = this.selectedPlatforms(platforms);
+    const selected = selectedPlatforms(platforms);
     this.generation++;
     this.playlistReleased = true;
     this.pendingStop = undefined;
