@@ -115,7 +115,7 @@ export function SessionBrowser({
                       title={
                         checkedIds.length >= MAX_OVERLAY_SESSIONS &&
                         !checkedIds.includes(conversation.id)
-                          ? "8 selected. Untick one to add another."
+                          ? `${MAX_OVERLAY_SESSIONS} selected. Untick one to add another.`
                           : "Show on " + (overlayName ?? "selected overlay")
                       }
                     >
