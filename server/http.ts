@@ -258,6 +258,8 @@ export function makeHttp(
   const sockets = new WebSocketServer({ noServer: true, maxPayload: 1024 });
   const channels = new WeakMap<WebSocket, string>();
   const previous = new Map<string, ShowState>();
+  // The full wire state last sent per channel; an identical one carries no change.
+  const sent = new Map<string, string>();
   // A browser source receives only its named output, never the assignments of another output.
   const wireState = (state: ShowState, patch = false): ShowState => ({
     ...state,
@@ -284,7 +286,10 @@ export function makeHttp(
   sockets.on("connection", (socket) => {
     const channel = channels.get(socket) ?? "default";
     const state = publicState(channel);
-    if (!previous.has(channel)) previous.set(channel, state);
+    if (!previous.has(channel)) {
+      previous.set(channel, state);
+      sent.set(channel, JSON.stringify(wireState(state)));
+    }
     socket.send(JSON.stringify(snapshot(state)));
     alive.add(socket);
     socket.on("pong", () => alive.add(socket));
@@ -294,6 +299,7 @@ export function makeHttp(
   const broadcast = () => {
     const active = new Set([...sockets.clients].map((socket) => channels.get(socket) ?? "default"));
     for (const id of previous.keys()) if (!active.has(id)) previous.delete(id);
+    for (const id of sent.keys()) if (!active.has(id)) sent.delete(id);
     for (const channel of active) {
       const state = publicState(channel), before = previous.get(channel);
       const session = state.sharedOverlay ? undefined : state.sharedSession;
@@ -308,6 +314,11 @@ export function makeHttp(
         patches: activityPatches(before?.events ?? [], state.events), eventIds: state.events.map((event) => event.id),
         previewOrigin: options.previewOrigin,
       });
+      // Many emitters fire "state" without changing this channel's public view;
+      // an unchanged full wire state means empty patches, so skip the frame.
+      const key = JSON.stringify(wireState(state));
+      if (sent.get(channel) === key) continue;
+      sent.set(channel, key);
       const payload = JSON.stringify(privacyChanged ? snapshot(state) : update());
       previous.set(channel, state);
       for (const socket of sockets.clients) if ((channels.get(socket) ?? "default") === channel && socket.readyState === WebSocket.OPEN) {

@@ -71,6 +71,15 @@ test("overlay reconnect returns current state/events without launching a job, an
         assert.equal(updated.patches[0].event.text, " more text");
         assert.equal(updated.patches[0].prefixLength, "Existing activity".length);
         assert.deepEqual(updated.eventIds, ["saved"]);
+        // An emit that changes nothing public sends no frame; the next frame
+        // the client sees is the next real change.
+        controller.emit("state");
+        controller.emit("state");
+        const next = once(socket, "message");
+        activityText += " again";
+        controller.emit("state");
+        const [nextBytes] = await next;
+        assert.equal(JSON.parse(nextBytes.toString()).patches[0].event.text, " again");
       }
       socket.close();
       await once(socket, "close");

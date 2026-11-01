@@ -394,10 +394,20 @@ export class Controller extends EventEmitter {
     value.reason = this.clean(value.reason);
     return value;
   }
+  // The serialized state last written, so idle ticks can skip identical writes.
+  private persisted?: string;
   private persist() {
+    const serialized = JSON.stringify(this.state);
     if (this.state.round) this.store.round(this.state.round);
-    this.store.save(this.state);
+    this.store.save(this.state, serialized);
+    this.persisted = serialized;
     this.emit("state", this.snapshot());
+  }
+  // tick() runs every 250 ms; most ticks change nothing, and a full write,
+  // snapshot and broadcast for each of them is pure overhead. Explicit
+  // persist() calls still always emit (settings changes rely on that).
+  private persistIfChanged() {
+    if (JSON.stringify(this.state) !== this.persisted) this.persist();
   }
   private syncCollection() {
     this.state.candidates = this.collection.candidates;
@@ -712,7 +722,7 @@ export class Controller extends EventEmitter {
       );
     } finally {
       this.busy = false;
-      this.persist();
+      this.persistIfChanged();
     }
   }
   private async launch(task: Task) {

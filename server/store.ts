@@ -174,10 +174,11 @@ export class Store {
     if (state.round) migrateRound(state.round);
     return state;
   }
-  save(state: ShowState) {
+  // Callers that already serialized the state pass it to avoid a second stringify.
+  save(state: ShowState, serialized = JSON.stringify(state)) {
     this.db
       .prepare("INSERT OR REPLACE INTO state VALUES (1,?)")
-      .run(JSON.stringify(state));
+      .run(serialized);
   }
   roundId() {
     return Number(

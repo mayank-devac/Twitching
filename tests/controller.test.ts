@@ -806,3 +806,26 @@ test("Start ends a timed manual break early without skipping startup checks",asy
     assert.notEqual(f.controller.state.status,"break");
   } finally {await f.cleanup();}
 });
+test("an idle tick neither rewrites state nor emits; a real change still does", async () => {
+  const f = await fixture();
+  try {
+    f.controller.pause();
+    let emits = 0;
+    f.controller.on("state", () => emits++);
+    let saves = 0;
+    const save = f.store.save.bind(f.store);
+    f.store.save = (...args) => {
+      saves++;
+      return save(...args);
+    };
+    await f.controller.tick();
+    await f.controller.tick();
+    assert.equal(emits, 0);
+    assert.equal(saves, 0);
+    f.controller.connection("youtube", "connected");
+    assert.equal(emits, 1);
+    assert.equal(saves, 1);
+  } finally {
+    await f.cleanup();
+  }
+});
