@@ -124,7 +124,7 @@ test("preview is private; publication and history never mix two same-CLI session
     assert.equal(store.conversationPage(first.id).items.length, 1);
     await assert.rejects(
       () => sessions.create("codex", "native"),
-      /Type NATIVE/,
+      /Choose Yes to explicitly allow/,
     );
     store.conversationItem(first.id, {
       id: "complete",

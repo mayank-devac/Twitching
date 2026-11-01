@@ -204,7 +204,7 @@ export class Sessions extends EventEmitter {
       throw new Error("Stop the prompt arena before starting a coding session");
     if (runner === "native" && nativeConsent !== "NATIVE")
       throw new Error(
-        "Type NATIVE to explicitly allow managed agents to run on this computer without Docker isolation",
+        "Choose Yes to explicitly allow managed agents to run on this computer without Docker isolation",
       );
     const config = this.preferences
       .get()
@@ -421,7 +421,7 @@ export class Sessions extends EventEmitter {
     if (c.runner === "native" && process.env.ARENA_NATIVE_APPROVED !== "1") {
       if (nativeConsent !== "NATIVE")
         throw new Error(
-          "Type NATIVE to approve this server's native runs before sending a prompt",
+          "Choose Yes to approve this server's native runs before sending a prompt",
         );
       process.env.ARENA_NATIVE_APPROVED = "1";
     }

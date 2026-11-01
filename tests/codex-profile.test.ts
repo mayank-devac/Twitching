@@ -6,6 +6,7 @@ import {
   readFile,
   rm,
   stat,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -336,6 +337,42 @@ test("same-round Codex homes are distinct and stale refreshes cannot overwrite n
     );
   } finally {
     store.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a reused session workspace re-prepares its Codex profile on every prompt", async () => {
+  const root = await mkdtemp(resolve(tmpdir(), "stram-codex-reuse-"));
+  try {
+    const home = resolve(root, "session");
+    const codexHome = await prepareCodexHome(root, home, false);
+    await writeFile(resolve(codexHome, "config.toml"), "AGENT_EDIT");
+    // The second prompt used to fail here with EEXIST.
+    await prepareCodexHome(root, home, false);
+    const config = await readFile(resolve(codexHome, "config.toml"), "utf8");
+    assert.doesNotMatch(config, /AGENT_EDIT/);
+    assert.match(config, /hooks = false/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a planted .codex symlink is refused, not written through", async () => {
+  const root = await mkdtemp(resolve(tmpdir(), "stram-codex-link-"));
+  try {
+    const home = resolve(root, "session");
+    const outside = resolve(root, "outside");
+    await mkdir(home, { recursive: true });
+    await mkdir(outside);
+    await symlink(outside, resolve(home, ".codex"));
+    await assert.rejects(
+      prepareCodexHome(root, home, false),
+      /must be a real directory/,
+    );
+    await assert.rejects(stat(resolve(outside, "config.toml")), {
+      code: "ENOENT",
+    });
+  } finally {
     await rm(root, { recursive: true, force: true });
   }
 });

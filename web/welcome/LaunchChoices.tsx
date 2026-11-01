@@ -7,20 +7,20 @@ export function LaunchChoices({
   busy,
   cli,
   runner,
-  consent,
+  nativeAccepted,
   changeCli,
   changeRunner,
-  changeConsent,
+  changeNativeAccepted,
   discover,
 }: {
   newSession: boolean;
   busy: boolean;
   cli: Agent;
   runner: "docker" | "native";
-  consent: string;
+  nativeAccepted: boolean;
   changeCli(cli: Agent): void;
   changeRunner(runner: "docker" | "native"): void;
-  changeConsent(value: string): void;
+  changeNativeAccepted(accepted: boolean): void;
   discover(): void;
 }) {
   return (
@@ -53,14 +53,10 @@ export function LaunchChoices({
             </select>
           </label>
           {runner === "native" && (
-            <label>
-              Native — no Docker isolation. Type NATIVE to accept.
-              <input
-                value={consent}
-                onChange={(e) => changeConsent(e.target.value)}
-                autoComplete="off"
-              />
-            </label>
+            <NativeConsent
+              accepted={nativeAccepted}
+              change={changeNativeAccepted}
+            />
           )}
           <button onClick={discover}>Load installed models</button>
           <p className="qs-hint">
@@ -70,5 +66,31 @@ export function LaunchChoices({
         </>
       )}
     </fieldset>
+  );
+}
+
+// Native runs skip Docker isolation, so they need an explicit Yes each time.
+// "No" is selected until the host chooses otherwise.
+export function NativeConsent({
+  accepted,
+  change,
+}: {
+  accepted: boolean;
+  change(accepted: boolean): void;
+}) {
+  return (
+    <div
+      className="native-consent"
+      role="group"
+      aria-label="Allow native execution"
+    >
+      <span>Native has no Docker isolation. Allow it on this computer?</span>
+      <button type="button" aria-pressed={accepted} onClick={() => change(true)}>
+        Yes
+      </button>
+      <button type="button" aria-pressed={!accepted} onClick={() => change(false)}>
+        No
+      </button>
+    </div>
   );
 }

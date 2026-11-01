@@ -1,4 +1,5 @@
-import { lstat, mkdir, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { lstat, mkdir, rename, unlink, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { copyLoginFile, fingerprintFile, loginGuard } from "./login-guard.js";
 
@@ -64,16 +65,28 @@ export async function prepareCodexHome(
 ) {
   const codexHome = resolve(home, ".codex");
   await mkdir(codexHome, { recursive: true, mode: 0o700 });
+  // The home is agent-writable and reused; never write through a planted link.
+  if (!(await lstat(codexHome)).isDirectory())
+    throw new Error("Codex profile must be a real directory");
   if (auth) {
     await loginGuard(root, "codex").prepare(home, async () => {
       await seedArenaCodexLogin(root);
       await copyLoginFile(resolve(root, "runtime/auth/codex/.codex/auth.json"), resolve(codexHome, "auth.json"), root, home);
     }, () => fingerprintFile(resolve(codexHome, "auth.json"), home));
   }
-  await writeFile(resolve(codexHome, "config.toml"), config, {
-    mode: 0o600,
-    flag: "wx",
-  });
+  // Session workspaces are reused for every prompt, so the profile is rewritten
+  // on each launch (an exclusive create failed from the second prompt on); this
+  // also resets anything the agent changed. Stage under an unguessable name with
+  // "wx" so nothing planted is followed, then rename (replaces a link, never
+  // follows it).
+  const profile = resolve(codexHome, "config.toml");
+  const staged = resolve(codexHome, `.config.${randomUUID()}.tmp`);
+  try {
+    await writeFile(staged, config, { mode: 0o600, flag: "wx" });
+    await rename(staged, profile);
+  } finally {
+    await unlink(staged).catch(() => {});
+  }
   return codexHome;
 }
 

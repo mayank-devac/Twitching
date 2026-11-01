@@ -19,7 +19,7 @@ import {
   SessionBrowser,
   type SessionListing as Listing,
 } from "./SessionBrowser.js";
-import { LaunchChoices } from "./LaunchChoices.js";
+import { LaunchChoices, NativeConsent } from "./LaunchChoices.js";
 import { uniqueConversations } from "../../shared/sessions.js";
 import { useOverlayEditor } from "../overlays/use-overlay-editor.js";
 import { OverlayManager } from "../overlays/OverlayManager.js";
@@ -120,7 +120,7 @@ export function Welcome({
   const [failedMode, setFailedMode] = useState<"existing" | "new" | "arena">();
   const [cli, setCli] = useState<Agent>("codex");
   const [runner, setRunner] = useState<"docker" | "native">("native");
-  const [nativeConsent, setNativeConsent] = useState("NATIVE");
+  const [nativeAccepted, setNativeAccepted] = useState(false);
   const [models, setModels] = useState<ModelChoice[]>();
   const [choice, setChoice] = useState<SessionConfig>();
   const [source, setSource] = useState<"managed" | Agent>("codex");
@@ -385,8 +385,8 @@ export function Welcome({
         setNotice("Load models, then choose one before continuing.");
         return;
       }
-      if (runner === "native" && nativeConsent !== "NATIVE") {
-        setNotice("Type NATIVE above to confirm native execution.");
+      if (runner === "native" && !nativeAccepted) {
+        setNotice("Choose Yes to allow native execution, or pick Docker.");
         return;
       }
       const next = {
@@ -398,7 +398,7 @@ export function Welcome({
         action: "create",
         cli,
         runner,
-        ...(runner === "native" ? { nativeConsent } : {}),
+        ...(runner === "native" ? { nativeConsent: "NATIVE" } : {}),
       });
       await remember("existing", c.id, runner);
       ++selection.current;
@@ -553,7 +553,7 @@ export function Welcome({
                 busy={busy}
                 cli={cli}
                 runner={runner}
-                consent={nativeConsent}
+                nativeAccepted={nativeAccepted}
                 changeCli={(next) => {
                   setCli(next);
                   setModels(undefined);
@@ -562,9 +562,9 @@ export function Welcome({
                 changeRunner={(next) => {
                   setRunner(next);
                   setModels(undefined);
-                  setNativeConsent(next === "native" ? "NATIVE" : "");
+                  setNativeAccepted(false);
                 }}
-                changeConsent={setNativeConsent}
+                changeNativeAccepted={setNativeAccepted}
                 discover={() => void discover()}
               />
               <p
@@ -575,8 +575,8 @@ export function Welcome({
                   ? "Load installed models to continue."
                   : models.some((model) => model.id === choice?.model) &&
                       runner === "native" &&
-                      nativeConsent !== "NATIVE"
-                    ? "Type NATIVE to enable Continue."
+                      !nativeAccepted
+                    ? "Choose Yes to allow native execution."
                     : models.some((model) => model.id === choice?.model)
                       ? "Ready · " + choice?.model
                       : models.length
@@ -712,8 +712,9 @@ export function Welcome({
                             action: "run",
                             id: selected.conversation.id,
                             text: prompt,
-                            ...(nativeConsent === "NATIVE"
-                              ? { nativeConsent }
+                            ...(selected.conversation.runner === "native" &&
+                            nativeAccepted
+                              ? { nativeConsent: "NATIVE" }
                               : {}),
                           });
                           setPrompt("");
@@ -729,16 +730,10 @@ export function Welcome({
                         placeholder="Explain code, fix a bug, or build something…"
                       />
                       {selected.conversation.runner === "native" && (
-                        <label className="native-consent">
-                          Native has no Docker isolation. Type NATIVE to opt in.
-                          <input
-                            value={nativeConsent}
-                            onChange={(event) =>
-                              setNativeConsent(event.target.value)
-                            }
-                            autoComplete="off"
-                          />
-                        </label>
+                        <NativeConsent
+                          accepted={nativeAccepted}
+                          change={setNativeAccepted}
+                        />
                       )}
                       <button
                         className="send-prompt"
@@ -937,7 +932,7 @@ export function Welcome({
               !document ||
               (path === "new" &&
                 (!models?.some((model) => model.id === choice?.model) ||
-                  (runner === "native" && nativeConsent !== "NATIVE")))
+                  (runner === "native" && !nativeAccepted)))
             }
             onClick={() => void continueFlow()}
           >
