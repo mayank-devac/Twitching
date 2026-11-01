@@ -11,7 +11,7 @@ import { Welcome } from "./welcome/Welcome.js";
 import { Timeline } from "./welcome/Timeline.js";
 import { OverlayScreen } from "./overlays/OverlayScreen.js";
 import { applyOverlayPatches } from "../shared/overlay-stream.js";
-import type { SessionView } from "../shared/sessions.js";
+import { parseServerMessage } from "../shared/server-message.js";
 import { BreakScreen } from "./break-screen.js";
 import { BreakControl } from "./break-control.js";
 import { defaultVisibility } from "../shared/settings.js";
@@ -107,8 +107,7 @@ function App() {
           presentation: hostState.presentation,
         })),
     );
-    const loadHostState = (_token: string, _fallback?: ShowState) =>
-      refresh.request();
+    const loadHostState = () => refresh.request();
     const connect = () => {
       ws = new WebSocket(
         `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/events${namedOverlay ? `?overlay=${encodeURIComponent(outputId)}` : ""}`,
@@ -119,16 +118,16 @@ function App() {
       };
       ws.onmessage = (e) => {
         try {
-          const payload = JSON.parse(e.data);
+          // Malformed frames throw here and fall through to the error below.
+          const message = parseServerMessage(e.data);
+          const incoming = message.state;
           // An old session/connection must never overwrite a newer private host lane.
           const nextContext = JSON.stringify([
-            payload.state?.hostContext,
-            payload.state?.experience,
-            payload.state?.round?.id,
-            payload.state?.sharedOverlay?.frames?.map(
-              (f: SessionView) => f.conversation.id,
-            ),
-            payload.state?.presentation?.hidden,
+            incoming.hostContext,
+            incoming.experience,
+            incoming.round?.id,
+            incoming.sharedOverlay?.frames.map((f) => f.conversation.id),
+            incoming.presentation?.hidden,
           ]);
           const changedContext = nextContext !== context;
           if (changedContext) {
@@ -136,55 +135,63 @@ function App() {
             refresh.invalidate();
           }
 
-          if (payload.type === "update") {
-            setPreviewOrigin(payload.previewOrigin);
+          if (message.type === "update") {
+            setPreviewOrigin(message.previewOrigin);
             setState((current) => {
               // Hidden sockets carry no transcript; the authenticated refresh supplies private host content.
-              if (control && payload.state.presentation?.hidden && current) {
+              if (control && incoming.presentation?.hidden && current) {
                 return {
                   ...current,
                   presentation: current.presentation
                     ? { ...current.presentation, hidden: true }
-                    : payload.state.presentation,
+                    : incoming.presentation,
                 };
               }
               try {
                 const events = mergeActivityPatches(
                   current?.events ?? [],
-                  payload.patches,
-                  payload.eventIds,
+                  message.patches,
+                  message.eventIds,
                 );
-                if (payload.state.sharedOverlay) {
-                  payload.state.sharedOverlay = applyOverlayPatches(
+                // Build new objects rather than mutating the parsed frame: React may
+                // replay this updater, and a mutated frame would be patched twice.
+                let { sharedOverlay, sharedSession } = incoming;
+                if (sharedOverlay) {
+                  sharedOverlay = applyOverlayPatches(
                     current?.sharedOverlay,
-                    payload.state.sharedOverlay,
-                    payload.overlayPatches ?? [],
+                    sharedOverlay,
+                    message.overlayPatches,
                   );
-                  payload.state.sharedSession =
-                    payload.state.sharedOverlay.frames.length === 1
-                      ? payload.state.sharedOverlay.frames[0]
+                  sharedSession =
+                    sharedOverlay.frames.length === 1
+                      ? sharedOverlay.frames[0]
                       : undefined;
-                } else {
-                  const session = payload.state.sharedSession as
-                    SessionView | undefined;
-                  if (session)
-                    session.page.items = mergeActivityPatches(
-                      current?.sharedSession?.conversation.id ===
-                        session.conversation.id
-                        ? current.sharedSession.page.items
-                        : [],
-                      payload.sessionPatches ?? [],
-                      payload.sessionItemIds ?? [],
-                    );
+                } else if (sharedSession) {
+                  sharedSession = {
+                    ...sharedSession,
+                    page: {
+                      ...sharedSession.page,
+                      items: mergeActivityPatches(
+                        current?.sharedSession?.conversation.id ===
+                          sharedSession.conversation.id
+                          ? current.sharedSession.page.items
+                          : [],
+                        message.sessionPatches,
+                        message.sessionItemIds,
+                      ),
+                    },
+                  };
                 }
                 return {
-                  ...payload.state,
+                  ...incoming,
+                  sharedOverlay,
+                  sharedSession,
                   presentation:
                     control &&
-                    payload.state.presentation?.hidden &&
+                    incoming.presentation?.hidden &&
                     current?.presentation
                       ? { ...current.presentation, hidden: true }
-                      : payload.state.presentation,
+                      : incoming.presentation,
                   events: [
                     ...events,
                     ...(control && !changedContext
@@ -197,33 +204,37 @@ function App() {
                 return current;
               }
             });
-            if (control && csrfRef.current) void loadHostState(csrfRef.current);
-          } else if (payload.type === "snapshot") {
-            if (payload.state.sharedOverlay)
-              payload.state.sharedSession =
-                payload.state.sharedOverlay.frames.length === 1
-                  ? payload.state.sharedOverlay.frames[0]
-                  : undefined;
-            setPreviewOrigin(payload.previewOrigin);
+            if (control && csrfRef.current) void loadHostState();
+          } else {
+            const snapshot: ShowState = incoming.sharedOverlay
+              ? {
+                  ...incoming,
+                  sharedSession:
+                    incoming.sharedOverlay.frames.length === 1
+                      ? incoming.sharedOverlay.frames[0]
+                      : undefined,
+                }
+              : incoming;
+            setPreviewOrigin(message.previewOrigin);
             if (control && csrfRef.current) {
               setState((current) =>
-                control && payload.state.presentation?.hidden && current
+                control && snapshot.presentation?.hidden && current
                   ? {
                       ...current,
                       presentation: current.presentation
                         ? { ...current.presentation, hidden: true }
-                        : payload.state.presentation,
+                        : snapshot.presentation,
                     }
                   : {
-                      ...payload.state,
+                      ...snapshot,
                       presentation:
                         control &&
-                        payload.state.presentation?.hidden &&
+                        snapshot.presentation?.hidden &&
                         current?.presentation
                           ? { ...current.presentation, hidden: true }
-                          : payload.state.presentation,
+                          : snapshot.presentation,
                       events: [
-                        ...payload.state.events,
+                        ...snapshot.events,
                         ...(!changedContext
                           ? (current?.events.filter((event) => event.lane) ??
                             [])
@@ -231,8 +242,8 @@ function App() {
                       ],
                     },
               );
-              void loadHostState(csrfRef.current, payload.state);
-            } else setState(payload.state);
+              void loadHostState();
+            } else setState(snapshot);
           }
         } catch {
           setError("Invalid overlay update");
@@ -258,7 +269,7 @@ function App() {
           refresh.invalidate();
           csrfRef.current = data.csrf;
           setCsrf(data.csrf);
-          return loadHostState(data.csrf);
+          return loadHostState();
         })
         .catch(() => setError("Host controls unavailable"));
     return () => {
