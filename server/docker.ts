@@ -8,10 +8,11 @@ import {
   rm,
 } from "node:fs/promises";
 import { readFileSync } from "node:fs";
+import { z } from "zod";
 import { resolve } from "node:path";
 import { randomUUID, createHash } from "node:crypto";
 import type { Agent, SessionId } from "../shared/types.js";
-import { JsonLines } from "./activity.js";
+import { CodexAppServerClient } from "./codex-app-server.js";
 import { enforceDiskBudget } from "./disk-budget.js";
 import { removeProbeWorkspace } from "./probe-workspace-cleanup.js";
 import { AGENT_NETWORK, EGRESS_PROXY, RUNNER_LIMITS } from "./constants.js";
@@ -41,6 +42,37 @@ const CURSOR_LOGIN_ROOTS = [".config/cursor", ".cursor"] as const;
 const cursorRetainEntry = (path: string, directory: boolean) => directory
   ? !path.split("/").some((part) => ["sessions", "logs", "projects", "skills", "plugins"].includes(part))
   : path.split("/").at(-1) === "auth.json";
+
+// Only the app-server fields this host reads are validated and kept.
+const configRead = z.object({ config: z.unknown() });
+const accountRead = z.object({
+  account: z.object({ type: z.string().optional() }).nullish(),
+});
+const modelPage = z.object({
+  data: z.array(z.object({
+    model: z.string(),
+    supportedReasoningEfforts: z
+      .array(z.object({ reasoningEffort: z.string() }))
+      .nullish(),
+  })),
+  nextCursor: z.string().nullish(),
+});
+const usageWindow = z.object({
+  windowDurationMins: z.number().nullish(),
+  usedPercent: z.number().nullish(),
+  resetsAt: z.number().nullish(),
+}).nullish();
+const usageBucket = z.object({ primary: usageWindow, secondary: usageWindow });
+const rateLimits = z.object({
+  rateLimits: usageBucket.nullish(),
+  rateLimitsByLimitId: z.record(z.string(), usageBucket.nullish()).nullish(),
+});
+export type CodexModel = z.output<typeof modelPage>["data"][number];
+export interface CodexInfo {
+  account?: string;
+  models: CodexModel[];
+  limits: z.output<typeof rateLimits>;
+}
 
 // Session workspaces are reused and agent-writable: a planted symlink at
 // .home or .tmp would redirect login seeding outside the round folder.
@@ -264,85 +296,43 @@ export class Docker {
       await removeProbeWorkspace(container.dir).catch(() => {});
     }
   }
-  async codexInfo() {
+  async codexInfo(): Promise<CodexInfo> {
     const container = await this.create("codex", `rpc-${randomUUID()}`, [
       "codex",
       "app-server",
     ]);
-    const process = this.attach(container.name);
-    let nextId = 0;
-    const pending = new Map<
-      number,
-      {
-        resolve: (r: any) => void;
-        reject: (e: Error) => void;
-        timer: ReturnType<typeof setTimeout>;
-      }
-    >();
-    const lines = new JsonLines((event) => {
-      const request = typeof event.id === "number" ? pending.get(event.id) : undefined;
-      if (request) {
-        clearTimeout(request.timer);
-        pending.delete(event.id as number);
-        event.error
-          ? request.reject(new Error("Codex capability request failed"))
-          : request.resolve(event.result);
-      } else if (event.id !== undefined && event.method)
-        process.stdin.write(
-          JSON.stringify({
-            id: event.id,
-            error: { code: -32601, message: "Unsupported request" },
-          }) + "\n",
-        );
+    const child = this.attach(container.name);
+    const rpc = new CodexAppServerClient(child, {
+      messages: {
+        rejected: "Codex capability request failed",
+        failed: "Cannot start Codex capability check",
+        closed: "Codex capability process closed",
+        timeout: (method) => `Codex ${method} timed out`,
+        refused: "Unsupported request",
+      },
     });
-    process.stdout.on("data", (b) => lines.push(b));
-    process.stderr.resume();
-    process.on("error", () => {
-      for (const p of pending.values())
-        p.reject(new Error("Cannot start Codex capability check"));
-    });
-    process.on("close", () => {
-      for (const p of pending.values())
-        p.reject(new Error("Codex capability process closed"));
-    });
-    const call = (method: string, params: unknown = {}) =>
-      new Promise<any>((resolve, reject) => {
-        const id = nextId++;
-        const timer = setTimeout(() => {
-          pending.delete(id);
-          reject(new Error(`Codex ${method} timed out`));
-        }, 15000);
-        pending.set(id, { resolve, reject, timer });
-        process.stdin.write(JSON.stringify({ id, method, params }) + "\n");
-      });
     try {
-      await call("initialize", {
-        clientInfo: { name: "prompt_arena", version: clientVersion },
-      });
-      process.stdin.write(
-        JSON.stringify({ method: "initialized", params: {} }) + "\n",
-      );
-      const profile = await call("config/read", { includeLayers: false });
+      await rpc.initialize({ name: "prompt_arena", version: clientVersion });
+      const profile = await rpc.call("config/read", { includeLayers: false }, configRead);
       assertCodexProfile(profile.config);
-      const account = await call("account/read", { refreshToken: true });
-      if (account.account?.type !== "chatgpt")
-        return { account: account.account?.type, models: [], limits: {} };
-      const models: any[] = [];
+      const { account } = await rpc.call("account/read", { refreshToken: true }, accountRead);
+      if (account?.type !== "chatgpt")
+        return { account: account?.type, models: [], limits: {} };
+      const models: CodexModel[] = [];
       let cursor: string | undefined;
       do {
-        const result = await call("model/list", {
+        const result = await rpc.call("model/list", {
           limit: 100,
           includeHidden: false,
           ...(cursor ? { cursor } : {}),
-        });
+        }, modelPage);
         models.push(...result.data);
         cursor = result.nextCursor ?? undefined;
       } while (cursor);
-      const limits = await call("account/rateLimits/read");
-      return { account: account.account?.type, models, limits };
+      const limits = await rpc.call("account/rateLimits/read", {}, rateLimits);
+      return { account: account.type, models, limits };
     } finally {
-      for (const p of pending.values()) clearTimeout(p.timer);
-      process.stdin.end();
+      child.stdin.end();
       await this.stop(container.name);
       await this.retainAuth("codex", container.dir);
       await removeProbeWorkspace(container.dir).catch(() => {});

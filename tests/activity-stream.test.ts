@@ -113,6 +113,17 @@ test("valid CLI records larger than 2 MB are not discarded between chunks", () =
   assert.deepEqual(events, [{ text }]);
 });
 
+test("a JsonLines line cap drops oversized complete and buffered lines", () => {
+  const events: unknown[] = [];
+  let malformed = 0;
+  const lines = new JsonLines((event) => events.push(event), () => malformed++, 16);
+  lines.push(`{"a":"${"x".repeat(20)}"}\n{"b":1}\n`);
+  assert.equal(malformed, 1);
+  lines.push("x".repeat(17));
+  assert.equal(malformed, 2);
+  assert.deepEqual(events, [{ b: 1 }]);
+});
+
 test("file diffs show additions, removals and newline-only edits", () => {
   assert.equal(fileDiff("same\n", "same\n", "page.html"), "");
   assert.equal(

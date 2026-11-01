@@ -24,7 +24,7 @@ export const codex: CliAdapter = {
       models: info.models.map((model) => ({
         id: model.model,
         efforts: (model.supportedReasoningEfforts ?? []).map(
-          (e: { reasoningEffort: string }) => e.reasoningEffort,
+          (e) => e.reasoningEffort,
         ),
       })),
     };

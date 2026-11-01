@@ -1,32 +1,58 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { basename } from "node:path";
+import { z } from "zod";
 import type {
   Conversation,
   TimelineItem,
   TimelinePage,
 } from "../../shared/sessions.js";
 import { commandName } from "../activity.js";
-import { basename } from "node:path";
+import { CodexAppServerClient } from "../codex-app-server.js";
 
-type RecordValue = Record<string, unknown>;
-const record = (value: unknown): RecordValue =>
-  value && typeof value === "object" ? (value as RecordValue) : {};
-const string = (value: unknown) => (typeof value === "string" ? value : "");
-const array = (value: unknown): unknown[] =>
-  Array.isArray(value) ? value : [];
+// Provider rows are read leniently: a wrong-typed field becomes empty rather
+// than failing the whole page, matching what the UI can show.
+const text = z.string().catch("");
+const time = z.number().catch(0);
+const list = <T extends z.ZodType>(item: T) => z.array(item).catch([]);
+const lenient = <T extends z.ZodRawShape>(shape: T) => {
+  const schema = z.object(shape);
+  return schema.catch(() => schema.parse({}));
+};
+const thread = lenient({
+  id: text,
+  name: text,
+  preview: text,
+  cwd: text,
+  updatedAt: time,
+  model: text,
+});
+type Thread = z.output<typeof thread>;
+const threadPage = lenient({ data: list(thread), nextCursor: text });
+const threadRead = lenient({ thread });
+const itemPage = lenient({
+  nextCursor: text,
+  data: list(
+    lenient({
+      turnId: text,
+      startedAtMs: time,
+      completedAtMs: time,
+      item: lenient({
+        type: text,
+        id: text,
+        text,
+        content: list(lenient({ type: text, text })),
+        summary: list(text),
+        command: text,
+        status: text,
+      }),
+    }),
+  ),
+});
 
 // This client has no start/resume/turn methods. It reads through the installed CLI API only.
 export class CodexHistory {
   private child?: ChildProcessWithoutNullStreams;
-  private ready?: Promise<void>;
-  private next = 0;
-  private pending = new Map<
-    number,
-    {
-      resolve(value: RecordValue): void;
-      reject(error: Error): void;
-      timer: ReturnType<typeof setTimeout>;
-    }
-  >();
+  private ready?: Promise<CodexAppServerClient>;
   constructor(private clean: (text: string, limit?: number) => string) {}
   private connect() {
     return (this.ready ??= (async () => {
@@ -41,189 +67,116 @@ export class CodexHistory {
         stdio: ["pipe", "pipe", "pipe"],
       });
       this.child = child;
-      const fail = () => {
-        if (this.child !== child) return;
-        this.child = undefined;
-        this.ready = undefined;
-        for (const p of this.pending.values()) {
-          clearTimeout(p.timer);
-          p.reject(
-            new Error(
-              "Codex history disconnected. Check the installed CLI and retry.",
-            ),
-          );
-        }
-        this.pending.clear();
-      };
-      child.stderr.resume();
-      child.on("error", fail);
-      child.on("close", fail);
       // Raw provider responses never leave this client or enter public transport.
-      const receive = (line: string) => {
-        if (line.length > 4_000_000) {
-          child.kill();
-          return;
-        }
-        try {
-          const message = record(JSON.parse(line));
-          const p =
-            typeof message.id === "number"
-              ? this.pending.get(message.id)
-              : undefined;
-          if (p) {
-            clearTimeout(p.timer);
-            this.pending.delete(message.id as number);
-            message.error
-              ? p.reject(
-                  new Error(
-                    "Installed Codex does not support this history request. Update the CLI or use a managed session.",
-                  ),
-                )
-              : p.resolve(record(message.result));
-          } else if (message.id !== undefined && message.method) {
-            child.stdin.write(
-              JSON.stringify({
-                id: message.id,
-                error: { code: -32601, message: "Read-only history client" },
-              }) + "\n",
-            );
-          }
-        } catch {
-          child.kill();
-        }
-      };
-      let buffer = "";
-      child.stdout.setEncoding("utf8");
-      child.stdout.on("data", (chunk: string) => {
-        buffer += chunk;
-        let newline: number;
-        while ((newline = buffer.indexOf("\n")) >= 0) {
-          const line = buffer.slice(0, newline);
-          buffer = buffer.slice(newline + 1);
-          receive(line);
-        }
-        if (buffer.length > 4_000_000) child.kill();
+      const client = new CodexAppServerClient(child, {
+        maxLine: 4_000_000,
+        messages: {
+          rejected:
+            "Installed Codex does not support this history request. Update the CLI or use a managed session.",
+          closed: "Codex history disconnected. Check the installed CLI and retry.",
+          pipe: "Codex history pipe closed",
+          timeout: () =>
+            "Codex history request timed out. Retry after checking the CLI.",
+          refused: "Read-only history client",
+        },
+        onClose: () => {
+          if (this.child !== child) return;
+          this.child = undefined;
+          this.ready = undefined;
+        },
       });
-      await this.call("initialize", {
-        clientInfo: { name: "twitching_history", version: "0.1.0" },
-      });
-      child.stdin.write(JSON.stringify({ method: "initialized" }) + "\n");
+      await client.initialize({ name: "twitching_history", version: "0.1.0" });
+      return client;
     })().catch((error) => {
       this.child?.kill();
       this.ready = undefined;
       throw error;
     }));
   }
-  private call(method: string, params: unknown = {}): Promise<RecordValue> {
-    return new Promise((resolve, reject) => {
-      const id = this.next++;
-      const timer = setTimeout(() => {
-        this.pending.delete(id);
-        reject(
-          new Error(
-            "Codex history request timed out. Retry after checking the CLI.",
-          ),
-        );
-        this.child?.kill();
-      }, 15000);
-      this.pending.set(id, { resolve, reject, timer });
-      this.child?.stdin.write(
-        JSON.stringify({ id, method, params }) + "\n",
-        (error) => {
-          if (error) {
-            clearTimeout(timer);
-            this.pending.delete(id);
-            reject(new Error("Codex history pipe closed"));
-          }
-        },
-      );
-    });
-  }
   async list(search: string, cursor?: string) {
-    await this.connect();
-    const page = await this.call("thread/list", {
-      limit: 30,
-      cursor,
-      searchTerm: search || undefined,
-      sortKey: "updated_at",
-    });
+    const page = await (await this.connect()).call(
+      "thread/list",
+      {
+        limit: 30,
+        cursor,
+        searchTerm: search || undefined,
+        sortKey: "updated_at",
+      },
+      threadPage,
+    );
     return {
-      conversations: array(page.data).map((v) => this.metadata(record(v))),
-      before: string(page.nextCursor) || undefined,
+      conversations: page.data.map((v) => this.metadata(v)),
+      before: page.nextCursor || undefined,
     };
   }
-  private metadata(thread: RecordValue): Conversation {
-    const providerId = string(thread.id);
+  private metadata(thread: Thread): Conversation {
+    const providerId = thread.id;
     return {
       id: `codex:${providerId}`,
       providerId,
       source: "codex",
       cli: "codex",
-      title: this.clean(
-        string(thread.name) || string(thread.preview) || "Codex session",
-        160,
-      ),
-      project: this.clean(basename(string(thread.cwd)), 180),
-      updatedAt: Number(thread.updatedAt || 0) * 1000,
-      model: string(thread.model) || undefined,
+      title: this.clean(thread.name || thread.preview || "Codex session", 160),
+      project: this.clean(basename(thread.cwd), 180),
+      updatedAt: thread.updatedAt * 1000,
+      model: thread.model || undefined,
       // A separate app-server cannot verify another process's runtime status.
       status: "unknown",
     };
   }
   async read(id: string) {
-    await this.connect();
-    const result = await this.call("thread/read", {
-      threadId: id,
-      includeTurns: false,
-    });
-    if (string(record(result.thread).id) !== id)
+    const result = await (await this.connect()).call(
+      "thread/read",
+      { threadId: id, includeTurns: false },
+      threadRead,
+    );
+    if (result.thread.id !== id)
       throw new Error("Codex returned an unexpected session identity");
-    return this.metadata(record(result.thread));
+    return this.metadata(result.thread);
   }
   async page(id: string, cursor?: string, limit = 60): Promise<TimelinePage> {
-    await this.connect();
-    const page = await this.call("thread/items/list", {
-      threadId: id,
-      cursor,
-      limit: Math.max(1, Math.min(60, limit)),
-      sortDirection: "desc",
-    });
+    const page = await (await this.connect()).call(
+      "thread/items/list",
+      {
+        threadId: id,
+        cursor,
+        limit: Math.max(1, Math.min(60, limit)),
+        sortDirection: "desc",
+      },
+      itemPage,
+    );
     return {
-      before: string(page.nextCursor) || undefined,
-      latestRun: string(record(array(page.data)[0]).turnId),
-      items: array(page.data)
+      before: page.nextCursor || undefined,
+      latestRun: page.data[0]?.turnId ?? "",
+      items: page.data
         .reverse()
-        .flatMap((entry) => {
-          const row = record(entry),
-            item = record(row.item);
+        .flatMap((row) => {
+          const item = row.item;
           let kind: TimelineItem["kind"],
             text = "",
             placeholder = false;
           switch (item.type) {
             case "userMessage":
               kind = "prompt";
-              text = array(item.content)
-                .map((v) => {
-                  const c = record(v);
-                  return c.type === "text" ? string(c.text) : "";
-                })
+              text = item.content
+                .map((c) => (c.type === "text" ? c.text : ""))
                 .join("\n");
               break;
             case "agentMessage":
               kind = "message";
-              text = string(item.text);
+              text = item.text;
               break;
             case "plan":
               kind = "summary";
-              text = string(item.text);
+              text = item.text;
               break;
             case "reasoning":
               kind = "summary";
-              text = array(item.summary).map(string).join("\n");
+              text = item.summary.join("\n");
               break;
             case "commandExecution":
               kind = "command";
-              text = `Command: ${commandName(string(item.command))} (${string(item.status) || "recorded"})`;
+              text = `Command: ${commandName(item.command)} (${item.status || "recorded"})`;
               break;
             case "fileChange":
               kind = "edit";
@@ -242,12 +195,12 @@ export class CodexHistory {
               return [];
           }
           // Only explicitly selected text fields are exported; never outputs, raw arguments or private paths.
-          return text && string(item.id)
+          return text && item.id
             ? [
                 {
-                  id: string(item.id),
-                  run: string(row.turnId),
-                  at: Number(row.startedAtMs || row.completedAtMs || 0),
+                  id: item.id,
+                  run: row.turnId,
+                  at: row.startedAtMs || row.completedAtMs || 0,
                   kind,
                   text:
                     this.clean(text, 16000) +

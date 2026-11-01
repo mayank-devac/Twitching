@@ -12,9 +12,12 @@ import type {
 export class JsonLines {
   private buffer = "";
   private decoder = new StringDecoder("utf8");
+  // maxLine bounds memory for peers that never send a newline; an oversized
+  // line (complete or still buffered) is dropped and reported as malformed.
   constructor(
     private receive: (event: Record<string, unknown>) => void,
     private malformed: () => void = () => {},
+    private maxLine = Infinity,
   ) {}
   push(chunk: Buffer | string) {
     this.buffer +=
@@ -31,7 +34,12 @@ export class JsonLines {
     while ((index = this.buffer.indexOf("\n")) >= 0) {
       const line = this.buffer.slice(0, index);
       this.buffer = this.buffer.slice(index + 1);
-      this.parse(line);
+      if (line.length > this.maxLine) this.malformed();
+      else this.parse(line);
+    }
+    if (this.buffer.length > this.maxLine) {
+      this.buffer = "";
+      this.malformed();
     }
   }
   private parse(line: string) {
