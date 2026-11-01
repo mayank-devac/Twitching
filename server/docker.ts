@@ -71,7 +71,7 @@ export interface CodexInfo {
 
 // Session workspaces are reused and agent-writable: a planted symlink at
 // .home or .tmp would redirect login seeding outside the round folder.
-async function assertRealDirectory(path: string) {
+export async function assertRealDirectory(path: string) {
   const info = await lstat(path);
   if (info.isSymbolicLink() || !info.isDirectory())
     throw new Error("Runner workspace path must be a real directory, not a link");

@@ -21,7 +21,7 @@ import {
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { writeFileAtomic, writeFileAtomicSync } from "./atomic-file.js";
-import { Docker, type RunApproval, type WorkspaceRequest } from "./docker.js";
+import { assertRealDirectory, Docker, type RunApproval, type WorkspaceRequest } from "./docker.js";
 import { enforceDiskBudget } from "./disk-budget.js";
 import { removeProbeWorkspace } from "./probe-workspace-cleanup.js";
 import { prepareCodexHome, retainCodexLogin } from "./codex-profile.js";
@@ -67,6 +67,13 @@ export class NativeHost extends Docker {
       String(round),
     );
     await mkdir(dir, { recursive: true, mode: 0o700 });
+    // Same S7 guard as Docker: a reused round folder (or its .cli-home) that is
+    // a planted link would redirect login seeding and git init elsewhere.
+    // Check the round folder before creating anything inside it.
+    await assertRealDirectory(dir);
+    const home = resolve(dir, ".cli-home");
+    await mkdir(home, { recursive: true, mode: 0o700 });
+    await assertRealDirectory(home);
     // A git root here stops the CLI from walking up to this repo's AGENTS.md and rules.
     await access(resolve(dir, ".git")).catch(() =>
       exec("git", ["init", "-q"], { cwd: dir }),

@@ -4,9 +4,11 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   readlink,
   rm,
   stat,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -377,5 +379,29 @@ test("a finished native Codex probe retains its arena login before deleting its 
   } finally {
     store.close();
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a reused native workspace refuses a linked round folder or .cli-home", async () => {
+  const root = await mkdtemp(resolve(tmpdir(), "stram-native-link-"));
+  const outside = await mkdtemp(resolve(tmpdir(), "stram-native-outside-"));
+  const store = new Store(":memory:");
+  const host = new NativeHost(store, root);
+  try {
+    const sessions = resolve(root, "runtime/native-workspaces/cursor");
+    await mkdir(resolve(sessions, "1"), { recursive: true });
+    await symlink(outside, resolve(sessions, "1", ".cli-home"));
+    await symlink(outside, resolve(sessions, "2"));
+    for (const round of [1, 2])
+      await assert.rejects(
+        host.workspace({ cli: "cursor", round }),
+        /must be a real directory/,
+      );
+    // Nothing was created through either link.
+    assert.deepEqual(await readdir(outside), []);
+  } finally {
+    store.close();
+    await rm(root, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
   }
 });
