@@ -193,13 +193,12 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px 10px;
-  align-items: start;
+  align-items: stretch;
 }
-.overlay-editor-fields > label {
+.overlay-main-col > label,
+.overlay-combo {
   display: grid;
   gap: 4px;
-  align-content: start;
-  align-self: start;
   color: var(--ov-muted);
   font-size: 11px;
   font-weight: 500;
@@ -289,28 +288,33 @@
   align-items: center;
   gap: 6px;
 }
+/* Selected sessions: an even two-column grid with the remove button pinned right. */
 .overlay-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
   min-height: 0;
   align-content: flex-start;
 }
 .overlay-chip {
-  display: inline-flex;
+  display: flex;
+  justify-content: space-between;
   align-items: center;
   gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
   max-width: 100%;
   min-width: 0;
   padding: 4px 8px 4px 10px;
   border: 1px solid #4a3fa8;
-  border-radius: 999px;
+  border-radius: var(--ov-radius-sm);
   background: var(--ov-accent-soft);
   color: #d9d3ff;
   font-size: 11px;
   line-height: 1.2;
 }
 .overlay-chip span {
+  flex: 1 1 auto;
   overflow: hidden;
   min-width: 0;
   text-overflow: ellipsis;
@@ -324,6 +328,7 @@
   color: #b6aaf0;
   font-size: 12px;
   line-height: 1;
+  flex: 0 0 14px;
   width: 14px;
   height: 14px;
   border-radius: 50%;
@@ -335,23 +340,27 @@
   background: #ffffff14;
 }
 .overlay-chips-empty {
+  grid-column: 1 / -1;
   align-self: center;
   color: #6d788d;
   font-size: 11px;
   font-style: italic;
 }
 .overlay-selection-col small {
+  margin-top: 2px;
   color: var(--ov-muted);
   font-size: 10px;
 }
+/* URL box sits bottom-right beside the selected sessions: URL on top, Copy and Open side by side. */
 .overlay-url-row {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 6px;
-  margin-top: 0;
+  margin-top: auto;
 }
 .overlay-url-row input {
-  flex: 1 1 auto;
+  grid-column: 1 / -1;
+  min-width: 0;
   height: 32px;
   font:
     11px ui-monospace,
@@ -359,6 +368,7 @@
   color: var(--ov-muted);
 }
 .overlay-url-row > button {
+  justify-content: center;
   flex-shrink: 0;
   height: 32px;
   padding: 4px 10px;
@@ -367,6 +377,7 @@
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   height: 32px;
   padding: 4px 10px;
   border: 1px solid var(--ov-border-strong);
@@ -441,7 +452,10 @@
 }
 @media (max-width: 760px) {
   .overlay-editor-fields {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .overlay-side-col {
+    grid-column: 1;
   }
   .multi-overlays {
     padding: 10px 12px;
@@ -452,14 +466,6 @@
 }
 
 /* Output name + output switcher merged into one field. */
-.overlay-combo {
-  grid-column: 1;
-  display: grid;
-  gap: 4px;
-  color: var(--ov-muted);
-  font-size: 11px;
-  font-weight: 500;
-}
 .overlay-combo-box {
   position: relative;
   display: flex;
@@ -537,86 +543,15 @@
   min-width: 0;
   align-self: start;
 }
-.overlay-main-col > label {
-  display: grid;
-  gap: 4px;
-  color: var(--ov-muted);
-  font-size: 11px;
-  font-weight: 500;
-}
 .overlay-side-col {
   grid-column: 2;
-  min-width: 0;
-  align-self: start;
-}
-@media (max-width: 700px) {
-  .overlay-editor-fields {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .overlay-side-col {
-    grid-column: 1;
-  }
-}
-
-/* Selected sessions: an even two-column grid with the remove button pinned right. */
-.overlay-chips {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-}
-.overlay-chip {
   display: flex;
-  justify-content: space-between;
-  width: 100%;
-  box-sizing: border-box;
-  border-radius: var(--ov-radius-sm);
-}
-.overlay-chip span {
-  flex: 1 1 auto;
-}
-.overlay-chip button {
-  flex: 0 0 14px;
-}
-.overlay-chips-empty {
-  grid-column: 1 / -1;
-}
-.overlay-selection-col small {
-  margin-top: 2px;
-}
-.overlay-url-row {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--ov-border);
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
 }
 @media (max-width: 520px) {
   .overlay-chips {
     grid-template-columns: minmax(0, 1fr);
   }
-}
-
-/* URL box sits bottom-right beside the selected sessions: URL on top, Copy and Open side by side. */
-.overlay-editor-fields {
-  align-items: stretch;
-}
-.overlay-side-col {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  align-self: stretch;
-}
-.overlay-side-col .overlay-url-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin-top: auto;
-  padding-top: 0;
-  border-top: 0;
-}
-.overlay-side-col .overlay-url-row input {
-  grid-column: 1 / -1;
-  min-width: 0;
-}
-.overlay-side-col .overlay-url-row > button,
-.overlay-side-col .overlay-url-row > a {
-  justify-content: center;
 }

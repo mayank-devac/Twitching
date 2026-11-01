@@ -1,7 +1,18 @@
 import React, { useEffect, useId, useState } from "react";
 
-// Renders a ```mermaid code block as a diagram.
-// Mermaid is large, so it loads on first use. While the source is invalid
+// Mermaid is large, so it loads (and is configured) once, on first use.
+let mermaidReady: Promise<typeof import("mermaid").default> | undefined;
+const loadMermaid = () =>
+  (mermaidReady ??= import("mermaid").then(({ default: mermaid }) => {
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: "strict",
+      theme: "dark",
+    });
+    return mermaid;
+  }));
+
+// Renders a ```mermaid code block as a diagram. While the source is invalid
 // (for example, a reply that is still streaming) the raw code is shown instead.
 export function MermaidDiagram({ source }: { source: string }) {
   const id = "mermaid-" + useId().replace(/\W/g, "");
@@ -11,12 +22,7 @@ export function MermaidDiagram({ source }: { source: string }) {
     let cancelled = false;
     (async () => {
       try {
-        const { default: mermaid } = await import("mermaid");
-        mermaid.initialize({
-          startOnLoad: false,
-          securityLevel: "strict",
-          theme: "dark",
-        });
+        const mermaid = await loadMermaid();
         const result = await mermaid.render(id, source);
         if (!cancelled) setSvg(result.svg);
       } catch {

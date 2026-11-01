@@ -3,6 +3,10 @@ import ReactMarkdown from "react-markdown";
 import { markdownComponents, markdownPlugins } from "../markdown.js";
 import { MermaidDiagram } from "./Mermaid.js";
 
+const SharedLink = markdownComponents.a as React.ComponentType<
+  React.ComponentProps<"a"> & { node?: unknown }
+>;
+
 // Markdown rules for timeline rows: the shared safe rules, plus
 // mermaid diagrams and "Annotation N" tags.
 const timelineComponents = {
@@ -15,20 +19,18 @@ const timelineComponents = {
     }
     return <pre {...props}>{children}</pre>;
   },
-  a: ({ href, children, node: _node, ...props }: React.ComponentProps<"a"> & { node?: unknown }) =>
-    href?.startsWith("#annotation-") ? (
-      <span className="tag tag-annotation">{children}</span>
+  a: (props: React.ComponentProps<"a"> & { node?: unknown }) =>
+    props.href?.startsWith("#annotation-") ? (
+      <span className="tag tag-annotation">{props.children}</span>
     ) : (
-      <a {...props} href={href} target="_blank" rel="noreferrer">
-        {children}
-      </a>
+      <SharedLink {...props} />
     ),
 };
 
 // Codex adds machine directives such as ::created-thread{threadId="…"} on their own line.
 // They are instructions for Codex's own UI, not text for the viewer.
 const directiveLine = /^[ \t]*::[\w-]+\{[^}\n]*\}[ \t]*$/gm;
-export const stripDirectives = (text: string) =>
+const stripDirectives = (text: string) =>
   text.replace(directiveLine, "").replace(/\n{3,}/g, "\n\n").trim();
 
 // Memoised so unchanged history is not reparsed while the current answer grows.

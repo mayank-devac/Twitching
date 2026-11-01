@@ -130,127 +130,152 @@ export function OverlayManager({
       </header>
       <div className="overlay-editor-fields">
         <div className="overlay-main-col">
-        <div className="overlay-combo">
-          <label htmlFor="overlay-output-name">Output name</label>
-          <div className="overlay-combo-box">
-            <input
-              id="overlay-output-name"
-              value={draft.name}
-              maxLength={80}
+          <div className="overlay-combo">
+            <label htmlFor="overlay-output-name">Output name</label>
+            <div className="overlay-combo-box">
+              <input
+                id="overlay-output-name"
+                value={draft.name}
+                maxLength={80}
+                disabled={editor.busy}
+                onChange={(event) =>
+                  editor.setDraft({ ...draft, name: event.target.value })
+                }
+              />
+              <button
+                type="button"
+                className="overlay-combo-toggle"
+                aria-label="Switch output"
+                aria-haspopup="listbox"
+                aria-expanded={comboOpen}
+                disabled={editor.busy}
+                onClick={() => setComboOpen((open) => !open)}
+                onBlur={(event) => {
+                  if (
+                    !event.currentTarget.parentElement?.contains(
+                      event.relatedTarget,
+                    )
+                  )
+                    setComboOpen(false);
+                }}
+              >
+                <svg
+                  viewBox="0 0 12 8"
+                  width="12"
+                  height="8"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M1 1.5l5 5 5-5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  />
+                </svg>
+              </button>
+              {comboOpen && (
+                <ul
+                  className="overlay-combo-list"
+                  role="listbox"
+                  aria-label="Editing output"
+                >
+                  {document.overlays.map((overlay) => (
+                    <li
+                      key={overlay.id}
+                      role="option"
+                      aria-selected={overlay.id === draft.id}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setComboOpen(false);
+                          if (overlay.id !== draft.id)
+                            editor.select(overlay.id);
+                        }}
+                      >
+                        {overlay.name}
+                        {overlay.published ? " · On stream" : ""}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+          <label>
+            <span>
+              Sessions to show{" "}
+              <span
+                className="overlay-mode-info"
+                tabIndex={0}
+                aria-label="Automatic session eligibility"
+                title="Automatic mode follows managed sessions with verified running activity. External Codex history has unknown status and must be selected manually. Live outputs require rehearsal confirmation."
+              >
+                ⓘ
+              </span>
+            </span>
+            <select
+              value={draft.selection}
               disabled={editor.busy}
               onChange={(event) =>
-                editor.setDraft({ ...draft, name: event.target.value })
+                editor.selection(event.target.value as OverlaySelection)
               }
-            />
-            <button
-              type="button"
-              className="overlay-combo-toggle"
-              aria-label="Switch output"
-              aria-haspopup="listbox"
-              aria-expanded={comboOpen}
-              disabled={editor.busy}
-              onClick={() => setComboOpen((open) => !open)}
-              onBlur={(event) => {
-                if (!event.currentTarget.parentElement?.contains(event.relatedTarget))
-                  setComboOpen(false);
-              }}
             >
-              <svg viewBox="0 0 12 8" width="12" height="8" aria-hidden="true">
-                <path d="M1 1.5l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.5" />
-              </svg>
-            </button>
-            {comboOpen && (
-              <ul className="overlay-combo-list" role="listbox" aria-label="Editing output">
-                {document.overlays.map((overlay) => (
-                  <li key={overlay.id} role="option" aria-selected={overlay.id === draft.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setComboOpen(false);
-                        if (overlay.id !== draft.id) editor.select(overlay.id);
-                      }}
-                    >
-                      {overlay.name}
-                      {overlay.published ? " · On stream" : ""}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
+              <option value="selected">Selected sessions</option>
+              <option value="running-snapshot">Running now</option>
+              <option value="follow-running">Follow running</option>
+            </select>
+          </label>
+          <div className="overlay-selection-col">
+            <h3>
+              {selectionLabel} · {draft.sessionIds.length} /{" "}
+              {MAX_OVERLAY_SESSIONS}
+            </h3>
+            <div className="overlay-chips">
+              {draft.sessionIds.map((id) => (
+                <div className="overlay-chip" key={id}>
+                  <span>{titles.get(id) ?? id}</span>
+                  <button
+                    aria-label={"Remove " + (titles.get(id) ?? id)}
+                    disabled={
+                      editor.busy || draft.selection === "follow-running"
+                    }
+                    onClick={() => editor.toggle(id)}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {!draft.sessionIds.length && (
+                <span className="overlay-chips-empty">
+                  Tick sessions in the list on the left
+                </span>
+              )}
+            </div>
+            <small>
+              {applied?.published
+                ? `On stream · ${applied.sessionIds.length}`
+                : "Not published"}
+              {editor.dirty && " · Apply to update"}
+            </small>
           </div>
-        </div>
-        <label>
-          <span>
-            Sessions to show{" "}
-            <span
-              className="overlay-mode-info"
-              tabIndex={0}
-              aria-label="Automatic session eligibility"
-              title="Automatic mode follows managed sessions with verified running activity. External Codex history has unknown status and must be selected manually. Live outputs require rehearsal confirmation."
-            >
-              ⓘ
-            </span>
-          </span>
-          <select
-            value={draft.selection}
-            disabled={editor.busy}
-            onChange={(event) =>
-              editor.selection(event.target.value as OverlaySelection)
-            }
-          >
-            <option value="selected">Selected sessions</option>
-            <option value="running-snapshot">Running now</option>
-            <option value="follow-running">Follow running</option>
-          </select>
-        </label>
-        <div className="overlay-selection-col">
-          <h3>
-            {selectionLabel} · {draft.sessionIds.length} /{" "}
-            {MAX_OVERLAY_SESSIONS}
-          </h3>
-          <div className="overlay-chips">
-            {draft.sessionIds.map((id) => (
-              <div className="overlay-chip" key={id}>
-                <span>{titles.get(id) ?? id}</span>
-                <button
-                  aria-label={"Remove " + (titles.get(id) ?? id)}
-                  disabled={editor.busy || draft.selection === "follow-running"}
-                  onClick={() => editor.toggle(id)}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-            {!draft.sessionIds.length && (
-              <span className="overlay-chips-empty">
-                Tick sessions in the list on the left
-              </span>
-            )}
-          </div>
-          <small>
-            {applied?.published
-              ? `On stream · ${applied.sessionIds.length}`
-              : "Not published"}
-            {editor.dirty && " · Apply to update"}
-          </small>
-        </div>
         </div>
         <div className="overlay-side-col">
           {children}
           <div className="overlay-url-row">
-        <input
-          aria-label="OBS browser source URL"
-          value={url}
-          readOnly
-          onFocus={(event) => event.currentTarget.select()}
-        />
-        <button type="button" onClick={() => void copyUrl()}>
-          {copied ? "Copied" : "Copy"}
-        </button>
-        <a href={url} target="_blank" rel="noreferrer">
-          Open ↗
-        </a>
-      </div>
+            <input
+              aria-label="OBS browser source URL"
+              value={url}
+              readOnly
+              onFocus={(event) => event.currentTarget.select()}
+            />
+            <button type="button" onClick={() => void copyUrl()}>
+              {copied ? "Copied" : "Copy"}
+            </button>
+            <a href={url} target="_blank" rel="noreferrer">
+              Open ↗
+            </a>
+          </div>
         </div>
       </div>
       {runningOverflow > 0 && draft.selection !== "selected" && (

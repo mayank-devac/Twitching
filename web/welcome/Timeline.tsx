@@ -190,11 +190,12 @@ export function Timeline({
               className={`timeline-item kind-${item.kind}`}
             >
               <small>{rowLabel(item.kind, count)}</small>
-              {placeholderText.has(item.text) ? null : item.kind === "prompt" ? (
-                <PromptText text={item.text} />
-              ) : (
-                <TimelineMarkdown text={item.text} />
-              )}
+              {!placeholderText.has(item.text) &&
+                (item.kind === "prompt" ? (
+                  <PromptText text={item.text} />
+                ) : (
+                  <TimelineMarkdown text={item.text} />
+                ))}
             </article>
           </React.Fragment>
         ))}

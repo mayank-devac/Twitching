@@ -12,7 +12,6 @@ export interface PromptReply {
 }
 export interface PromptFile {
   ext: string;
-  name?: string;
 }
 export interface PromptParts {
   body: string;
@@ -39,6 +38,16 @@ export function parsePrompt(input: string): PromptParts {
   const annotations: PromptAnnotation[] = [];
   const replies: PromptReply[] = [];
   const files: PromptFile[] = [];
+  const pushAnnotations = (rows: unknown[]) => {
+    for (const row of rows) {
+      const entry = (row ?? {}) as Record<string, unknown>;
+      annotations.push({
+        index: annotations.length + 1,
+        quote: str(entry.text),
+        comment: str(entry.annotation),
+      });
+    }
+  };
 
   body = body.replace(
     /<send_user_message_question_reply>\s*([\s\S]*?)\s*<\/send_user_message_question_reply>/g,
@@ -69,13 +78,7 @@ export function parsePrompt(input: string): PromptParts {
         !value.every((row) => row && typeof row === "object" && "text" in row)
       )
         return whole;
-      value.forEach((row, i) =>
-        annotations.push({
-          index: i + 1,
-          quote: str((row as Record<string, unknown>).text),
-          comment: str((row as Record<string, unknown>).annotation),
-        }),
-      );
+      pushAnnotations(value);
       return "";
     },
   );
@@ -91,13 +94,7 @@ export function parsePrompt(input: string): PromptParts {
     ) {
       const value = json(body.slice(jsonStart, end + 2));
       if (!Array.isArray(value)) continue;
-      value.forEach((row, i) =>
-        annotations.push({
-          index: annotations.length + 1,
-          quote: str((row as Record<string, unknown>)?.text),
-          comment: str((row as Record<string, unknown>)?.annotation),
-        }),
-      );
+      pushAnnotations(value);
       body = body.slice(0, preamble) + body.slice(end + 2);
       break;
     }

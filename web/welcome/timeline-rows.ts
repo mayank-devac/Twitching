@@ -1,6 +1,6 @@
 // Row labels and grouping rules for the session timeline.
 
-export const kindLabel: Record<string, string> = {
+const kindLabel:Record<string, string> = {
   prompt: "You",
   message: "Message",
   summary: "Summary",

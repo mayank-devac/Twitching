@@ -548,6 +548,7 @@ body:has(.welcome-page) {
 .publication-actions {
   display: flex;
   flex: 0 0 auto;
+  align-items: center;
   justify-content: flex-end;
   gap: 9px;
   padding: 10px 12px;
@@ -618,6 +619,8 @@ body:has(.welcome-page) {
   white-space: nowrap;
 }
 .visibility-chip {
+  flex: 0 0 auto;
+  white-space: nowrap;
   padding: 3px 9px;
   border: 1px solid var(--welcome-border-strong);
   border-radius: 999px;
@@ -658,16 +661,28 @@ body:has(.welcome-page) {
   color: var(--welcome-muted);
   font-size: 10px;
 }
-/* Scoped so the panel-wide label/button rules can't inflate the toggles. */
+/* Scoped so the panel-wide label/button rules can't inflate the toggles.
+   Inside the output panel, visibility is a column of wrapping chips beside the session controls. */
+.multi-overlays .overlay-visibility {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+  padding-left: 14px;
+  border-left: 1px solid var(--welcome-border);
+}
 .multi-overlays .visibility-row {
+  flex-direction: column;
+  align-items: stretch;
   margin-top: 4px;
-  gap: 6px;
+  gap: 8px;
 }
 .multi-overlays .visibility-chips {
   margin-top: 0;
   gap: 4px;
-  flex-wrap: nowrap;
-  overflow-x: auto;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  overflow: visible;
+  padding-bottom: 0;
 }
 .multi-overlays .visibility-chip {
   min-height: 0;
@@ -688,10 +703,15 @@ body:has(.welcome-page) {
 }
 .multi-overlays .hide-runs-choice {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 7px;
-  margin-top: 4px;
+  margin-top: 0;
   font-size: 11px;
+}
+.multi-overlays .hide-runs-choice input {
+  flex: 0 0 13px;
+  padding: 0;
 }
 .welcome-footer {
   display: flex;
@@ -1052,9 +1072,11 @@ body:has(.welcome-page) {
   background: #10141c;
   color: var(--welcome-text);
 }
+/* Shares a row with Show on stream in the publication actions. */
 .read-only-note {
-  padding: 10px 16px 14px;
-  border-top: 1px solid var(--welcome-border);
+  flex: 1 1 auto;
+  margin: 0 auto 0 0;
+  padding: 0 4px;
   color: var(--welcome-muted);
   font-size: 12px;
 }
@@ -1199,53 +1221,4 @@ body:has(.welcome-page) {
 }
 .footer-actions .rehearsal-check {
   display: flex;
-}
-
-/* Keep every visibility chip on one side-by-side row; the row scrolls instead of squashing chips. */
-.visibility-chip,
-.multi-overlays .visibility-chip {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-
-/* Visibility is a vertical column of chips beside the session controls. */
-.multi-overlays .overlay-visibility {
-  margin-top: 0;
-  padding-top: 0;
-  border-top: 0;
-  padding-left: 14px;
-  border-left: 1px solid var(--welcome-border);
-}
-.multi-overlays .visibility-row {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
-}
-.multi-overlays .visibility-chips {
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  overflow: visible;
-  padding-bottom: 0;
-}
-.multi-overlays .hide-runs-choice {
-  flex-wrap: wrap;
-  margin-top: 0;
-}
-.multi-overlays .hide-runs-choice input {
-  flex: 0 0 13px;
-  width: 13px;
-  height: 13px;
-  padding: 0;
-}
-
-/* Read-only note shares a row with Show on stream. */
-.publication-actions {
-  align-items: center;
-}
-.publication-actions .read-only-note {
-  flex: 1 1 auto;
-  margin: 0 auto 0 0;
-  padding: 0 4px;
-  border-top: 0;
 }
