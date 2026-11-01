@@ -289,7 +289,12 @@ export function Welcome({
         const view = await request<SessionView>(
           `/api/sessions/view?id=${encodeURIComponent(id)}`,
         );
-        if (!closed && ticket === selection.current) setSelected(view);
+        // An unchanged view keeps the old object so the 4s poll doesn't
+        // re-render the whole welcome page.
+        if (!closed && ticket === selection.current)
+          setSelected((old) =>
+            old && JSON.stringify(old) === JSON.stringify(view) ? old : view,
+          );
       } catch {
         if (!closed && ticket === selection.current)
           setNotice("Session disconnected. Select it again to reconnect.");

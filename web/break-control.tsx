@@ -38,7 +38,10 @@ export function BreakControl({
         token,
         "/api/sessions/overlays",
       );
-      setDocument(next);
+      // Keep the current object when nothing changed to skip a re-render.
+      setDocument((old) =>
+        old && JSON.stringify(old) === JSON.stringify(next) ? old : next,
+      );
       if (!next.overlays.some((output) => output.id === selectedId))
         setSelectedId("default");
     } catch (e) {

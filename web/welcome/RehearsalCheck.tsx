@@ -33,6 +33,10 @@ export function RehearsalCheck({
   const panelId = useId();
   const alive = useRef(true);
   const [music, setMusic] = useState("/media/break.mp3");
+  const shown = useRef<{ scope: string; review?: typeof review }>({
+    scope: "",
+  });
+  shown.current.review = review;
   useEffect(() => {
     alive.current = true;
     const element = audio.current;
@@ -45,8 +49,14 @@ export function RehearsalCheck({
     if (!token) return;
     let closed = false;
     const element = audio.current;
-    setReview(undefined);
-    setChecked({});
+    // A new token, context or Refresh click starts a fresh review as before; a
+    // settings revision bump only re-reads it, keeping state when nothing changed.
+    const scope = JSON.stringify([token, context, refresh]);
+    if (shown.current.scope !== scope) {
+      shown.current.scope = scope;
+      setReview(undefined);
+      setChecked({});
+    }
     setError("");
     void Promise.all([
       hostRequest<{ key: string; confirmed: boolean; hidden: boolean }>(
@@ -60,7 +70,17 @@ export function RehearsalCheck({
     ])
       .then(([value, settings]) => {
         if (!closed) {
-          setReview(value);
+          const old = shown.current.review;
+          if (
+            !old ||
+            old.key !== value.key ||
+            old.confirmed !== value.confirmed ||
+            old.hidden !== value.hidden
+          ) {
+            setReview(value);
+            // Ticks made while a fresh review loads are kept, as before.
+            if (old) setChecked({});
+          }
           setMusic(
             settings.value.media.audio
               ? `/media/break/${settings.value.media.audio}`

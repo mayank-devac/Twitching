@@ -24,6 +24,13 @@ export function useOverlayEditor(token: string) {
   const confirmLeave = useUnsavedWarning(dirty);
   const current = useRef({ document, draft, dirty, busy });
   current.current = { document, draft, dirty, busy };
+  // Last poll payload, the document object it produced, and whether the draft
+  // was reset from it; an identical poll then needs no state update at all.
+  const polled = useRef<{
+    text: string;
+    document?: OverlayHostDocument;
+    accepted: boolean;
+  }>({ text: "", accepted: false });
   function accept(
     next: OverlayHostDocument,
     id = current.current.draft?.id ?? "default",
@@ -50,8 +57,21 @@ export function useOverlayEditor(token: string) {
         );
         if (!closed) {
           setLoadError("");
+          // OverlayHostDocument.revision does not cover running sessions or
+          // presentation state, so compare the whole payload instead.
+          const text = JSON.stringify(next);
+          const last = polled.current;
+          const shown = current.current;
+          const editing = !!shown.draft && shown.dirty;
+          if (
+            text === last.text &&
+            shown.document === last.document &&
+            (editing || last.accepted)
+          )
+            return;
           setDocument(next);
-          if (!current.current.draft || !current.current.dirty) accept(next);
+          if (!editing) accept(next);
+          polled.current = { text, document: next, accepted: !editing };
         }
       } catch (e) {
         if (!closed)
