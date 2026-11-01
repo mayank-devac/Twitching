@@ -5,6 +5,7 @@ import {
   cp,
   writeFile,
   lstat,
+  rm,
 } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -339,20 +340,25 @@ export class Docker {
       await removeProbeWorkspace(container.dir).catch(() => {});
     }
   }
-  async retainAuth(agent: Agent, dir: string) {
-    if (agent === "codex") {
-      await retainCodexLogin(this.options.root, resolve(dir, ".home"));
-      return;
-    }
+  // discardHome: a finished arena round never reuses its folder, so once the
+  // login is safely back in runtime/auth the token copy in .home is deleted.
+  // A failed retain throws first and keeps .home: a rotated refresh token may
+  // exist only there.
+  async retainAuth(agent: Agent, dir: string, options: { discardHome?: boolean } = {}) {
     const home = resolve(dir, ".home");
-    const dest = resolve(this.options.root, "runtime/auth", agent);
-    await loginGuard(this.options.root, agent).retain(home,
-      () => fingerprintTree(home, CURSOR_LOGIN_ROOTS, cursorRetainEntry, dir),
-      () => fingerprintTree(dest, CURSOR_LOGIN_ROOTS, cursorRetainEntry, this.options.root),
-      async () => {
-        for (const name of await loginFiles(home, CURSOR_LOGIN_ROOTS, cursorRetainEntry, dir))
-          await copyLoginFile(resolve(home, name), resolve(dest, name), dir, this.options.root);
-      });
+    if (agent === "codex") await retainCodexLogin(this.options.root, home);
+    else {
+      const dest = resolve(this.options.root, "runtime/auth", agent);
+      await loginGuard(this.options.root, agent).retain(home,
+        () => fingerprintTree(home, CURSOR_LOGIN_ROOTS, cursorRetainEntry, dir),
+        () => fingerprintTree(dest, CURSOR_LOGIN_ROOTS, cursorRetainEntry, this.options.root),
+        async () => {
+          for (const name of await loginFiles(home, CURSOR_LOGIN_ROOTS, cursorRetainEntry, dir))
+            await copyLoginFile(resolve(home, name), resolve(dest, name), dir, this.options.root);
+        });
+    }
+    // rm removes a planted symlink itself, never its target.
+    if (options.discardHome) await rm(home, { recursive: true, force: true });
   }
   async preserveOutput(agent: SessionId, round: number, dir: string) {
     return preserveSandboxResult(this.options.root, agent, round, dir);

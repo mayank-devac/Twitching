@@ -12,6 +12,7 @@ import {
   readFile,
   readdir,
   realpath,
+  rm,
   symlink,
   unlink,
   writeFile,
@@ -434,9 +435,15 @@ export class NativeHost extends Docker {
       await this.stop(created.name);
     }
   }
-  override async retainAuth(agent: Agent, dir: string) {
-    if (agent === "codex")
-      await retainCodexLogin(this.nativeRoot, resolve(dir, ".cli-home"));
-    // Cursor keeps its saved native login behaviour.
+  override async retainAuth(
+    agent: Agent,
+    dir: string,
+    options: { discardHome?: boolean } = {},
+  ) {
+    const home = resolve(dir, ".cli-home");
+    if (agent === "codex") await retainCodexLogin(this.nativeRoot, home);
+    // Cursor keeps its saved native login behaviour; its .cli-home holds a copy
+    // of the host auth.json, so a finished arena round discards it as well.
+    if (options.discardHome) await rm(home, { recursive: true, force: true });
   }
 }

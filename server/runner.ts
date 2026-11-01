@@ -305,7 +305,11 @@ export class CliRunner implements PairRunner {
           }
           if (outcome.status === "complete") {
             if (this.options.experience !== "session") await this.docker.output(agent, round, container.dir);
-            await this.docker.retainAuth(session.cli, container.dir);
+            // Arena rounds never reuse their folder, so the login copy goes once
+            // retained; session runs (workspaceKey) keep it for the next turn.
+            await this.docker.retainAuth(session.cli, container.dir, {
+              discardHome: !this.options.workspaceKey,
+            });
           }
         } catch (error) {
           outcome = {

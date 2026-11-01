@@ -60,6 +60,9 @@ async function moveOlderRounds(sourceAgent: string, archiveAgent: string) {
     const source = resolve(sourceAgent, name);
     const dest = resolve(archiveAgent, name);
     await mkdir(archiveAgent, { recursive: true, mode: 0o700 });
+    // Archives keep the page and history, never a login copy left in the CLI home.
+    for (const home of [".home", ".cli-home"])
+      await rm(resolve(source, home), { recursive: true, force: true });
     await rm(dest, { recursive: true, force: true });
     await rename(source, dest);
     moved++;

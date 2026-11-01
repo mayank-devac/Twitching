@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { Docker } from "../server/docker.js";
@@ -83,5 +83,24 @@ test("cursor retains only auth.json; agent-edited config is seeded but never cop
     await host.retainAuth("cursor", dir);
     assert.equal(await readFile(resolve(saved, "auth.json"), "utf8"), "fixture-refresh");
     assert.equal(await readFile(resolve(saved, "cli-config.json"), "utf8"), "fixture-trusted");
+  } finally { store.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test("a retained arena login discards its .home copy; a failed retain keeps it", async () => {
+  const root = await mkdtemp(resolve(tmpdir(), "arena-discard-home-"));
+  const store = new Store(":memory:");
+  try {
+    const saved = resolve(root, "runtime/auth/cursor/.cursor/auth.json");
+    await mkdir(resolve(saved, ".."), { recursive: true });
+    await writeFile(saved, "fixture-original");
+    const host = new Docker(store, { root, image: "unused" });
+    const kept = await host.workspace({ cli: "cursor", round: 1, session: "session-1" });
+    const discarded = await host.workspace({ cli: "cursor", round: 1, session: "session-2" });
+    await writeFile(resolve(kept, ".home/.cursor/auth.json"), "fixture-refresh-a");
+    await writeFile(resolve(discarded, ".home/.cursor/auth.json"), "fixture-refresh-b");
+    await host.retainAuth("cursor", discarded, { discardHome: true });
+    await assert.rejects(access(resolve(discarded, ".home")), { code: "ENOENT" });
+    await assert.rejects(host.retainAuth("cursor", kept, { discardHome: true }), LoginRefreshConflict);
+    assert.equal(await readFile(resolve(kept, ".home/.cursor/auth.json"), "utf8"), "fixture-refresh-a");
   } finally { store.close(); await rm(root, { recursive: true, force: true }); }
 });
