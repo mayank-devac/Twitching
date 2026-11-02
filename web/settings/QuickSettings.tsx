@@ -16,7 +16,6 @@ import { BreakMedia } from "./BreakMedia.js";
 import { HarnessForm } from "./HarnessForm.js";
 import { StreamSettings } from "./StreamSettings.js";
 import { ActionBar } from "./ActionBar.js";
-import { RehearsalCheck } from "../welcome/RehearsalCheck.js";
 import "./settings.css";
 
 // This dedicated host page keeps unsaved edits local while live snapshots update alongside it.
@@ -195,7 +194,6 @@ export function QuickSettings({
           <span className="qs-badge">{state.status}</span>
         </div>
       </header>
-      <RehearsalCheck token={token} context={state.sharedSession?.conversation.id ?? "arena"} revision={state.quickSettings?.revision} />
       <div className="qs-feedback" aria-live="polite">
         {notice && <p role="status">{notice}</p>}
         {error && (

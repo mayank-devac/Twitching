@@ -1,8 +1,7 @@
 // The arena layout shared by the host control page and the public arena overlay.
-import React, { Suspense, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { Round, ShowState } from "../../shared/types.js";
 import { BreakScreen } from "../break-screen.js";
-import { RehearsalCheck } from "../host-screens.js";
 import { GoalStrip } from "../presentation-controls.js";
 import { AgentPanel } from "./AgentPanel.js";
 import { ArenaHostControls } from "./ArenaHostControls.js";
@@ -51,15 +50,6 @@ export function ArenaScreen({
         <nav className="host-top-tools" aria-label="Show controls" />
       ) : (
         <GoalStrip value={state.presentation} />
-      )}
-      {host && (
-        <Suspense fallback={null}>
-          <RehearsalCheck
-            token={token}
-            context="arena"
-            revision={state.quickSettings?.revision}
-          />
-        </Suspense>
       )}
       {host && (
         <section className="prompt-strip" hidden={!round?.task.text}>

@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from "react";
+import keyboardIcon from "./assets/keyboard.svg";
 import type { ShowState } from "../shared/types.js";
 import { elapsed, stopwatch, privacyCommand, type Presentation, type PresentationSelection } from "../shared/presentation.js";
 import { hostRequest } from "./settings/api.js";
@@ -71,7 +72,8 @@ export function PresentationControls({ state, value, token, overlayId, privacyHi
       </button>
     </>}
     {showShortcuts && <button type="button" popoverTarget={shortcutsPanel} className="host-tool-button" aria-label="Keyboard shortcuts and OBS privacy setup">
-      Shortcuts
+      <img className="header-tool-icon" src={keyboardIcon} alt="" />
+      <span className="header-tool-label">Shortcuts</span>
     </button>}
     <div id={goalPanel} popover="auto" role="dialog" aria-label="Goal and stopwatch" className="host-popover goal-popover">
       <header className="host-popover-heading"><div><h2>{source === "shared" || !overlayId ? "Shared goal & stopwatch" : "Overlay goal & stopwatch"}</h2><p>{source === "shared" || !overlayId ? "Edits affect every output using the shared pair." : "Only this output uses this goal and time."}</p></div><button type="button" popoverTarget={goalPanel} popoverTargetAction="hide" aria-label="Close goal controls">×</button></header>

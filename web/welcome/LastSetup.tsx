@@ -1,4 +1,5 @@
 import React, { useId, useRef, useState } from "react";
+import repeatIcon from "../assets/repeat.svg";
 import type {
   LastSetup as Setup,
   SettingsDocument,
@@ -42,13 +43,15 @@ export function LastSetup({
         className="host-tool-button"
         disabled={!setup || busy}
         popoverTarget={panelId}
+        aria-label="Use last setup"
         title={
           setup
             ? "Review your last applied choices"
             : "No applied setup saved yet"
         }
       >
-        Use last setup
+        <img className="header-tool-icon" src={repeatIcon} alt="" />
+        <span className="header-tool-label">Use last setup</span>
       </button>
       <div
         id={panelId}

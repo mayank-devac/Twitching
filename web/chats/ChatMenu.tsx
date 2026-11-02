@@ -1,4 +1,5 @@
 import React, { useId } from "react";
+import chatIcon from "../assets/chat.svg";
 import "./chats.css";
 
 // One top-bar dropdown for everything chat: the host history and the two OBS pages.
@@ -8,7 +9,8 @@ export function ChatMenu() {
   return (
     <>
       <button type="button" popoverTarget={panel} className="host-tool-button" aria-label="Chat history and OBS chat pages">
-        Chats ▾
+        <img className="header-tool-icon" src={chatIcon} alt="" />
+        <span className="header-tool-label">Chats ▾</span>
       </button>
       <div id={panel} popover="auto" role="menu" aria-label="Chats" className="host-popover chat-menu-popover">
         <a role="menuitem" href="/control/chats" target="_blank" rel="noreferrer">

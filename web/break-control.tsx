@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useState } from "react";
+import coffeeIcon from "./assets/coffee-icon.svg";
 import type { OverlayHostDocument } from "../shared/sessions.js";
 import { hostRequest } from "./settings/api.js";
 import { useHostAction } from "./use-host-action.js";
@@ -88,9 +89,12 @@ export function BreakControl({
         className="host-tool-button"
         popoverTarget={id}
         disabled={!token}
+        aria-label="Break controls"
+        title="Break controls"
         onClick={() => void refresh()}
       >
-        Break
+        <img className="header-tool-icon" src={coffeeIcon} alt="" />
+        <span className="header-tool-label">Break</span>
       </button>
       <div
         id={id}

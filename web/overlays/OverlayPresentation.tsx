@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useState } from "react";
+import timerIcon from "../assets/timer.svg";
 import type { PresentationSelection } from "../../shared/presentation.js";
 import { PresentationControls } from "../presentation-controls.js";
 import { hostRequest } from "../settings/api.js";
@@ -29,8 +30,9 @@ export function OverlayPresentation({ token, overlayId, name, initial, published
       title={`${name} presentation: goal, stopwatch and overlay privacy`}
       aria-label="Overlay presentation controls"
     >
+      <img className="header-tool-icon" src={timerIcon} alt="" />
       <span className={`presentation-dot ${dot}`} aria-hidden="true" />
-      Presentation
+      <span className="header-tool-label">Presentation</span>
     </button>
     <div id={panelId} popover="auto" role="dialog" aria-label={`${name} presentation`} className="host-popover presentation-popover">
       <header className="host-popover-heading">

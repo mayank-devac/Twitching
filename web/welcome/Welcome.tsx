@@ -1,4 +1,5 @@
 import obsLogo from "../../assets/obs.svg";
+import settingsIcon from "../assets/settings.svg";
 import { LastSetup } from "./LastSetup.js";
 import { ModeHandover } from "./ModeHandover.js";
 import { useModeSwitch } from "./use-mode-switch.js";
@@ -431,6 +432,8 @@ export function Welcome({
   };
   const toolStatus = (name: string) =>
     ready?.tools.find((tool) => tool.name === name);
+  const toolMessage = (name: string, message: string) =>
+    name === "Claude Code" ? message.replace(/\s*\(Claude Code\)$/i, "") : message;
   const overlayDraft = overlayEditor.draft;
   const overlayApplied = overlayEditor.overlayDoc?.overlays.find(
     (overlay) => overlayDraft && overlay.id === overlayDraft.id,
@@ -465,8 +468,9 @@ export function Welcome({
             />
           )}
         <ChatMenu />
-        <a className="quick-settings-link" href="/control/settings">
-          Quick settings ↗
+        <a className="quick-settings-link" href="/control/settings" aria-label="Quick settings">
+          <img className="header-tool-icon" src={settingsIcon} alt="" />
+          <span className="header-tool-label">Quick settings ↗</span>
         </a>
         </div>
       </header>
@@ -862,7 +866,7 @@ export function Welcome({
                 <i className={tool?.available ? "ready" : "missing"} />
                 {name}
                 {tool?.available ? (
-                  <b>{tool.message}</b>
+                  <b>{toolMessage(name, tool.message)}</b>
                 ) : tool ? (
                   <>
                     <b>Unavailable</b>
@@ -896,7 +900,7 @@ export function Welcome({
                   <b>
                     {tool.name}: {tool.available ? "Ready" : "Needs attention"}
                   </b>{" "}
-                  · {tool.message}
+                  · {toolMessage(tool.name, tool.message)}
                 </p>
               ))}
               <p>{ready?.login}</p>

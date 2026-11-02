@@ -44,7 +44,11 @@
 .welcome-header-tools > .presentation-controls { display: inline-flex; flex-wrap: nowrap; flex: 0 0 auto; }
 .welcome-header-tools > .last-setup { display: inline-flex; flex: 0 0 auto; }
 .welcome-header-tools .quick-settings-link { min-height: 38px; padding: 8px 12px; font-size: 13px; }
+.header-tool-icon { width: 16px; height: 16px; flex: 0 0 auto; filter: brightness(0) invert(1); opacity: .85; }
 .last-setup { position: relative; margin: 0; padding: 0; border: 0; background: transparent; font: 13px/1.5 Inter, system-ui, sans-serif; }
+@media (max-width: 1050px) {
+  .welcome-header-tools .header-tool-label { display: none; }
+}
 .host-popover {
   position: fixed;
   inset: 78px 3vw auto auto;
