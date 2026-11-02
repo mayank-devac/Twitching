@@ -318,13 +318,18 @@ const startSelectedChats = (
 const integrations = {
   async preflight() {
     await preview.ready();
-    await access(settings.musicPath);
-    await access(settings.visualPath);
+    const media = await Promise.all(
+      [settings.musicPath, settings.visualPath].map((file) =>
+        access(file).then(() => true, () => false),
+      ),
+    );
     const checks = [
       preview.direct()
         ? "Direct preview (no Docker): pages run in the browser without isolation"
         : "Restricted Chromium preview ready",
-      "Break music and visual are readable",
+      media.every(Boolean)
+        ? "Break music and visual are readable"
+        : "Break music or visual not found; breaks run without it",
     ];
     if (settings.mode === "live") {
       if (!secrets.jev) throw new Error("TypeSafe API key is missing");

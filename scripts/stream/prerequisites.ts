@@ -58,32 +58,42 @@ export async function checkLocalSetup(settings: Settings, existing: boolean) {
         () => assertFree(port),
         "Close the app using this port, or choose a different port in settings.json.",
       );
+  const overlayBuilt = async () => {
+    const built = await stat(resolve(root, "dist/index.html"));
+    if (
+      Math.max(
+        await newestSource(resolve(root, "web")),
+        await newestSource(resolve(root, "shared")),
+      ) > built.mtimeMs
+    )
+      throw new Error("The overlay build is older than its source");
+  };
+  // A missing or stale overlay is rebuilt automatically; no prompt is needed.
   await repair(
     "built overlay",
     async () => {
-      const built = await stat(resolve(root, "dist/index.html"));
-      if (
-        Math.max(
-          await newestSource(resolve(root, "web")),
-          await newestSource(resolve(root, "shared")),
-        ) > built.mtimeMs
-      )
-        throw new Error("The overlay build is older than its source");
+      try {
+        await overlayBuilt();
+      } catch {
+        console.log("Overlay build missing or out of date; running npm run build…");
+        await run("npm", ["run", "build"]);
+        await overlayBuilt();
+      }
     },
     "Run npm run build.",
     () => run("npm", ["run", "build"]),
   );
-  await repair(
-    "break music and visual",
-    async () => {
-      for (const file of [settings.musicPath, settings.visualPath]) {
-        await access(file);
-        if (!(await stat(file)).isFile())
-          throw new Error("A configured media path is not a file");
-      }
-    },
-    "Set musicPath and visualPath in settings.json to your existing MP3 and HTML files.",
-  );
+  // Break media is optional: a missing file only means a silent or blank break.
+  for (const file of [settings.musicPath, settings.visualPath]) {
+    try {
+      await access(file);
+      if (!(await stat(file)).isFile()) throw new Error("not a file");
+    } catch {
+      console.warn(
+        `WARNING: break media not available (${file}); breaks will run without it. Set musicPath/visualPath in settings.json to enable it.`,
+      );
+    }
+  }
 }
 
 export interface ServiceCheck {

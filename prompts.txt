@@ -2,22 +2,4 @@
 # Lines starting with # are ignored. Edit this file for the next OBS stream.
 # When this file has tasks, start_stream.sh uses them instead of live chat.
 # Each line goes to both Codex and Cursor. The show ends after the last one.
-Create a single-page neon piano app where each key glows when pressed and plays a realistic musical note. Make the piano fill a 960 by 1044 column and ensure the entire interface uses the whole browser window—set html and body height to 100%, hide overflow.
-
-Design an interactive, visually detailed aquarium that fills the entire screen. Include different species of animated fish, realistic stones and gravel, a stand at the bottom, and small aquatic plants. Let users click anywhere to drop fish food and watch the fish react. Keep the experience on one fullscreen page, with overflow hidden and no additional routes.
-
-Create a playful live weather simulation showcasing animated transitions between sunny, cloudy, and rainy conditions. Let the sun shine, clouds drift, and rain fall all in a continuous, smoothly changing animation without any user interaction.
-
-Build a fruit-slicing game animation where various fruits fly onto the screen and are automatically sliced in midair, complete with juicy effects and a score that updates in real-time. Show the animation in a live preview within an overlay box, and make sure overflow remains hidden.
-
-Show an animated constellation being formed in real-time: stars appear one by one, connecting with glowing lines to reveal beautiful constellation patterns. The display should be fullscreen, with html/body 100% height, and no user input needed.
-
-Create an energetic drum pad interface in full viewport size that automatically plays colorful beats. As each pad is triggered, visually striking ripples and patterns appear in sync with the sound, creating an ongoing lively effect, and hide any scrollbars.
-
-Develop a dynamic marble maze simulation where a marble automatically navigates through the maze, collecting gems and avoiding holes. The animation runs by itself in a single-screen preview, and the display should remain within screen bounds with overflow hidden.
-
-Show a nighttime fireworks display on one page, with colorful rockets launching and bursting into bright explosions. Each burst increases a visible fireworks count automatically. The preview should be live, fit entirely on the page, and hide any excess overflow.
-
-Create a plant growing simulator that automatically plants seeds, waters, and grows flowers into bloom, all through animation. The interactive preview fits within a 960 by 1044 area and has overflow hidden, requiring no user input.
-
-Animate a miniature racetrack scene where a tiny car drives itself around the loop, and a visible lap timer automatically updates on each completed lap. The simulation happens entirely on one page, keeps overflow hidden, and has no need for user controls.
+Create a colourful bouncing ball animation with gravity controls

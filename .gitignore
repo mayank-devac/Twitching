@@ -22,3 +22,5 @@ assets/*.mp3
 *.p12
 *.pfx
 *.keystore
+
+prompts.txt
