@@ -25,6 +25,8 @@ export const launcher: {
   app?: ChildProcess;
   appExit?: Promise<number | null>;
   closeShow?: () => Promise<void>;
+  // Runs once on Ctrl+C, while the app is still up, before anything is stopped.
+  beforeExit?: () => Promise<void>;
   closeResources?: () => Promise<void>;
 } = { stopping: false, safeMessage: redactor([], root) };
 
@@ -135,10 +137,17 @@ async function finishShutdown() {
 
 export function installSignalHandlers() {
   process.once("SIGINT", () => {
-    void shutdown().finally(() => {
-      process.exitCode = 130;
-    });
+    const hook = launcher.beforeExit;
+    launcher.beforeExit = undefined;
+    void (hook?.() ?? Promise.resolve())
+      .catch(() => {})
+      .then(() => shutdown())
+      .finally(() => {
+        process.exitCode = 130;
+      });
   });
+  // In a terminal, readline owns Ctrl+C; forward it so the handler above still runs.
+  launcher.input?.once("SIGINT", () => process.emit("SIGINT"));
   process.once("SIGTERM", () => {
     void shutdown().finally(() => {
       process.exitCode = 143;

@@ -1,5 +1,18 @@
 # Prompt Arena house list — one task per line.
 # Lines starting with # are ignored. Edit this file for the next OBS stream.
-# When this file has tasks, start_stream.sh uses them instead of live chat.
-# Each line goes to both Codex and Cursor. The show ends after the last one.
+# Nothing runs automatically. Press "Send prompts" in the arena controls, or run
+# ./start_stream.sh send   (or: ./start_stream.sh send "your prompt") to run these.
+# Each line goes to every configured session. --prompts still runs the whole file at start.
 Create a colourful bouncing ball animation with gravity controls
+
+make a flower fall from a tree
+
+Build a snake game that plays itself with a neon glow
+
+Create a day and night cycle with a moving sun, moon and stars
+
+Make a particle fireworks show that explodes where I click
+
+Build a tiny solar system with planets orbiting at different speeds
+
+Create a rain animation with ripples and occasional lightning

@@ -12,6 +12,10 @@
   "codexModel": "gpt-6-luna",
   "codexEffort": "medium",
   "cursorModel": "grok-4.7-high-fast",
+  "sessions": [
+    { "id": "session-1", "cli": "codex", "model": "gpt-6-luna", "effort": "medium" },
+    { "id": "session-2", "cli": "codex", "model": "gpt-5.6-luna", "effort": "medium" }
+  ],
   "agentImage": "prompt-arena-agent:local",
   "previewImage": "prompt-arena-preview:local",
   "previewView": "live",

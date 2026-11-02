@@ -13,6 +13,7 @@ import type {
 import { arenaBoundary, configuredSessions, type SessionCount } from "../shared/types.js";
 import { Collection } from "./collection.js";
 import { Filter, MAX_PROMPT_CHARS } from "./filter.js";
+import { validatePromptTexts } from "./prompt-playlist.js";
 import type { Judge } from "./jev.js";
 import type { PairRunner, RunHandle } from "./runner.js";
 import { Store } from "./store.js";
@@ -532,6 +533,35 @@ export class Controller extends EventEmitter {
     this.state.rehearsalRunnerMode = this.boundary();
     this.state.reason = "Private OBS rehearsal confirmed by host";
     this.persist();
+  }
+  // Host-triggered prompt list (Send button or `send` command). Replaces any earlier list,
+  // runs after the current round, and works whether or not --prompts was used at start.
+  sendPrompts(texts: string[]) {
+    if (!this.arenaEnabled() || this.switchingToSession)
+      throw new Error("Choose Existing prompt arena in the welcome dialog first");
+    const prompts = validatePromptTexts(texts, MAX_PROMPT_CHARS);
+    for (const prompt of prompts)
+      if (this.clean(prompt, Infinity) !== prompt)
+        throw new Error("Prompts cannot contain private paths or credentials");
+    this.options.playlist = prompts;
+    this.playlistCursor = 0;
+    this.playlistReleased = false;
+    this.pendingStop = undefined;
+    this.pendingPlatforms = {};
+    this.state.playlistTotal = prompts.length;
+    this.state.playlistIndex = 0;
+    const wasWaiting = this.state.awaitingHostChoice;
+    this.state.awaitingHostChoice = false;
+    if (wasWaiting && this.state.status === "results") this.state.status = "collecting";
+    const idle = !this.handles && !this.launching;
+    if (this.state.status === "collecting" && idle) {
+      this.armPlaylist();
+      this.state.reason = `Prompt list ready · ${prompts.length} tasks`;
+    } else if (["paused", "stopped"].includes(this.state.status))
+      this.state.reason = `${prompts.length} prompts loaded. Press Start or Resume to run them.`;
+    else this.state.reason = `${prompts.length} prompts queued after this round`;
+    this.persist();
+    return prompts.length;
   }
   prepareRehearsal(text?: string) {
     if (this.state.mode !== "rehearsal" || this.handles || this.launching)

@@ -17,9 +17,9 @@ test("parsePromptList keeps tasks and drops comments, blanks, and short lines", 
   );
 });
 
-test("promptPlaylistEnabled follows the file, --prompts, and --no-prompts", () => {
+test("promptPlaylistEnabled needs --prompts; the file alone never starts it", () => {
   const tasks = ["Build a colourful garden with flower controls"];
-  assert.equal(promptPlaylistEnabled(tasks, {}), true);
+  assert.equal(promptPlaylistEnabled(tasks, {}), false);
   assert.equal(promptPlaylistEnabled([], {}), false);
   assert.equal(promptPlaylistEnabled([], { ARENA_PROMPTS: "1" }), true);
   assert.equal(promptPlaylistEnabled(tasks, { ARENA_NO_PROMPTS: "1" }), false);

@@ -19,6 +19,7 @@ import { hostCheck, hostOnly, HttpError, routeAction } from "./http-kit.js";
 import { urlHost, type BootIdentity, type BootResponse } from "../shared/boot.js";
 import type { Sessions } from "./sessions/service.js";
 import { chatFeedRoutes, type ChatFeedServices } from "./chat-feed-http.js";
+import { promptRoutes } from "./prompts-http.js";
 const requestSchema = z.object({
   action: z.enum([
     "start",
@@ -57,6 +58,7 @@ export function makeHttp(
     openObs?: () => Promise<void>;
     boot?: BootIdentity;
     chatFeed?: ChatFeedServices;
+    prompts?: { path: string; file: string };
   },
 ) {
   const origin = `http://${urlHost(options.host)}:${options.port}`;
@@ -125,6 +127,8 @@ export function makeHttp(
   const rehearsal = options.quick && options.presentation ? presentationRoutes(app, controller, options.quick, options.presentation, options.sessions, guard) : undefined;
   if (options.sessions && rehearsal) options.sessions.requirePresentationRehearsal = rehearsal;
   if (options.chatFeed) chatFeedRoutes(app, options.chatFeed, guard);
+  if (options.prompts)
+    promptRoutes(app, controller, options.prompts.path, options.prompts.file, guard);
   // Settings routes share the existing host cookie and CSRF token checks.
   if (options.quick)
     settingsRoutes(app, controller, options.quick, guard);

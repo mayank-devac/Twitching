@@ -267,9 +267,11 @@ Each round uses new sessions without a resume flag. In single-agent mode, only t
 
 **Audience chat** → collect suggestions → filter and rank → freeze one next task.
 
-**Prompt file** → read `prompts.txt` or `settings.promptFile` → send each line to both agents in order.
+**Prompt file** → read `prompts.txt` or `settings.promptFile` → send each line to every session in order. Nothing runs by itself: edit the file at any time, then press **Check prompts** / **Send prompts** in the arena controls, or run `./start_stream.sh send` (re-reads the file), `./start_stream.sh send "my prompt" "another"` (only those) or `./start_stream.sh send --check` (list, send nothing). A send replaces any earlier list and runs after the current round.
 
-Use `--prompts` to force the file, or `--no-prompts` to keep chat even when the file has tasks.
+Use `--prompts` to run the file automatically at startup, or `--no-prompts` to keep chat.
+
+**Sessions** → Quick Settings sessions are kept between starts. Pass sessions only when you want to change them, e.g. `./start_stream.sh --codex-6-luna vs --codex-terra` (same as `--session codex:gpt-6-luna --session codex:terra`; names are matched against the CLI's model list). Sessions chosen with flags last for that run only: press **Save as default** in the arena controls to keep them. While unsaved, closing the browser tab shows a leave-page warning, and Ctrl+C in the terminal asks `Save this arena setup … as the default? [y/N]`.
 
 **edit Jev prompts** →  `jev_prompts.json` in the repo root holds every sentence Jev works from: `evaluate.safety`, `evaluate.relevance`, `evaluate.scoreInstructions` (keep the `{dimension}` placeholder; the four rubric lists need exactly five grades) and `choose.instructions` with `choose.wait`, plus `surprise` for self-run rounds. Operator preferences from quick settings are appended automatically, and audience text stays data — edit only your wording, never the structure. A missing file falls back to built-in wording; a malformed file stops startup with a message naming the bad field. Restart after edits.
 

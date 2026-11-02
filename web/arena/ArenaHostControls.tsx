@@ -6,6 +6,8 @@ import { allowedActions } from "./arena-status.js";
 import { CliBoards } from "./CliBoards.js";
 import { ChatHistory } from "../chats/ChatHistory.js";
 import { ArenaHarness } from "./ArenaHarness.js";
+import { PromptFile } from "./PromptFile.js";
+import { SaveDefault } from "./SaveDefault.js";
 import { chatPlatforms, type ArenaControls } from "./use-arena-controls.js";
 
 function StopMenu({
@@ -253,6 +255,8 @@ export function ArenaHostControls({
           <button disabled={working}>Test</button>
         </form>
       )}
+      <SaveDefault token={token} />
+      <PromptFile token={token} canSend={state.experience !== "welcome" && state.status !== "break"} />
       {cliBoardsOpen && <CliBoards state={state} />}
       <div className="host-grid">
         <div>

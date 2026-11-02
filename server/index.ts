@@ -425,6 +425,7 @@ controller.arenaEnabled = () => sessions.experience === "arena";
 sessionService = sessions;
 controller.on("state", () => sessions.settingsChanged());
 const http = makeHttp(controller, {
+  prompts: { path: resolve(root, settings.promptFile), file: settings.promptFile },
   chatFeed: {
     feed: chatFeed,
     configured: () => {

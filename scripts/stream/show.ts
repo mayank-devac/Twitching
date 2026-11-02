@@ -6,6 +6,7 @@ import { configuredSessions } from "../../shared/types.js";
 import { fetchBoot } from "../boot-client.js";
 import { skipEnvRecord } from "../../server/chat-skips.js";
 import { fetchState, hostAction } from "./control-api.js";
+import { offerSaveDefaultOnExit } from "./save-default.js";
 import {
   fix,
   launcher,
@@ -153,6 +154,7 @@ export async function startShow(show: ShowStart) {
       "An existing app cannot inherit this new native confirmation",
       "Close its terminal and rerun this file so consent applies to the correct process.",
     );
+  offerSaveDefaultOnExit(origin, options.interactive);
   let startedBroadcast = false;
   let showStarted = false;
   const action = (actionName: string, text?: string) =>

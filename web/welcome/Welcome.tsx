@@ -928,19 +928,21 @@ export function Welcome({
           >
             <img className="btn-icon" src={obsLogo} alt="" />
           </button>
-          <button
-            className="ghost-button icon-tool"
-            data-tip="Prompt arena"
-            aria-label="Prompt arena"
-            disabled={busy || !!handover || !token}
-            aria-pressed={path === "arena"}
-            onClick={() => { if (path !== "arena") void perform(() => switchPath("arena")); }}
-          >
-            <svg className="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M5 4h14v11H9l-4 4z" />
-              <path d="M9 9h6" />
-            </svg>
-          </button>
+          {path === "arena" && (
+            <button
+              className="ghost-button icon-tool"
+              data-tip="Prompt arena"
+              aria-label="Prompt arena"
+              disabled={busy || !!handover || !token}
+              aria-pressed={path === "arena"}
+              onClick={() => { if (path !== "arena") void perform(() => switchPath("arena")); }}
+            >
+              <svg className="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 4h14v11H9l-4 4z" />
+                <path d="M9 9h6" />
+              </svg>
+            </button>
+          )}
           <RehearsalCheck token={token} context={path === "arena" ? "arena" : selected?.conversation.id ?? "unselected"} revision={settingsDoc?.revision} />
           <a
             className="ghost-button icon-tool"

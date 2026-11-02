@@ -92,6 +92,9 @@ export const defaultCriteria =
 // SQLite compare-and-swap makes two host tabs conflict visibly instead of losing edits.
 export class QuickSettings {
   private document: SettingsDocument;
+  // JSON of the sessions last written to (or read from) the database. Startup flags
+  // change the in-memory sessions only, so a difference means "not saved as default yet".
+  private persistedSessions: string;
   constructor(
     private store: Store,
     defaults: QuickPreferences,
@@ -121,6 +124,9 @@ export class QuickSettings {
       }
       this.store.saveQuickSettings(this.document);
     }
+    // On a fresh database, explicit startup sessions count as unsaved too.
+    this.persistedSessions =
+      saved || !startup.sessions ? JSON.stringify(this.document.value.sessions) : "";
     // Explicit guided-startup choices beat previous web choices for this process.
     if (startup.mode) this.document.value.stream.mode = startup.mode;
     if (startup.sessions)
@@ -133,6 +139,14 @@ export class QuickSettings {
   get() {
     return structuredClone(this.document);
   }
+  // True when the sessions in use (CLI, model, effort, runner) are not what the database holds.
+  sessionsUnsaved() {
+    return JSON.stringify(this.document.value.sessions) !== this.persistedSessions;
+  }
+  // Writes the current document as is, so the sessions in use become the saved default arena.
+  saveCurrent() {
+    return this.save(this.document.revision, this.document.value);
+  }
   save(revision: number, value: QuickPreferences) {
     if (revision !== this.document.revision)
       throw new Error(
@@ -144,6 +158,7 @@ export class QuickSettings {
     };
     this.store.saveQuickSettings(next);
     this.document = next;
+    this.persistedSessions = JSON.stringify(next.value.sessions);
     return this.get();
   }
 }

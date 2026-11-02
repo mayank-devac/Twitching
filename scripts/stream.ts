@@ -7,7 +7,7 @@ import {
 import { createRedactor } from "../server/secrets.js";
 import { controlOrigin } from "../shared/boot.js";
 import { rootIdentity } from "./boot-client.js";
-import { chooseSessions } from "./session-selection.js";
+import { chooseSessions, resolveSessionModels } from "./session-selection.js";
 import { inspectExistingApp } from "./stream/existing-app.js";
 import { checkLivePreflight } from "./stream/live-preflight.js";
 import { exportChatSkips, parseStreamOptions } from "./stream/options.js";
@@ -29,6 +29,13 @@ import { maybeVerify } from "./stream/verify.js";
 
 const args = process.argv.slice(2);
 const command = args.shift();
+// `send` talks to the already running app, so it skips the launcher entirely.
+if (command === "send" || (command === "start" && args[0] === "send")) {
+  if (command === "start") args.shift();
+  const { sendPrompts } = await import("./send-prompts.js");
+  await sendPrompts(args);
+  process.exit(process.exitCode ?? 0);
+}
 // --chats only turns the chat feed on, so it must not count as a guided-flow flag below.
 // The server (or the launcher's child server) reads TWITCHING_CHATS from this env.
 const chatsFlag = args.indexOf("--chats");
@@ -152,6 +159,15 @@ try {
           running.state,
         )
       : true;
+  // Only an explicit choice is handed to the server. Otherwise the sessions saved in
+  // Quick Settings stay, instead of being reset to the settings.json defaults each start.
+  let sessionsChosen = options.requestedSessions.length > 0;
+  if (options.shorthandSessions) {
+    const resolved = await resolveSessionModels(options.requestedSessions, (cli) =>
+      runner.discover(cli),
+    );
+    Object.assign(settings, selectStartupSessions(settings, resolved, root));
+  }
   if (
     options.command === "start" &&
     options.interactive &&
@@ -164,12 +180,16 @@ try {
       (cli) => runner.discover(cli),
       (line) => console.log(clean(line)),
     );
-    if (selected)
+    if (selected) {
       Object.assign(settings, selectStartupSessions(settings, selected, root));
+      sessionsChosen = true;
+    }
   }
   // Send the same normalized startup contract that the child parses.
   Object.assign(settings, normalizeStartup(settings, root));
-  process.env.ARENA_SESSIONS = JSON.stringify(settings.sessions);
+  if (sessionsChosen || options.singleAgent)
+    process.env.ARENA_SESSIONS = JSON.stringify(settings.sessions);
+  else delete process.env.ARENA_SESSIONS;
   const configurationId = startupConfigurationId(settings);
   if (existing && running.configurationId !== configurationId)
     fix(

@@ -39,6 +39,26 @@ export const showIsBusy = (state: LauncherState | undefined) =>
     ["running", "validating"].includes(attempt.status),
   );
 
+const defaultStatusSchema = z.object({ unsaved: z.boolean() });
+// Same host session as hostAction, for the settings routes: GET the unsaved flag, or POST the save.
+export async function hostSettings(origin: string, save: boolean) {
+  const hostResponse = await fetch(`${origin}/api/host`, {
+    signal: AbortSignal.timeout(2000),
+  });
+  const host = hostSchema.parse(await hostResponse.json());
+  const cookie = hostResponse.headers.get("set-cookie")?.split(";")[0] ?? "";
+  const response = await fetch(
+    `${origin}/api/settings/${save ? "save-default" : "default"}`,
+    {
+      method: save ? "POST" : "GET",
+      headers: { Origin: origin, "X-Host-Token": host.csrf, Cookie: cookie },
+      signal: AbortSignal.timeout(5000),
+    },
+  );
+  if (!response.ok) throw new Error("Settings request failed");
+  return defaultStatusSchema.partial().parse(await response.json());
+}
+
 // Same host session the control panel uses: fetch a CSRF token + cookie, then act.
 export async function hostAction(
   origin: string,

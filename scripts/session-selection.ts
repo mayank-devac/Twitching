@@ -11,6 +11,35 @@ export function parseSessionSpec(spec: string, index: number): SessionConfig {
     throw new Error("Use --session cli:model[:effort], at most twice");
   return { id: `session-${index + 1}`, cli, model, ...(effort ? { effort } : {}) };
 }
+// Resolves shorthand model names (`--codex-6-luna`) against the CLI's own model list:
+// exact id first, then a unique id ending with the name, then a unique id containing it.
+export async function resolveSessionModels(
+  sessions: SessionConfig[],
+  discover: (cli: Agent) => Promise<CliModel[]>,
+): Promise<SessionConfig[]> {
+  const catalogs = new Map<Agent, CliModel[]>();
+  const resolved: SessionConfig[] = [];
+  for (const session of sessions) {
+    if (!catalogs.has(session.cli)) catalogs.set(session.cli, await discover(session.cli));
+    const models = catalogs.get(session.cli)!;
+    const name = session.model.toLowerCase();
+    const tiers = [
+      models.filter((m) => m.id.toLowerCase() === name),
+      models.filter((m) => m.id.toLowerCase().endsWith(`-${name}`) || m.id.toLowerCase().endsWith(name)),
+      models.filter((m) => m.id.toLowerCase().includes(name)),
+    ];
+    const hits = tiers.find((tier) => tier.length > 0) ?? [];
+    if (hits.length !== 1)
+      throw new Error(
+        `${hits.length ? "More than one" : "No"} ${session.cli} model matches "${session.model}". Available: ${models.map((m) => m.id).join(", ") || "none found"}`,
+      );
+    const model = hits[0]!;
+    if (session.effort && model.efforts.length && !model.efforts.includes(session.effort))
+      throw new Error(`${model.id} supports reasoning: ${model.efforts.join(", ")}`);
+    resolved.push({ ...session, model: model.id });
+  }
+  return resolved;
+}
 export async function chooseSessions(
   question: Question,
   discover: (cli: Agent) => Promise<CliModel[]>,

@@ -22,11 +22,24 @@ export function loadPromptList(path: string) {
   }
 }
 
+// The file never starts a playlist by itself: only --prompts (ARENA_PROMPTS=1) does.
+// Otherwise the host sends the file's tasks with the Send button or `send` command.
 export function promptPlaylistEnabled(
-  prompts: string[],
+  _prompts: string[],
   env: NodeJS.ProcessEnv = process.env,
 ) {
   if (env.ARENA_NO_PROMPTS === "1") return false;
-  if (env.ARENA_PROMPTS === "1") return true;
-  return prompts.length > 0;
+  return env.ARENA_PROMPTS === "1";
+}
+
+// Tasks from the CLI or the file must pass the same length rule as host prompts.
+export function validatePromptTexts(texts: string[], max: number) {
+  const prompts = texts.map((text) => text.trim()).filter(Boolean);
+  if (!prompts.length) throw new Error("No prompts to send");
+  for (const prompt of prompts)
+    if (prompt.length < 10 || prompt.length > max || /[\u0000-\u0008]/.test(prompt))
+      throw new Error(
+        `Each prompt needs 10–${max} characters: "${prompt.slice(0, 40)}"`,
+      );
+  return prompts;
 }

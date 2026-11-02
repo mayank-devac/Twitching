@@ -50,6 +50,14 @@ export function settingsRoutes(
     return pending;
   };
   app.get("/api/settings", (_req, res) => res.json(preferences.get()));
+  // Whether the sessions running now differ from the saved default arena, and a one-click save.
+  app.get("/api/settings/default", (_req, res) =>
+    res.json({ unsaved: preferences.sessionsUnsaved(), sessions: preferences.get().value.sessions }),
+  );
+  app.post("/api/settings/save-default", routeAction(() => {
+    preferences.saveCurrent();
+    return { ok: true, unsaved: preferences.sessionsUnsaved() };
+  }, { status: 409, failed: "The arena setup was not saved" }));
   app.get("/api/models/:cli", routeAction(async (req) => {
     const cli = cliSchema.safeParse(req.params.cli);
     if (!cli.success) throw new HttpError(400, "Unsupported CLI");

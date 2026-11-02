@@ -1,366 +1,43 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f8f7f2">
-  <title>Little Motion — a cursor playground</title>
-  <style>
-    :root { color-scheme: light; --ink:#282827; --paper:#f8f7f2; --accent:#7262cc; }
-    * { box-sizing:border-box; }
-    body { margin:0; background:var(--paper); color:var(--ink); font-family:Arial, Helvetica, sans-serif; }
-    button { font:inherit; color:inherit; }
-    button:focus-visible, canvas:focus-visible { outline:3px solid #5146b4; outline-offset:5px; }
-    button { -webkit-tap-highlight-color:transparent; }
-    .page { max-width:1440px; margin:auto; padding:30px 56px 22px; }
-    header { display:flex; align-items:center; justify-content:space-between; padding-bottom:28px; border-bottom:1px solid #deded6; }
-    .brand { display:flex; align-items:center; gap:10px; font-size:21px; font-weight:750; letter-spacing:-.8px; }
-    .brand-mark { width:28px; height:28px; display:grid; grid-template-columns:1fr 1fr; gap:2px; transform:rotate(-12deg); }
-    .brand-mark i { border-radius:50%; background:#fa8054; }
-    .edition { font-size:10px; letter-spacing:1.5px; display:flex; align-items:center; gap:10px; }
-    .edition span { width:7px; height:7px; border-radius:50%; background:#7262cc; }
-    .hero { display:flex; justify-content:space-between; align-items:flex-end; gap:30px; padding:37px 0 32px; }
-    h1 { font-size:clamp(44px, 5.7vw, 82px); font-weight:550; letter-spacing:-5px; line-height:1.02; margin:0; }
-    h1 em { font-weight:500; font-family:Georgia, 'Times New Roman', serif; color:var(--accent); letter-spacing:-4px; }
-    .intro { width:270px; padding-bottom:3px; }
-    .intro p { margin:0 0 19px; font-size:15px; line-height:1.6; color:#686862; }
-    .invitation { display:flex; align-items:center; gap:9px; font-size:11px; font-weight:bold; }
-    .invitation svg { width:17px; height:17px; }
-    .playground { position:relative; border:1px solid #d5d0e6; border-radius:22px; overflow:hidden; background:#ece8fa; height:clamp(340px, 45vh, 520px); min-height:340px; transition:background .6s, border-color .6s; }
-    canvas { display:block; width:100%; height:100%; touch-action:none; cursor:crosshair; border-radius:21px; }
-    .arena-top { position:absolute; top:22px; left:25px; right:25px; display:flex; justify-content:space-between; pointer-events:none; font-size:10px; letter-spacing:1.4px; color:#605873; }
-    .live { display:flex; align-items:center; gap:6px; font-size:9px; letter-spacing:1px; }
-    .live-dot { width:6px; height:6px; border-radius:50%; background:#7865bd; }
-    .live.paused .live-dot { background:#8b8793; }
-    .arena-note { position:absolute; bottom:23px; left:25px; font-size:11px; color:#716980; pointer-events:none; display:flex; align-items:center; gap:7px; }
-    .arena-note svg { width:13px; height:13px; }
-    .corner { position:absolute; right:24px; bottom:21px; font-size:10px; letter-spacing:1px; color:#716980; pointer-events:none; }
-    .toolbar { display:flex; justify-content:space-between; align-items:center; padding:20px 0 22px; gap:20px; border-bottom:1px solid #deded6; }
-    .moods { display:flex; align-items:center; gap:7px; }
-    .label { font-size:10px; color:#77776f; letter-spacing:1.3px; margin-right:12px; }
-    .mood { display:flex; align-items:center; gap:7px; padding:9px 13px; border:1px solid transparent; background:transparent; border-radius:30px; font-size:12px; cursor:pointer; transition:background .2s,border .2s,transform .2s; }
-    .mood:hover { background:#eeede6; transform:translateY(-1px); }
-    .mood[aria-pressed="true"] { background:white; border-color:#dcdcd3; box-shadow:0 2px 2px #28282705; }
-    .swatch { display:flex; margin-right:2px; }
-    .swatch i { display:block; width:11px; height:11px; border-radius:50%; border:1px solid #f8f7f2; margin-right:-3px; }
-    .actions { display:flex; align-items:center; gap:9px; }
-    .action { display:flex; align-items:center; gap:7px; border:1px solid #ddddd4; background:transparent; border-radius:30px; padding:9px 13px; cursor:pointer; font-size:12px; transition:background .2s; }
-    .action:hover { background:#fff; }
-    .action svg { width:13px; height:13px; }
-    footer { display:flex; justify-content:space-between; align-items:center; gap:20px; padding-top:19px; color:#88887e; font-size:11px; }
-    footer .message { display:flex; align-items:center; gap:7px; }
-    footer .message span { color:#9380c4; font-size:15px; }
-    .keys { display:flex; align-items:center; gap:5px; }
-    kbd { font:9px Arial,sans-serif; padding:3px 5px; border:1px solid #ddddd4; border-radius:4px; color:#77776f; background:#fafaf6; }
-    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
-    @media (min-width:1500px) { .page { padding-top:40px; } .hero { padding-top:45px; padding-bottom:40px; } }
-    @media (max-width:760px) {
-      .page { padding:22px 22px 20px; } header { padding-bottom:22px; } .edition { font-size:8px; letter-spacing:.8px; }
-      .hero { padding:28px 0; align-items:flex-start; flex-direction:column; gap:17px; }
-      h1 { font-size:60px; letter-spacing:-3.5px; } h1 em { letter-spacing:-3px; }
-      .intro { width:auto; } .intro p { margin-bottom:10px; font-size:13px; } .intro p br { display:none; }
-      .playground { height:410px; } .toolbar { flex-wrap:wrap; gap:16px; padding-top:17px; }
-      .label { margin-right:4px; } .moods { gap:2px; } .mood { padding:9px 10px; }
-      .actions { margin-left:auto; } footer { font-size:10px; } .keys { display:none; }
-    }
-    @media (max-width:380px) { .edition { display:none; } h1 { font-size:52px; } .page { padding:20px 16px; } .corner { display:none; } .mood { padding:8px; } }
-    @media (prefers-reduced-motion:reduce) { *, *::before, *::after { transition:none !important; } }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Little Orbit</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#100d32}body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#fff}.stage{position:relative;width:100%;height:100%;overflow:hidden;background:radial-gradient(ellipse at 49% 42%,#642c83 0,#32215f 36%,#17133f 70%,#0c1539 100%)}canvas{position:absolute;inset:0;width:100%;height:100%}.grain{position:absolute;inset:0;opacity:.16;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.88' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.25'/%3E%3C/svg%3E");mix-blend-mode:soft-light}.caption{position:absolute;left:clamp(28px,7vw,132px);top:clamp(30px,7vh,76px);pointer-events:none}.eyebrow{font-size:11px;letter-spacing:.34em;text-transform:uppercase;color:#e8b7f0;opacity:.9}.title{font-size:clamp(32px,4vw,62px);line-height:1.06;font-weight:500;letter-spacing:-.045em;margin:13px 0 0;text-shadow:0 2px 28px #22145166}.subtitle{font-size:13px;letter-spacing:.08em;color:#d8bce7;margin-top:12px;opacity:.8}.signature{position:absolute;right:clamp(28px,6vw,114px);bottom:34px;color:#f1c2e6;font-size:10px;letter-spacing:.25em;text-transform:uppercase;opacity:.7}.horizon-glow{position:absolute;left:0;right:0;bottom:10%;height:32%;pointer-events:none;background:radial-gradient(ellipse at 50% 100%,#f379ca30 0,transparent 65%)}
+</style>
 </head>
 <body>
-  <div class="page">
-    <header>
-      <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>little motion<span style="color:#8b8b82">.</span></div>
-      <div class="edition"><span aria-hidden="true"></span>A SMALL DOSE OF PLAY</div>
-    </header>
-    <main>
-      <section class="hero" aria-labelledby="title">
-        <h1 id="title">Good vibes.<br>Great <em>moves.</em></h1>
-        <div class="intro">
-          <p>A tiny playground for your cursor.<br>Move around. Get a little carried away.</p>
-          <div class="invitation"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 3l3 16 4-5 6-1L5 3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M13 16l3 5" stroke="currentColor" stroke-width="1.6"/></svg>YOUR MOVEMENT MAKES THE MAGIC</div>
-        </div>
-      </section>
-      <section class="playground" id="playground" aria-label="Interactive colourful playground">
-        <canvas id="canvas" tabindex="0" aria-label="Colourful shapes follow your pointer. Drag a shape to move it, or tap empty space for a burst. Use arrow keys to move the focus point, Enter for a burst, Space to pause, and R to reset." aria-describedby="canvas-help"></canvas>
-        <div class="arena-top"><span>01 &nbsp;/&nbsp; THE PLAYGROUND</span><span class="live" id="live"><i class="live-dot"></i><span id="live-text">IN MOTION</span></span></div>
-        <div class="arena-note"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v12M2 8h12M5 5l3-3 3 3M5 11l3 3 3-3M5 5L2 8l3 3M11 5l3 3-3 3" stroke="currentColor" stroke-linecap="round"/></svg><span id="hint">Move, drag, or tap. See what happens.</span></div>
-        <div class="corner" aria-hidden="true">A LITTLE JOY, ON REPEAT ↗</div>
-      </section>
-      <p id="canvas-help" class="sr-only">Mouse and touch supported. Shapes spring towards your pointer. Select a colour mood below. Reduced motion is respected and motion can be paused.</p>
-      <div class="toolbar">
-        <div class="moods" role="group" aria-label="Colour mood">
-          <span class="label" id="mood-label">SET THE MOOD</span>
-          <button class="mood" data-palette="candy" aria-pressed="true"><span class="swatch" aria-hidden="true"><i style="background:#b19bea"></i><i style="background:#ff8c69"></i><i style="background:#d5e98a"></i></span>Candy</button>
-          <button class="mood" data-palette="lagoon" aria-pressed="false"><span class="swatch" aria-hidden="true"><i style="background:#6caeae"></i><i style="background:#b5e4d4"></i><i style="background:#e8c577"></i></span>Lagoon</button>
-          <button class="mood" data-palette="sunset" aria-pressed="false"><span class="swatch" aria-hidden="true"><i style="background:#ee9381"></i><i style="background:#edc271"></i><i style="background:#cb89b0"></i></span>Sunset</button>
-        </div>
-        <div class="actions">
-          <button class="action" id="pause" aria-pressed="false" aria-label="Pause motion"><svg id="pause-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="4" y="3" width="2.5" height="10" rx="1"/><rect x="9.5" y="3" width="2.5" height="10" rx="1"/></svg><span id="pause-text">Pause</span></button>
-          <button class="action" id="reset"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 5a5.5 5.5 0 1 1-.5 5M3 2v3H0" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Reset</button>
-        </div>
-      </div>
-    </main>
-    <footer><div class="message"><span aria-hidden="true">✳</span>Made for no reason. Except a good one.</div><div class="keys"><kbd>↑ ↓ ← →</kbd><span>move</span><kbd>space</kbd><span>pause</span></div></footer>
-    <div id="status" class="sr-only" role="status" aria-live="polite"></div>
-  </div>
-  <script>
-    (() => {
-      'use strict';
-      const canvas = document.getElementById('canvas');
-      const ctx = canvas.getContext('2d');
-      const playground = document.getElementById('playground');
-      const status = document.getElementById('status');
-      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-      const palettes = {
-        candy: { background:'#ece8fa', grid:'#d7d0ec', accent:'#7262cc', colors:['#ff9471','#d9ec94','#7d69d5','#b49ae8','#f4b6cf'], center:'#f8d975', line:'#9382c6' },
-        lagoon: { background:'#e3efea', grid:'#c9dfd5', accent:'#387a77', colors:['#f1ca7b','#b6e1ce','#459c98','#8ebabe','#d6e7a7'], center:'#f6e9a2', line:'#82b0a6' },
-        sunset: { background:'#f6e7e0', grid:'#e7cdc1', accent:'#b25e72', colors:['#ef9a78','#f0ce80','#ba769c','#d998af','#eeb4a0'], center:'#ffe3a1', line:'#c68d98' }
-      };
-      let paletteName = 'candy';
-      let palette = palettes.candy;
-      let width = 1, height = 1, scale = 1, time = 0, lastTime = 0;
-      let paused = reducedMotion.matches;
-      let frame = 0;
-      let active = false, drag = null, pointerId = null;
-      const pointer = { x:0, y:0 };
-      const ripples = [];
-      const particles = [];
-      const shapes = [
-        { kind:'flower', u:.32, v:.48, size:78, phase:0 },
-        { kind:'sun', u:.58, v:.36, size:65, phase:2 },
-        { kind:'ball', u:.72, v:.66, size:60, phase:4 },
-        { kind:'capsule', u:.49, v:.73, size:71, phase:1 },
-        { kind:'star', u:.77, v:.28, size:43, phase:3 }
-      ].map(s => ({ ...s, x:0, y:0, vx:0, vy:0, angle:0 }));
-
-      function home(s) {
-        return { x:width * s.u, y:height * s.v };
-      }
-      function resetPositions() {
-        for (const s of shapes) { const p = home(s); s.x=p.x; s.y=p.y; s.vx=0; s.vy=0; s.angle=0; }
-        pointer.x=width*.5; pointer.y=height*.5;
-      }
-      function resize() {
-        const bounds = canvas.getBoundingClientRect();
-        width=bounds.width; height=bounds.height;
-        const dpr=Math.min(window.devicePixelRatio || 1, 2);
-        canvas.width=Math.round(width*dpr); canvas.height=Math.round(height*dpr);
-        ctx.setTransform(dpr,0,0,dpr,0,0);
-        scale=Math.min(width/1000, height/420);
-        scale=Math.max(.48, Math.min(scale,1.15));
-        resetPositions();
-        draw();
-      }
-      function eyes(radius, mood='smile') {
-        const x=(pointer.x-width*.5)/width;
-        const y=(pointer.y-height*.5)/height;
-        ctx.fillStyle='#30283b';
-        for (const side of [-1,1]) {
-          ctx.beginPath(); ctx.ellipse(side*radius*.22+x*3, -radius*.08+y*3, radius*.032, radius*.052, 0,0,Math.PI*2); ctx.fill();
-        }
-        ctx.strokeStyle='#30283b'; ctx.lineWidth=1.8; ctx.lineCap='round';
-        ctx.beginPath();
-        if(mood==='smile') ctx.arc(0,radius*.05,radius*.14,.15,Math.PI-.15);
-        else { ctx.moveTo(-radius*.09,radius*.16); ctx.quadraticCurveTo(0,radius*.21,radius*.09,radius*.16); }
-        ctx.stroke();
-      }
-      function starPath(points, outer, inner, rotation=0) {
-        ctx.beginPath();
-        for(let i=0;i<points*2;i++) {
-          const a=i*Math.PI/points-Math.PI/2+rotation;
-          const r=i%2 ? inner : outer;
-          if(i===0) ctx.moveTo(Math.cos(a)*r,Math.sin(a)*r); else ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);
-        }
-        ctx.closePath();
-      }
-      function renderShape(s,index) {
-        const r=s.size*scale;
-        ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(s.angle);
-        ctx.shadowColor='#48375718'; ctx.shadowBlur=24*scale; ctx.shadowOffsetY=12*scale;
-        ctx.fillStyle=palette.colors[index];
-        if(s.kind==='flower') {
-          ctx.beginPath();
-          for(let i=0;i<=180;i++) {
-            const a=i/180*Math.PI*2;
-            const q=r*(.79+.21*Math.cos(a*8));
-            if(i===0) ctx.moveTo(q*Math.cos(a),q*Math.sin(a)); else ctx.lineTo(q*Math.cos(a),q*Math.sin(a));
-          }
-          ctx.closePath(); ctx.fill(); ctx.shadowColor='transparent';
-          ctx.fillStyle=palette.center; ctx.beginPath(); ctx.arc(0,0,r*.41,0,Math.PI*2); ctx.fill();
-          eyes(r*.7);
-        } else if(s.kind==='sun') {
-          starPath(14,r,r*.79); ctx.fill(); ctx.shadowColor='transparent'; eyes(r);
-        } else if(s.kind==='ball') {
-          const gradient=ctx.createRadialGradient(-r*.35,-r*.4,r*.05,0,0,r*1.1);
-          gradient.addColorStop(0,palette.colors[3]); gradient.addColorStop(.65,palette.colors[2]); gradient.addColorStop(1,palette.accent);
-          ctx.fillStyle=gradient; ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill(); ctx.shadowColor='transparent';
-          ctx.save(); ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.clip();
-          ctx.strokeStyle='#ffffff40'; ctx.lineWidth=1.4;
-          for(let j=-2;j<=2;j++) { ctx.beginPath(); ctx.ellipse(j*r*.35,0,r*.3,r*1.05,-.4,0,Math.PI*2); ctx.stroke(); }
-          ctx.beginPath(); ctx.ellipse(0,0,r,r*.35,-.4,0,Math.PI*2); ctx.stroke(); ctx.restore();
-        } else if(s.kind==='capsule') {
-          ctx.rotate(-.34);
-          ctx.beginPath(); ctx.roundRect(-r,-r*.42,r*2,r*.84,r*.42); ctx.fill(); ctx.shadowColor='transparent';
-          ctx.save(); ctx.clip(); ctx.strokeStyle='#fff9'; ctx.lineWidth=7*scale;
-          for(let j=-6;j<7;j++) { ctx.beginPath(); ctx.moveTo(j*22*scale-r*.25,-r); ctx.lineTo(j*22*scale+r*.25,r); ctx.stroke(); }
-          ctx.restore();
-        } else {
-          ctx.beginPath();
-          for(let i=0;i<=160;i++) {
-            const a=i/160*Math.PI*2, q=r*(.73+.27*Math.cos(a*4));
-            if(i===0) ctx.moveTo(q*Math.cos(a),q*Math.sin(a)); else ctx.lineTo(q*Math.cos(a),q*Math.sin(a));
-          }
-          ctx.closePath(); ctx.fill(); ctx.shadowColor='transparent';
-          ctx.strokeStyle='#fff8'; ctx.lineWidth=1.4;
-          ctx.beginPath(); ctx.moveTo(-r*.4,0); ctx.lineTo(r*.4,0); ctx.moveTo(0,-r*.4); ctx.lineTo(0,r*.4); ctx.stroke();
-        }
-        ctx.restore();
-      }
-      function draw() {
-        ctx.clearRect(0,0,width,height);
-        ctx.fillStyle=palette.grid;
-        for(let x=22;x<width;x+=24) for(let y=19;y<height;y+=24) { ctx.beginPath(); ctx.arc(x,y,.7,0,Math.PI*2); ctx.fill(); }
-        // A loose hand-drawn loop ties the composition together.
-        ctx.save(); ctx.strokeStyle=palette.line+'70'; ctx.lineWidth=1.4;
-        ctx.beginPath();
-        const sway=paused?0:Math.sin(time*.6)*7;
-        ctx.moveTo(width*.16,height*.66);
-        ctx.bezierCurveTo(width*.11,height*.08,width*.72,height*.93+sway,width*.81,height*.4);
-        ctx.bezierCurveTo(width*.9,height*.02,width*.28,height*.05,width*.25,height*.5);
-        ctx.stroke();
-        ctx.setLineDash([3,7]); ctx.beginPath(); ctx.ellipse(width*.52,height*.5,width*.3,height*.27,-.12,0,Math.PI*2); ctx.stroke(); ctx.restore();
-        // Small sparks are drawn, not loaded assets.
-        for(const mark of [{u:.17,v:.33,r:9},{u:.86,v:.67,r:12},{u:.61,v:.84,r:6}]) {
-          ctx.save(); ctx.translate(mark.u*width,mark.v*height); ctx.rotate(time*.12);
-          ctx.strokeStyle=palette.line; ctx.lineWidth=1.8;
-          for(let i=0;i<4;i++) { ctx.rotate(Math.PI/4); ctx.beginPath(); ctx.moveTo(-mark.r*scale,0); ctx.lineTo(mark.r*scale,0); ctx.stroke(); } ctx.restore();
-        }
-        for(const ring of ripples) {
-          ctx.strokeStyle=palette.accent; ctx.globalAlpha=(1-ring.life)*.35; ctx.lineWidth=1.5;
-          ctx.beginPath(); ctx.arc(ring.x,ring.y,10+ring.life*100,0,Math.PI*2); ctx.stroke();
-        }
-        ctx.globalAlpha=1;
-        shapes.forEach(renderShape);
-        for(const p of particles) {
-          ctx.save(); ctx.globalAlpha=1-p.life; ctx.translate(p.x,p.y); ctx.rotate(p.spin+p.life*4); ctx.fillStyle=palette.colors[p.color];
-          ctx.fillRect(-3*scale,-3*scale,6*scale,6*scale); ctx.restore();
-        }
-        if(active) {
-          ctx.strokeStyle=palette.accent+'80'; ctx.lineWidth=1;
-          ctx.beginPath(); ctx.arc(pointer.x,pointer.y,drag?14:6,0,Math.PI*2); ctx.stroke();
-        }
-      }
-      function animate(now) {
-        frame=0;
-        const dt=Math.min((now-lastTime)/1000 || .016,.035); lastTime=now; time+=dt;
-        for(const s of shapes) {
-          const p=home(s);
-          if(s===drag) { s.x=pointer.x; s.y=pointer.y; s.vx=0; s.vy=0; }
-          else {
-            const pull=active ? .2 : 0;
-            const x=p.x+(pointer.x-width*.5)*pull+Math.sin(time*.65+s.phase)*9*scale;
-            const y=p.y+(pointer.y-height*.5)*pull+Math.cos(time*.8+s.phase)*12*scale;
-            s.vx+=(x-s.x)*28*dt; s.vy+=(y-s.y)*28*dt;
-            const damping=Math.exp(-7*dt); s.vx*=damping; s.vy*=damping;
-            s.x+=s.vx*dt; s.y+=s.vy*dt;
-          }
-          s.angle=Math.sin(time*.6+s.phase)*.08+s.vx*.0006;
-          const edge=s.size*scale+8;
-          s.x=Math.max(edge,Math.min(width-edge,s.x)); s.y=Math.max(edge,Math.min(height-edge,s.y));
-        }
-        for(let i=ripples.length-1;i>=0;i--) { ripples[i].life+=dt*1.3; if(ripples[i].life>=1) ripples.splice(i,1); }
-        for(let i=particles.length-1;i>=0;i--) { const p=particles[i]; p.life+=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=60*dt; if(p.life>=1) particles.splice(i,1); }
-        draw();
-        if(!paused && !document.hidden) frame=requestAnimationFrame(animate);
-      }
-      function start() { if(!frame && !paused && !document.hidden) { lastTime=performance.now(); frame=requestAnimationFrame(animate); } }
-      function updatePause() {
-        document.getElementById('pause').setAttribute('aria-pressed',String(paused));
-        document.getElementById('pause').setAttribute('aria-label',paused?'Resume motion':'Pause motion');
-        document.getElementById('pause-text').textContent=paused?'Resume':'Pause';
-        document.getElementById('pause-icon').innerHTML=paused?'<path d="M5 3l8 5-8 5z"/>':'<rect x="4" y="3" width="2.5" height="10" rx="1"/><rect x="9.5" y="3" width="2.5" height="10" rx="1"/>';
-        document.getElementById('live').classList.toggle('paused',paused);
-        document.getElementById('live-text').textContent=paused?'TAKING A BREATHER':'IN MOTION';
-        if(paused) { cancelAnimationFrame(frame); frame=0; ripples.length=0; particles.length=0; draw(); } else start();
-      }
-      function togglePause() { paused=!paused; updatePause(); status.textContent=paused?'Motion paused. You can still drag shapes.':'Motion resumed.'; }
-      function point(event) { const b=canvas.getBoundingClientRect(); pointer.x=Math.max(0,Math.min(width,event.clientX-b.left)); pointer.y=Math.max(0,Math.min(height,event.clientY-b.top)); active=true; }
-      function burst() {
-        if(paused) {
-          // A still response keeps taps useful without introducing animation.
-          const nearest=shapes.reduce((a,b)=>Math.hypot(a.x-pointer.x,a.y-pointer.y)<Math.hypot(b.x-pointer.x,b.y-pointer.y)?a:b);
-          nearest.angle+=.3; draw(); return;
-        }
-        ripples.push({x:pointer.x,y:pointer.y,life:0});
-        if(ripples.length>6) ripples.shift();
-        for(let i=0;i<12;i++) {
-          const a=i/12*Math.PI*2, speed=50+Math.random()*100;
-          particles.push({x:pointer.x,y:pointer.y,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,life:0,spin:a,color:i%5});
-        }
-        if(particles.length>96) particles.splice(0,particles.length-96);
-        for(const s of shapes) {
-          const dx=s.x-pointer.x,dy=s.y-pointer.y,d=Math.hypot(dx,dy)||1;
-          s.vx+=dx/d*140; s.vy+=dy/d*140;
-        }
-      }
-      canvas.addEventListener('pointermove',event=>{
-        if(pointerId!==null && event.pointerId!==pointerId) return;
-        point(event);
-        if(paused) { if(drag) { const edge=drag.size*scale+8; drag.x=Math.max(edge,Math.min(width-edge,pointer.x)); drag.y=Math.max(edge,Math.min(height-edge,pointer.y)); } draw(); }
-      });
-      canvas.addEventListener('pointerdown',event=>{
-        if(pointerId!==null) return;
-        point(event); pointerId=event.pointerId; canvas.setPointerCapture(pointerId);
-        canvas.focus({preventScroll:true});
-        drag=[...shapes].reverse().find(s=>Math.hypot(s.x-pointer.x,s.y-pointer.y)<s.size*scale) || null;
-        if(drag) { canvas.style.cursor='grabbing'; document.getElementById('hint').textContent='Go on. Give it a little wander.'; } else burst();
-      });
-      function release(event) {
-        if(event.pointerId!==pointerId) return;
-        const id=pointerId; pointerId=null; drag=null;
-        if(canvas.hasPointerCapture(id)) canvas.releasePointerCapture(id);
-        canvas.style.cursor='crosshair'; document.getElementById('hint').textContent='Move, drag, or tap. See what happens.';
-        if(event.pointerType!=='mouse') active=false;
-        draw();
-      }
-      canvas.addEventListener('pointerup',release);
-      canvas.addEventListener('pointercancel',release);
-      canvas.addEventListener('lostpointercapture',()=>{ pointerId=null; drag=null; canvas.style.cursor='crosshair'; document.getElementById('hint').textContent='Move, drag, or tap. See what happens.'; });
-      canvas.addEventListener('pointerleave',()=>{ if(!drag) { active=false; if(paused) draw(); } });
-      canvas.addEventListener('keydown',event=>{
-        const delta=event.shiftKey?45:20;
-        const directions={ArrowLeft:[-delta,0],ArrowRight:[delta,0],ArrowUp:[0,-delta],ArrowDown:[0,delta]};
-        if(directions[event.key]) {
-          event.preventDefault(); active=true;
-          pointer.x=Math.max(12,Math.min(width-12,pointer.x+directions[event.key][0]));
-          pointer.y=Math.max(12,Math.min(height-12,pointer.y+directions[event.key][1]));
-          if(paused) { for(const s of shapes) { const p=home(s); s.x=p.x+(pointer.x-width*.5)*.2; s.y=p.y+(pointer.y-height*.5)*.2; } draw(); }
-        } else if(event.code==='Space') { event.preventDefault(); if(!event.repeat) togglePause(); }
-        else if(event.key==='Enter') { event.preventDefault(); burst(); }
-        else if(event.key.toLowerCase()==='r') reset();
-      });
-      canvas.addEventListener('focus',()=>{ active=true; if(paused) draw(); });
-      canvas.addEventListener('blur',()=>{ active=false; if(paused) draw(); });
-      function reset() {
-        drag=null; if(pointerId!==null && canvas.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId);
-        pointerId=null; active=false; time=0; ripples.length=0; particles.length=0;
-        resetPositions(); draw(); status.textContent='Playground reset. All shapes are back home.';
-      }
-      document.getElementById('pause').addEventListener('click',togglePause);
-      document.getElementById('reset').addEventListener('click',reset);
-      for(const button of document.querySelectorAll('.mood')) button.addEventListener('click',()=>{
-        paletteName=button.dataset.palette; palette=palettes[paletteName];
-        for(const b of document.querySelectorAll('.mood')) b.setAttribute('aria-pressed',String(b===button));
-        playground.style.background=palette.background; playground.style.borderColor=palette.grid;
-        document.documentElement.style.setProperty('--accent',palette.accent);
-        status.textContent=button.textContent.trim()+' colours selected.'; draw();
-      });
-      reducedMotion.addEventListener('change',event=>{ paused=event.matches; updatePause(); });
-      document.addEventListener('visibilitychange',()=>{ if(document.hidden) { cancelAnimationFrame(frame); frame=0; } else start(); });
-      new ResizeObserver(resize).observe(canvas);
-      resize(); updatePause();
-    })();
-  </script>
+<main class="stage" aria-label="A glowing ball bouncing over a dreamlike landscape">
+<canvas id="scene"></canvas><div class="horizon-glow"></div><div class="grain"></div>
+<header class="caption"><div class="eyebrow">A small study in motion</div><h1 class="title">Little Orbit</h1><div class="subtitle">One bright thing, finding its way home.</div></header>
+<div class="signature">Somewhere between falling &amp; flight</div>
+</main>
+<script>
+(()=>{const c=document.getElementById('scene'),x=c.getContext('2d');let w,h,dpr,stars=[],particles=[],last=0;function resize(){dpr=Math.min(devicePixelRatio||1,2);w=innerWidth;h=innerHeight;c.width=w*dpr;c.height=h*dpr;c.style.width=w+'px';c.style.height=h+'px';x.setTransform(dpr,0,0,dpr,0,0);stars=Array.from({length:Math.floor(w*h/9500)},()=>({u:Math.random(),v:Math.random()*.72,r:Math.random()*1.5+.25,a:Math.random()*.55+.12,p:Math.random()*7}))}addEventListener('resize',resize);resize();const start=performance.now();function frame(now){let t=(now-start)/1000;x.clearRect(0,0,w,h);
+// distant drifting flecks
+for(const s of stars){let tw=.6+.4*Math.sin(t*1.1+s.p);x.beginPath();x.fillStyle=`rgba(255,225,255,${s.a*tw})`;x.arc(s.u*w,s.v*h,s.r,0,Math.PI*2);x.fill()}
+// soft, layered hills
+function hill(base,amp,phase,color){x.beginPath();x.moveTo(0,h);for(let i=0;i<=80;i++){let u=i/80,xx=u*w,yy=base+Math.sin(u*5.6+phase)*amp+Math.sin(u*12+phase*1.7)*amp*.22;x.lineTo(xx,yy)}x.lineTo(w,h);x.closePath();x.fillStyle=color;x.fill()}
+hill(h*.76,h*.055,1.2,'#252057');hill(h*.82,h*.045,3.1,'#171b4b');
+// curved luminous path across the valley
+x.save();x.globalAlpha=.72;x.lineWidth=2;x.strokeStyle='#b978d6';x.shadowColor='#ff8be4';x.shadowBlur=18;x.beginPath();x.moveTo(0,h*.82);x.bezierCurveTo(w*.24,h*.75,w*.28,h*.91,w*.51,h*.84);x.bezierCurveTo(w*.72,h*.77,w*.82,h*.94,w,h*.82);x.stroke();x.globalAlpha=.26;x.lineWidth=17;x.stroke();x.restore();
+// orb follows a looping bounce with a brief floating apex
+let cx=w*(.5+.285*Math.sin(t*.47-.8)),floor=h*(.827+.025*Math.sin((cx/w)*Math.PI*2+1)),phase=(t*.72+.13)%1,arc=Math.pow(Math.sin(Math.PI*phase),.72),cy=floor-h*(.27*arc+.018),r=Math.min(w,h)*(.055+.009*arc);let impact=Math.pow(Math.max(0,1-arc),4),sx=1+impact*.19,sy=1-impact*.24;
+// shadow and echo rings
+x.save();x.globalAlpha=.24+.19*impact;x.fillStyle='#090d35';x.filter='blur(12px)';x.beginPath();x.ellipse(cx,floor+7,r*(1.45+.55*arc),r*.24,0,0,Math.PI*2);x.fill();x.filter='none';x.restore();
+x.save();x.globalAlpha=.17+.18*arc;x.strokeStyle='#ffbcf2';x.lineWidth=1;x.beginPath();x.ellipse(cx,floor+2,r*(1.8+arc),r*.38,0,0,Math.PI*2);x.stroke();x.restore();
+// trailing motes
+for(let i=0;i<12;i++){let q=i/12,yy=cy+(floor-cy)*q*.43,xx=cx-Math.sin(t*2+i*.35)*q*14,rr=(1-q)*3.2; x.beginPath();x.fillStyle=`rgba(255,178,236,${(1-q)*.38})`;x.arc(xx,yy,rr,0,Math.PI*2);x.fill()}
+// glassy rainbow orb
+x.save();x.translate(cx,cy);x.scale(sx,sy);let g=x.createRadialGradient(-r*.34,-r*.42,r*.04,0,0,r*1.14);g.addColorStop(0,'#fff9ff');g.addColorStop(.12,'#fff0c9');g.addColorStop(.32,'#ffabed');g.addColorStop(.59,'#c261ed');g.addColorStop(.82,'#7166ef');g.addColorStop(1,'#37d9e8');x.shadowColor='#ee7dfd';x.shadowBlur=42;x.beginPath();x.arc(0,0,r,0,Math.PI*2);x.fillStyle=g;x.fill();x.shadowBlur=0;
+// inner flowing ribbons clipped to sphere
+x.save();x.beginPath();x.arc(0,0,r*.98,0,Math.PI*2);x.clip();x.globalAlpha=.34;x.lineWidth=r*.14;for(let i=0;i<4;i++){x.strokeStyle=['#fff2ad','#ff65cb','#65f4e8','#9876ff'][i];x.beginPath();x.ellipse(-r*.12,r*.12,r*(.42+i*.08),r*(.16+i*.05),-.68+i*.38,Math.PI*1.05,Math.PI*1.95);x.stroke()}x.restore();
+x.globalAlpha=.76;x.fillStyle='#fff';x.beginPath();x.ellipse(-r*.31,-r*.48,r*.17,r*.08,-.65,0,Math.PI*2);x.fill();x.globalAlpha=.34;x.beginPath();x.ellipse(r*.25,r*.38,r*.08,r*.035,-.55,0,Math.PI*2);x.fill();x.restore();
+// faint orbiting sparks
+for(let i=0;i<3;i++){let a=t*.7+i*2.1,px=cx+Math.cos(a)*r*1.55,py=cy+Math.sin(a)*r*.62;x.beginPath();x.fillStyle=`rgba(255,222,249,${.6+.3*Math.sin(t*2+i)})`;x.arc(px,py,2.2-i*.35,0,Math.PI*2);x.fill()}
+requestAnimationFrame(frame)}requestAnimationFrame(frame)})();
+</script>
 </body>
 </html>

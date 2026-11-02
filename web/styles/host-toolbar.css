@@ -127,6 +127,15 @@
   flex: 1 0 100%;
 }
 
+.host .controls > .save-default {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.host .controls > .prompt-file {
+  flex: 0 0 auto;
+}
+
 .stop-platform {
   display: inline-flex;
   gap: 6px;
