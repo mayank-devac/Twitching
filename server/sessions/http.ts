@@ -12,7 +12,7 @@ const identifier = z
   .regex(/^[a-zA-Z0-9:_-]+$/);
 const cursor = z.string().min(1).max(4000).optional();
 const listing = z.object({
-  source: z.enum(["managed", ...CLIS]),
+  source: z.enum(["managed", "all", ...CLIS]),
   search: z.string().max(160).default(""),
   before: cursor,
 });

@@ -18,12 +18,17 @@ export function privateValues(secrets: Secrets): string[] {
 
 // Builds a redactor over privateValues plus any Kick app token minted at runtime.
 // `currentKickToken` is polled on every call; earlier tokens stay redacted after a rotation.
+// `extra` holds file-based logins read at startup (the saved Claude token).
 export function createRedactor(
   secrets: Secrets,
   root: string,
   currentKickToken: () => string | undefined = () => undefined,
+  extra: (string | undefined)[] = [],
 ) {
-  const base = privateValues(secrets);
+  const base = [
+    ...privateValues(secrets),
+    ...extra.filter((value): value is string => !!value),
+  ];
   const minted: string[] = [];
   let known = redactor(base, root);
   const clean: ReturnType<typeof redactor> = (value, limit, streaming) => {

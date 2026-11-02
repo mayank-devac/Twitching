@@ -25,7 +25,8 @@ RUN mkdir -p /opt/cursor-install && if [ "$INSTALL_CURSOR" = "1" ]; then \
       bash /tmp/cursor-install.sh && rm /tmp/cursor-install.sh; \
     fi
 ENV PATH=/opt/cursor-install/.local/bin:/usr/local/bin:/usr/bin:/bin
-ENV DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 CLAUDE_CONFIG_DIR=/workspace/.home/.claude
+# Run-time Claude variables come from CLAUDE_RUN_ENV in server/claude-profile.ts.
+ENV CLAUDE_CONFIG_DIR=/workspace/.home/.claude
 ENV HOME=/workspace/.home CODEX_HOME=/workspace/.home/.codex TMPDIR=/workspace/.tmp XDG_CONFIG_HOME=/workspace/.home/.config XDG_CACHE_HOME=/workspace/.home/.cache
 WORKDIR /workspace
 USER 1000:1000

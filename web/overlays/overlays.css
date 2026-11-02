@@ -565,3 +565,20 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+/* Narrow screens: one stacked column. Must follow the column rules above so
+   `grid-column: 2` can't create a phantom second column that overlaps the form. */
+@media (max-width: 760px) {
+  .multi-overlays .overlay-main-col,
+  .multi-overlays .overlay-side-col {
+    grid-column: 1;
+  }
+  .multi-overlays .overlay-visibility {
+    padding-left: 0;
+    border-left: 0;
+    padding-top: 10px;
+    border-top: 1px solid var(--color-line);
+  }
+  .overlay-actions {
+    flex-wrap: wrap;
+  }
+}

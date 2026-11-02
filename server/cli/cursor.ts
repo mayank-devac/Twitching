@@ -18,8 +18,6 @@ function cursorModels(output: string): CliModel[] {
 }
 export const cursor: CliAdapter = {
   cli: "cursor",
-  edited: (event) =>
-    event.type === "tool_call" && event.subtype === "completed",
   async check(host) {
     const help = await host.capture("cursor", ["cursor-agent", "--help"]);
     for (const flag of [
@@ -59,6 +57,8 @@ export const cursor: CliAdapter = {
     "--force",
     prompt,
   ],
-  activity: (session, round, clean, emit, general, root) =>
-    new ActivityAdapter("cursor", round, clean, emit, Date.now, session.id, general, root),
+  activity: (session, round, clean, emit, run, root) =>
+    new ActivityAdapter("cursor", round, clean, emit, Date.now, session.id, run.general, root, {
+      edited: (event) => event.type === "tool_call" && event.subtype === "completed",
+    }),
 };

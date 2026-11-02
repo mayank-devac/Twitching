@@ -14,24 +14,33 @@ test("malformed nested CLI data is ignored without exposing its contents", () =>
   }
   assert.deepEqual(events, []);
 });
+// Each run's parser owns its edit trigger.
+const run = (cli: keyof typeof cliAdapters) =>
+  cliAdapters[cli].activity({ id: "session-1", cli, model: "m" }, 1, (text) => text, () => {}, { boundary: "docker", general: false });
 test("validated events select only the correct CLI's edit trigger", () => {
   const codex = parseCliEvent({ type: "item.completed", item: { type: "file_change", changes: [{ path: "/workspace/prompt_1.html" }] } })!;
   const cursor = parseCliEvent({ type: "tool_call", subtype: "completed", tool_call: {} })!;
-  assert.equal(cliAdapters.codex.edited(codex), true);
-  assert.equal(cliAdapters.cursor.edited(codex), false);
-  assert.equal(cliAdapters.cursor.edited(cursor), true);
-  assert.equal(cliAdapters.codex.edited(cursor), false);
+  assert.equal(run("codex").edited(codex), true);
+  assert.equal(run("cursor").edited(codex), false);
+  assert.equal(run("cursor").edited(cursor), true);
+  assert.equal(run("codex").edited(cursor), false);
   assert.ok(parseCliEvent({ type: "turn.completed", error: null }));
 });
-test("Claude edit trigger fires only on its tool results", () => {
+test("Claude edit trigger fires only on results of its write and command calls", () => {
+  const write = parseCliEvent({ type: "assistant", message: { content: [{ type: "tool_use", id: "t1", name: "Write", input: {} }] } })!;
   const result = parseCliEvent({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: "t1", content: "ok" }] } })!;
   const text = parseCliEvent({ type: "assistant", message: { content: [{ type: "text", text: "hi" }] } })!;
   const cursor = parseCliEvent({ type: "tool_call", subtype: "completed", tool_call: {} })!;
-  assert.equal(cliAdapters.claude.edited(result), true);
-  assert.equal(cliAdapters.claude.edited(text), false);
-  assert.equal(cliAdapters.claude.edited(cursor), false);
-  assert.equal(cliAdapters.cursor.edited(result), false);
-  assert.equal(cliAdapters.codex.edited(result), false);
+  const claude = run("claude");
+  assert.equal(claude.edited(result), false, "a result with no known write call");
+  assert.equal(claude.edited(write), false);
+  assert.equal(claude.edited(text), false);
+  assert.equal(claude.edited(cursor), false);
+  assert.equal(claude.edited(result), true);
+  // Another run never sees this run's pending calls.
+  assert.equal(run("claude").edited(result), false);
+  assert.equal(run("cursor").edited(result), false);
+  assert.equal(run("codex").edited(result), false);
 });
 test("Claude events keep tool_use fields and string error kinds", () => {
   const use = parseCliEvent({ type: "assistant", message: { content: [{ type: "tool_use", id: "t1", name: "Write", input: { file_path: "a.html" } }] } });

@@ -1,3 +1,4 @@
+import obsLogo from "../../assets/obs.svg";
 import { LastSetup } from "./LastSetup.js";
 import { ModeHandover } from "./ModeHandover.js";
 import { useModeSwitch } from "./use-mode-switch.js";
@@ -20,6 +21,7 @@ import { Timeline } from "./Timeline.js";
 import {
   SessionBrowser,
   type SessionListing as Listing,
+  type SessionSource,
 } from "./SessionBrowser.js";
 import { LaunchChoices, NativeConsent } from "./LaunchChoices.js";
 import { uniqueConversations } from "../../shared/sessions.js";
@@ -127,7 +129,7 @@ export function Welcome({
   const [nativeAccepted, setNativeAccepted] = useState(false);
   const [models, setModels] = useState<ModelChoice[]>();
   const [choice, setChoice] = useState<SessionConfig>();
-  const [source, setSource] = useState<"managed" | Agent>("codex");
+  const [source, setSource] = useState<SessionSource>("codex");
   const [search, setSearch] = useState("");
   const [listing, setListing] = useState<Listing>({ conversations: [] });
   const [selected, setSelected] = useState<SessionView>();
@@ -859,7 +861,24 @@ export function Welcome({
               <span className="readiness-pill" key={name}>
                 <i className={tool?.available ? "ready" : "missing"} />
                 {name}
-                <b>{tool?.message ?? "Checking"}</b>
+                {tool?.available ? (
+                  <b>{tool.message}</b>
+                ) : tool ? (
+                  <>
+                    <b>Unavailable</b>
+                    <span
+                      className="readiness-info"
+                      tabIndex={0}
+                      role="img"
+                      aria-label={`${name}: ${tool.message}`}
+                      data-tip={tool.message.replace(/^Unavailable\.\s*/, "")}
+                    >
+                      i
+                    </span>
+                  </>
+                ) : (
+                  <b>Checking</b>
+                )}
               </span>
             );
           })}
@@ -893,7 +912,9 @@ export function Welcome({
         </div>
         <div className="footer-actions">
           <button
-            className="ghost-button"
+            className="ghost-button icon-tool"
+            data-tip="Open OBS"
+            aria-label="Open OBS"
             disabled={busy}
             onClick={() =>
               void perform(() =>
@@ -901,24 +922,34 @@ export function Welcome({
               )
             }
           >
-            Open OBS
+            <img className="btn-icon" src={obsLogo} alt="" />
           </button>
           <button
-            className="ghost-button"
+            className="ghost-button icon-tool"
+            data-tip="Prompt arena"
+            aria-label="Prompt arena"
             disabled={busy || !!handover || !token}
             aria-pressed={path === "arena"}
             onClick={() => { if (path !== "arena") void perform(() => switchPath("arena")); }}
           >
-            Prompt arena
+            <svg className="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 4h14v11H9l-4 4z" />
+              <path d="M9 9h6" />
+            </svg>
           </button>
           <RehearsalCheck token={token} context={path === "arena" ? "arena" : selected?.conversation.id ?? "unselected"} revision={settingsDoc?.revision} />
           <a
-            className="ghost-button"
+            className="ghost-button icon-tool"
+            data-tip="Preview overlay"
+            aria-label="Preview overlay"
             href="/overlay"
             target="_blank"
             rel="noreferrer"
           >
-            Preview overlay
+            <svg className="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
           </a>
           <button
             className="primary-button"

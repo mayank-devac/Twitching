@@ -13,6 +13,7 @@ function fakeHost(agent: Agent, created: Agent[], output?: string) {
     capture: async (selected: Agent, args: string[]) => {
       assert.equal(selected, agent);
       if (args.includes("status")) return "Logged in";
+      if (args.includes("--version")) return "2.1.302 (Claude Code)";
       if (args.includes("--list-models")) return "requested-cursor";
       return "--ignore-user-config --ignore-rules --disable --print --stream-partial-output --output-format --model --force " +
         "--verbose --effort --permission-mode --no-session-persistence --strict-mcp-config --mcp-config --setting-sources --settings --disallowedTools";

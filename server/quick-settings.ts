@@ -12,13 +12,16 @@ const visibility = z
       Object.keys(defaultVisibility).map((k) => [k, z.boolean()]),
     ) as Record<keyof typeof defaultVisibility, z.ZodBoolean>,
   )
-  // Settings saved before the effort and web toggles existed have no key; they keep them on.
+  // Settings saved before the effort and web toggles existed have no key. Web
+  // stays on; effort follows the model toggle, so a streamer who hid the
+  // model does not start showing its effort.
   .extend({
     hidePreviousRuns: z.boolean().optional(),
-    effort: z.boolean().default(true),
+    effort: z.boolean().optional(),
     web: z.boolean().default(true),
   })
-  .strict();
+  .strict()
+  .transform((value) => ({ ...value, effort: value.effort ?? value.model }));
 const duration = z.number().int().min(1000).max(3_600_000);
 export const preferencesSchema = z
   .object({

@@ -331,6 +331,7 @@ test("identical CLI item IDs stay separate through activity deltas and SQLite", 
         1,
         (text) => text,
         (event) => events.push(event),
+        { boundary: "docker", general: true },
       );
       parser.receive({
         type: "item.completed",

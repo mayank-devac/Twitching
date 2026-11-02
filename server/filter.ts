@@ -262,7 +262,10 @@ function abuseTokens(text: string) {
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
   const parts = folded ? folded.split(" ") : [];
-  const tokens = [...parts];
+  // Joining across punctuation catches s.h.i.t, but hides a listed word glued to
+  // another by a separator (shit_lord), so each separated piece is checked too.
+  const pieces = foldLetters(text).split(/[^a-z0-9]+/).filter(Boolean);
+  const tokens = [...parts, ...pieces];
   // Check neighbouring fragments regardless of each fragment's size: fuc k,
   // bit ch, and chu tiya must be treated like their unsplit forms.
   for (let i = 0; i < parts.length; i++) {

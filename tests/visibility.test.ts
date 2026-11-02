@@ -6,7 +6,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { Store } from "../server/store.js";
 import { Docker } from "../server/docker.js";
-import { QuickSettings, defaultCriteria } from "../server/quick-settings.js";
+import { QuickSettings, defaultCriteria, preferencesSchema } from "../server/quick-settings.js";
+import { publicModelLabel } from "../shared/types.js";
 import { Sessions } from "../server/sessions/service.js";
 import { CliRunner } from "../server/runner.js";
 import { publicActivity } from "../server/settings-view.js";
@@ -326,4 +327,25 @@ test("edit rows name their file only when read file names is on", () => {
   assert.equal(on.placeholder, undefined);
   const page = visiblePage({ items: [item] }, { ...defaultVisibility, read: false, edit: true });
   assert.ok(!JSON.stringify(page).includes("runner.ts"));
+});
+
+test("settings saved before the effort toggle keep effort hidden when the model is hidden", () => {
+  const { effort: _effort, ...saved } = defaultVisibility;
+  const parse = (visibility: Record<string, unknown>) => {
+    const parsed = preferencesSchema.parse({
+      sessions: [{ id: "session-1", cli: "codex", model: "m1", effort: "high" }],
+      visibility: { "session-1": visibility },
+      stream: { mode: "rehearsal", youtube: false, twitch: false, kick: false, collectionMs: 1000, extensionMs: 1000, resultMs: 1000 },
+      jevCriteria: defaultCriteria,
+      jevProbe: "Explain this function safely",
+      media: {},
+    });
+    return parsed.visibility["session-1"]!;
+  };
+  const hidden = parse({ ...saved, model: false });
+  assert.equal(hidden.effort, false);
+  assert.equal(publicModelLabel({ model: "m1", effort: "high" }, hidden), "");
+  assert.equal(parse({ ...saved, model: true }).effort, true);
+  // An explicit choice still wins over the model toggle.
+  assert.equal(parse({ ...saved, model: false, effort: true }).effort, true);
 });

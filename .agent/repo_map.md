@@ -164,8 +164,8 @@ Purpose: Route agents to the most relevant source files quickly. Verify details 
 
 `server/claude-profile.ts`
 
-- Work: Claude Code isolation profile. Claude runs with a subscription token (`claude setup-token`, saved by `npm run sandbox:login:claude` to `runtime/auth/claude/oauth-token`), passed only through the process environment, never into the workspace. A managed `CLAUDE_CONFIG_DIR` settings file is rewritten each launch; `--setting-sources user`, `--strict-mcp-config`, `--disallowedTools mcp__*` and `--no-session-persistence` keep personal config, project hooks and MCP out. Native runs swap `bypassPermissions` for `acceptEdits` plus Claude's OS sandbox.
-- Contains: `CLAUDE_EXEC_PROFILE_ARGS`, `CLAUDE_NATIVE_PROFILE_JSON`, `readClaudeToken`, `prepareClaudeHome`, `claudeProfileViolation` (runtime check on `system/init`).
+- Work: Claude Code isolation profile. Claude runs with a subscription token (`claude setup-token`, saved by `npm run sandbox:login:claude` to `runtime/auth/claude/oauth-token`), passed only through the process environment, never into the workspace. The managed `CLAUDE_CONFIG_DIR` is deleted and rebuilt each launch (native runs keep it in `runtime/claude-config/<session>`, outside the working directory); `--setting-sources user`, `--strict-mcp-config`, `--disallowedTools mcp__*` and `--no-session-persistence` keep personal config, project hooks and MCP out. `claudeProfile(run)` builds the flags from the `RunContext`: Docker uses `bypassPermissions`, native uses `acceptEdits` plus Claude's OS sandbox, and arena rounds get only file tools (`--tools`) and `--max-turns`.
+- Contains: `claudeProfile`, `CLAUDE_NATIVE_PROFILE_JSON`, `CLAUDE_WRITE_TOOLS`, `readClaudeToken`, `prepareClaudeConfig`, `claudeProfileViolation` (runtime check of `system/init`: MCP/plugins, permission mode, API-key source, model, arena tools), `claudeVersionAtLeast` (`CLAUDE_MIN_VERSION` gate).
 - Used by: `server/cli/claude.ts`, `server/activity.ts`, `server/docker.ts`, `server/native-host.ts`, `scripts/login.ts`, `tests/claude.test.ts`.
 
 `server/native-host.ts`

@@ -815,6 +815,47 @@ body:has(.welcome-page) {
   color: var(--color-text-soft);
   font-weight: 500;
 }
+.readiness-info {
+  position: relative;
+  display: inline-grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 50%;
+  color: var(--color-text-muted);
+  cursor: help;
+  font-size: 11px;
+  font-weight: 700;
+}
+.readiness-info::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 40;
+  transform: translateX(-50%);
+  padding: 5px 9px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 6px;
+  background: #1a202c;
+  color: var(--color-text);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.readiness-info:hover,
+.readiness-info:focus-visible {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+}
+.readiness-info:hover::after,
+.readiness-info:focus-visible::after {
+  opacity: 1;
+}
 .welcome-footer .primary-button {
   min-width: 140px;
 }
@@ -868,6 +909,9 @@ body:has(.welcome-page) {
   color: #b9d6c4;
 }
 .new-session-settings fieldset.welcome-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   min-inline-size: 0;
 }
 .new-session-settings fieldset legend {
@@ -886,7 +930,9 @@ body:has(.welcome-page) {
   font-size: 13px;
   font-weight: 550;
 }
-.new-session-settings fieldset label + label,
+.new-session-settings fieldset label + label {
+  margin-top: 0;
+}
 .session-model-settings .qs-fields label + label {
   margin-top: 14px;
 }
@@ -923,7 +969,12 @@ body:has(.welcome-page) {
   font-size: 13px;
   text-align: center;
 }
-.new-session-settings .qs-hint,
+.new-session-settings .qs-hint {
+  margin-top: 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
 .session-model-settings .qs-hint {
   margin-top: 10px;
   color: var(--color-text-muted);
@@ -1031,10 +1082,14 @@ body:has(.welcome-page) {
 }
 .native-consent {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   color: var(--color-text-muted);
   font-size: 11px;
+}
+.native-consent > span {
+  flex: 1 1 220px;
 }
 .native-consent button {
   padding: 6px 12px;
@@ -1079,10 +1134,10 @@ body:has(.welcome-page) {
     padding-left: 22px;
   }
   .footer-status {
-    gap: 9px;
+    gap: 12px;
   }
   .readiness-pill {
-    gap: 5px;
+    gap: 8px;
   }
   .readiness-pill b {
     display: none;
@@ -1154,14 +1209,24 @@ body:has(.welcome-page) {
   .footer-status {
     justify-content: space-between;
   }
+  /* Keep the footer tools and Continue together on narrow screens. */
   .footer-actions {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.5fr);
     gap: 7px;
   }
   .footer-actions > * {
-    padding: 10px 5px;
-    font-size: 11px;
+    padding: 8px 3px;
+    font-size: 10px;
+  }
+  .footer-actions .rehearsal-check,
+  .footer-actions .rehearsal-check > button {
+    width: 100%;
+  }
+  .footer-actions > .primary-button {
+    padding: 8px 2px;
+    font-size: 12px;
+    white-space: nowrap;
   }
   /* Only min-width needs to outrank `.welcome-footer .primary-button` (0,2,0, earlier). */
   .welcome-footer .footer-actions > * {
@@ -1175,4 +1240,55 @@ body:has(.welcome-page) {
 }
 .footer-actions .rehearsal-check {
   display: flex;
+}
+
+.footer-actions .btn-icon {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+@media (min-width: 761px) {
+  .footer-actions .ghost-button,
+  .footer-actions .host-tool-button {
+    gap: 7px;
+  }
+}
+
+/* Icon-only footer tools: the label appears as a tooltip on hover/focus. */
+.footer-actions .icon-tool {
+  position: relative;
+  min-width: 46px;
+  padding: 9px 12px;
+}
+.footer-actions .icon-tool .btn-icon {
+  width: 20px;
+  height: 20px;
+}
+.footer-actions .icon-tool[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 40;
+  transform: translateX(-50%);
+  padding: 5px 9px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 6px;
+  background: #1a202c;
+  color: var(--color-text);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.footer-actions .icon-tool:hover::after,
+.footer-actions .icon-tool:focus-visible::after {
+  opacity: 1;
 }

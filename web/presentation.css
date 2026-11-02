@@ -109,15 +109,16 @@
 .presentation-dot.ok { background: #7ce3aa; }
 .presentation-dot.warn { background: #e4bb80; }
 .presentation-dot.danger { background: #ff9aa4; }
-.presentation-popover { width: min(460px, calc(100vw - 32px)); }
-.presentation-popover .presentation-source-label { display: grid; gap: 6px; margin-bottom: 12px; color: var(--color-text-soft); font-size: 12px; font-weight: 550; }
+.presentation-popover { width: min(460px, calc(100vw - 32px)); padding: 16px; }
+.presentation-popover .host-popover-heading { margin-bottom: 16px; }
+.presentation-popover .presentation-source-label { display: grid; gap: 8px; margin-bottom: 12px; color: var(--color-text-soft); font-size: 12px; font-weight: 550; }
 .presentation-popover select { width: 100%; padding: 10px 11px; border: 1px solid #32394a; border-radius: 8px; background: var(--color-bg); color: var(--color-text); color-scheme: dark; font: inherit; }
 .presentation-popover .presentation-controls { display: flex; flex-wrap: wrap; gap: 8px; }
 .presentation-popover .presentation-controls > button { flex: 1 1 auto; }
 .presentation-popover .presentation-controls .privacy-action { background: #211c32; border-color: #504471; color: #e5ddff; }
 .presentation-popover .presentation-controls .privacy-action.is-hidden { color: #f2d5ac; border-color: #705b3d; background: #2a241c; }
-.presentation-popover .overlay-presentation-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
-.presentation-popover .overlay-presentation-footer small { flex: 1; min-width: 200px; color: var(--color-text-muted); font-size: 11px; line-height: 1.6; }
+.presentation-popover .overlay-presentation-footer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; margin-top: 12px; }
+.presentation-popover .overlay-presentation-footer small { color: var(--color-text-muted); font-size: 11px; line-height: 1.5; }
 @media (max-width: 760px) {  .welcome-header { flex-wrap: wrap; gap: 12px; }
   .welcome-header > .welcome-header-tools { justify-content: flex-start; max-width: 100%; overflow-x: auto; padding: 3px 0; }
   .host-popover { inset: 100px 16px auto auto; max-height: calc(100dvh - 120px); }

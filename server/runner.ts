@@ -13,7 +13,7 @@ import { Docker } from "./docker.js";
 import { failureKind } from "./redact.js";
 import { configuredSessions, sessionLabel } from "../shared/types.js";
 import { cliAdapters, validateSessions, validateModel } from "./cli/index.js";
-import type { CliCatalog } from "./cli/types.js";
+import type { CliCatalog, RunContext } from "./cli/types.js";
 import { LoginRefreshConflict } from "./login-guard.js";
 import { HtmlDiffs } from "./file-diff.js";
 export interface RunOutcome {
@@ -123,6 +123,12 @@ export class CliRunner implements PairRunner {
   recover() {
     return this.docker.recover();
   }
+  private runContext(): RunContext {
+    return {
+      boundary: this.docker.executionBoundary,
+      general: this.options.experience === "session",
+    };
+  }
   async discover(cli: Agent) {
     await this.ensureCapabilities(cli);
     return (await cliAdapters[cli].discover(this.docker)).models;
@@ -188,7 +194,7 @@ export class CliRunner implements PairRunner {
         const container = await this.docker.create(
           session.cli,
           round,
-          cliAdapters[session.cli].command(session, prompt),
+          cliAdapters[session.cli].command(session, prompt, this.runContext()),
           this.options.workspaceKey
             ? await this.docker.workspace({ cli: session.cli, round: this.options.workspaceKey, session: session.id })
             : undefined,
@@ -257,7 +263,7 @@ export class CliRunner implements PairRunner {
       round,
       this.clean,
       emit,
-      this.options.experience === "session",
+      this.runContext(),
       container.dir,
     );
     const process = this.docker.attach(container.name);
@@ -278,7 +284,7 @@ export class CliRunner implements PairRunner {
         const e = parseValidatedCliEvent(value);
         if (!e) return;
         adapter.receive(e);
-        if (this.options.experience !== "session" && cliAdapters[session.cli].edited(e)) void diffs.capture();
+        if (this.options.experience !== "session" && adapter.edited(e)) void diffs.capture();
         if (adapter.failure) interrupt(adapter.failure);
       },
       () =>

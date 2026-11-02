@@ -108,3 +108,44 @@ test("Claude history ignores linked transcripts and a missing config", async () 
     await rm(config, { recursive: true, force: true });
   }
 });
+
+test("Claude history skips compaction summaries and interrupt markers as prompts", async () => {
+  const config = await mkdtemp(resolve(tmpdir(), "stram-claude-history-"));
+  try {
+    const project = resolve(config, "projects", "-Users-me-Twitching");
+    await mkdir(project, { recursive: true });
+    await writeFile(resolve(project, `${A}.jsonl`), [
+      line({ type: "user", uuid: "c1", isCompactSummary: true, message: { content: "This session is being continued from a previous conversation" } }),
+      line({ type: "user", uuid: "i1", message: { content: [{ type: "text", text: "[Request interrupted by user]" }] } }),
+      line({ type: "user", uuid: "p1", message: { content: "Real prompt" } }),
+    ].join("\n"));
+    const history = new ClaudeHistory((s) => s, config);
+    assert.equal((await history.read(A)).title, "Real prompt");
+    const prompts = (await history.page(A)).items.filter((i) => i.kind === "prompt");
+    assert.deepEqual(prompts.map((p) => p.text), ["Real prompt"]);
+  } finally {
+    await rm(config, { recursive: true, force: true });
+  }
+});
+
+test("Claude history paging never drops transcripts that share an mtime", async () => {
+  const config = await mkdtemp(resolve(tmpdir(), "stram-claude-history-"));
+  try {
+    const project = resolve(config, "projects", "-Users-me-Twitching");
+    await mkdir(project, { recursive: true });
+    const ids = Array.from({ length: 31 }, (_, i) => `${String(i).padStart(8, "0")}-0000-4000-8000-000000000000`);
+    for (const id of ids) {
+      await writeFile(resolve(project, `${id}.jsonl`), line({ type: "user", uuid: "u", message: { content: id } }));
+      await utimes(resolve(project, `${id}.jsonl`), new Date(5000), new Date(5000));
+    }
+    const history = new ClaudeHistory((s) => s, config);
+    const first = await history.list("");
+    assert.equal(first.conversations.length, 30);
+    const second = await history.list("", first.before);
+    const seen = [...first.conversations, ...second.conversations].map((c) => c.providerId);
+    assert.equal(new Set(seen).size, 31);
+    assert.equal(second.before, undefined);
+  } finally {
+    await rm(config, { recursive: true, force: true });
+  }
+});

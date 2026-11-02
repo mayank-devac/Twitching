@@ -14,6 +14,7 @@ import { settings, root, secrets, housePrompts } from "./config.js";
 import { Store } from "./store.js";
 import { credentialGuard } from "./redact.js";
 import { createRedactor } from "./secrets.js";
+import { readClaudeToken } from "./claude-profile.js";
 import { Docker } from "./docker.js";
 import { CliRunner } from "./runner.js";
 import { Previews } from "./preview.js";
@@ -145,7 +146,10 @@ applyPreferences(preferences.get().value);
 const media = new BreakMedia(root, store);
 const kickToken = new KickToken(secrets.kick);
 // The Kick app token is minted at runtime; createRedactor hides every token it has seen.
-const { clean, privateValues } = createRedactor(secrets, root, () => kickToken.current());
+// The saved Claude token is hidden by value too, not only by its sk- shape.
+// A token saved after startup is still caught by the shape check.
+const claudeToken = await readClaudeToken(root).catch(() => undefined);
+const { clean, privateValues } = createRedactor(secrets, root, () => kickToken.current(), [claudeToken]);
 const presentation = new PresentationControls(store, clean);
 // Persist running elapsed time periodically; a restart restores the last checkpoint paused.
 const presentationCheckpoint = setInterval(() => {

@@ -1,5 +1,9 @@
 import { parseCliEvent, jsonObject, type CliEvent } from "./cli/events.js";
-import { claudeProfileViolation } from "./claude-profile.js";
+import {
+  CLAUDE_TERMINAL_TOOLS,
+  CLAUDE_WRITE_TOOLS,
+  claudeProfileViolation,
+} from "./claude-profile.js";
 import { createHash } from "node:crypto";
 import { StringDecoder } from "node:string_decoder";
 import { projectRelativeName } from "../shared/safe-file-name.js";
@@ -63,6 +67,13 @@ export function parseValidatedCliEvent(value: unknown) {
   if (event) validated.add(event);
   return event;
 }
+// Per-CLI behaviour a run's adapter plugs in, so this class stays CLI-neutral.
+export interface ActivityHooks {
+  // True when the event finished a step that may have changed files.
+  edited?: (e: CliEvent) => boolean;
+  // Extra checks on the startup event; returns why the run must stop.
+  checkInit?: (e: CliEvent) => string | undefined;
+}
 export class ActivityAdapter {
   successful = false;
   failure?: string;
@@ -87,7 +98,11 @@ export class ActivityAdapter {
     private session: SessionId = agent,
     private general = false,
     private root?: string,
+    private hooks: ActivityHooks = {},
   ) {}
+  edited(e: CliEvent) {
+    return this.hooks.edited?.(e) ?? false;
+  }
   private publish(
     kind: ActivityKind,
     text: string,
@@ -314,7 +329,8 @@ export class ActivityAdapter {
     const blocks =
       e.message && typeof e.message === "object" ? e.message.content ?? [] : [];
     if (e.type === "system" && e.subtype === "init") {
-      const violation = claudeProfileViolation(e);
+      // The adapter's check covers the base MCP/plugin rule too.
+      const violation = (this.hooks.checkInit ?? claudeProfileViolation)(e);
       if (violation) {
         this.failure = violation;
         this.publish("error", violation, "system:init");
@@ -337,6 +353,9 @@ export class ActivityAdapter {
         `Claude API retry (${kind})`,
         `api_retry:${kind}`,
       );
+    } else if (e.type === "system" && e.subtype === "permission_denied") {
+      // The denied call itself (paths, commands) stays private.
+      this.publish("output", "Claude was blocked from a tool call", `denied:${this.claudeBlock++}`);
     } else if (e.type === "assistant") {
       for (const block of blocks) {
         const key = `block:${this.claudeBlock++}`;
@@ -376,6 +395,13 @@ export class ActivityAdapter {
             e.terminal_reason ||
             e.subtype ||
             "Claude Code failed",
+        );
+      const denied = e.permission_denials?.length ?? 0;
+      if (denied)
+        this.publish(
+          "output",
+          `${denied} tool call${denied === 1 ? " was" : "s were"} blocked by the run's permissions`,
+          "result:denials",
         );
       this.publish(
         this.successful ? "complete" : "error",
@@ -518,10 +544,8 @@ function classifyTool(name: string): ActivityLane {
 }
 // Claude Code names its built-in tools exactly; TodoWrite is a plan, not a file write.
 function claudeLane(name: string): ActivityLane {
-  if (name === "Bash" || name === "BashOutput" || name === "KillShell")
-    return "terminal";
-  if (["Write", "Edit", "MultiEdit", "NotebookEdit"].includes(name))
-    return "write";
+  if (CLAUDE_TERMINAL_TOOLS.includes(name)) return "terminal";
+  if (CLAUDE_WRITE_TOOLS.includes(name)) return "write";
   if (["Read", "Grep", "Glob", "LS", "NotebookRead"].includes(name))
     return "read";
   return "tool";

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { z } from "zod";
-import { configuredSessions, type SessionConfig } from "../shared/types.js";
+import { DEFAULT_CLAUDE_MODEL, configuredSessions, type SessionConfig } from "../shared/types.js";
 import {
   cliSchema,
   runnerModeSchema,
@@ -31,7 +31,7 @@ export const startupSchema = z.object({
   codexModel: z.string().trim().min(1),
   codexEffort: z.string().trim().min(1).default("high"),
   cursorModel: z.string().trim().min(1),
-  claudeModel: z.string().trim().min(1).default("sonnet"),
+  claudeModel: z.string().trim().min(1).default(DEFAULT_CLAUDE_MODEL),
   claudeEffort: z.string().trim().min(1).default("high"),
   agentImage: z.string().regex(/^[\w./:-]+$/),
   previewImage: z.string().regex(/^[\w./:-]+$/),

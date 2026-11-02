@@ -4,9 +4,6 @@ import { missingLoginError } from "../cli-startup-repair.js";
 import type { CliAdapter } from "./types.js";
 export const codex: CliAdapter = {
   cli: "codex",
-  edited: (event) =>
-    event.type === "item.completed" &&
-    ["file_change", "command_execution"].includes(event.item?.type ?? ""),
   async check(host) {
     const help = await host.capture("codex", ["codex", "exec", "--help"]);
     for (const flag of ["--ignore-user-config", "--ignore-rules", "--disable"])
@@ -45,6 +42,10 @@ export const codex: CliAdapter = {
       prompt,
     ];
   },
-  activity: (session, round, clean, emit, general, root) =>
-    new ActivityAdapter("codex", round, clean, emit, Date.now, session.id, general, root),
+  activity: (session, round, clean, emit, run, root) =>
+    new ActivityAdapter("codex", round, clean, emit, Date.now, session.id, run.general, root, {
+      edited: (event) =>
+        event.type === "item.completed" &&
+        ["file_change", "command_execution"].includes(event.item?.type ?? ""),
+    }),
 };

@@ -13,9 +13,9 @@
    <a href="assets/break-visual.html">assets/break-visual.html</a> 
 </p>
 
-Share what a coding CLI such as Codex is doing without sharing your screen.
+Share what a coding CLI such as Codex or Claude Code is doing without sharing your screen.
 
-- Show multiple codex sessions in one screen
+- Show multiple Codex and Claude Code sessions in one screen
 - See chats from multiple platforms on one page (youtube , twitch , kick) .
 - select what to show (tools use , file name , commands , edits, model name, etc..)
 - use it with OBS (Browser source)
@@ -25,7 +25,7 @@ Share what a coding CLI such as Codex is doing without sharing your screen.
 - Play music and visuals when the Codex account quota runs out.
 - assign goal timer .
 - Prompt arena: vs between models and harness. 
-- supports twitch and codex .
+- supports twitch, Codex, Cursor and Claude Code.
 - add breaks between live_streams .
 - show chats from multiple platforms using OBS Browser source 
 
@@ -65,6 +65,7 @@ Session Mode turn : coding session into full OBS Browser scene. Its timeline sho
 |                             |                             |
 +-----------------------------+-----------------------------+
 
+Any two of Cursor, Codex and Claude Code can face off.
 Solo mode: use one harness and choose your models.
 ```
 Current runners support **Codex, Cursor and Claude Code**.
@@ -192,13 +193,16 @@ Sign in yourself using your existing subscriptions. Docker login commands save a
 
 **Claude Code** is opt-in at `npm run sandbox:build` (`INSTALL_CLAUDE=1`), like Cursor. To log in, run `claude setup-token` on your own machine (needs a Claude Pro, Max, Team or Enterprise plan), then `npm run sandbox:login:claude` and paste the token. The input is hidden. The token is stored at `runtime/auth/claude/oauth-token` (mode 0600) and handed to each run through its environment, never written into a workspace. `ANTHROPIC_API_KEY` is never forwarded, because in print mode it would override the subscription token.
 
-Arena runs use `claude --print --output-format stream-json` with:
+Claude runs use `claude --print --output-format stream-json` with:
 - an empty, strict MCP config;
-- `--setting-sources user`, which points at a managed, per-run `CLAUDE_CONFIG_DIR`;
-- hooks disabled;
-- no session persistence.
+- `--setting-sources user`, which points at a managed `CLAUDE_CONFIG_DIR` that is deleted and rebuilt on every launch, so nothing an agent plants there (CLAUDE.md, skills, settings) survives to the next run;
+- hooks disabled, no session persistence, and `--permission-prompts none` (a call that needs approval is denied, not retried);
+- background tasks off (`CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`);
+- for arena rounds only: file tools only (`--tools Read,Write,Edit,Glob,Grep`, so no Bash, web or subagents) and `--max-turns 30`. Coding sessions keep the default tool set.
 
-Your personal `~/.claude` settings, CLAUDE.md, skills, plugins and Keychain login are not used. In Docker the container is the boundary (`bypassPermissions`). Native runs use `acceptEdits` plus Claude's own OS sandbox for Bash (`failIfUnavailable`). Choose a model with `claudeModel` / `claudeEffort` in `settings.json` (default `sonnet` / `high`), or with `--session claude:opus:high`.
+Claude Code **2.1.259 or later** is required; older versions are refused at startup. When the run starts, its `system/init` event is checked against what was requested. The run stops if the permission mode, model, login type (an API key instead of the saved token) or arena tool set doesn't match, or if any MCP server or plugin loaded. Blocked tool calls appear in the activity feed.
+
+Your personal `~/.claude` settings, CLAUDE.md, skills, plugins and Keychain login are not used. In Docker the container is the boundary (`bypassPermissions`). Native runs use `acceptEdits` plus Claude's own OS sandbox for Bash (`failIfUnavailable`), and keep the config folder in `runtime/claude-config/<session>`, outside the working directory, so the agent cannot edit its own settings. The adapter builds the right profile for each boundary; the host never rewrites flags. Choose a model with `claudeModel` / `claudeEffort` in `settings.json` (default `sonnet` / `high`), or with `--session claude:opus:high`.
 
 To override the Codex image's CLI version at build time:
 
@@ -214,7 +218,8 @@ Session Mode publishes existing coding sessions as live timelines, separately fr
 
 ```mermaid
 flowchart TD
-    Sessions[Codex / Cursor coding sessions] --> Browser[Browse and select sessions]
+    Sessions[Codex / Cursor / Claude Code coding sessions] --> Browser[Browse and select sessions]
+    Saved[Saved Codex and Claude Code history, read-only] --> Browser
     Browser --> Overlay[Choose sessions and visibility for an overlay]
     Overlay --> Publish[Publish overlay]
     Sessions --> Activity[Session activity]
@@ -233,10 +238,12 @@ flowchart TD
     Filter --> Jev[Jev safety, relevance and ranking]
     Jev --> Task[Freeze one next task]
     File[Ordered prompt file] --> Task
-    Task --> Cursor[ fresh chat]
+    Task --> Cursor[Cursor: fresh chat]
     Task --> Codex[Codex: another chat]
+    Task --> Claude[Claude Code: file tools only]
     Cursor --> Validate[Validate saved HTML]
     Codex --> Validate
+    Claude --> Validate
     Validate --> Preview[Isolated browser previews]
     Preview --> OBS[OBS overlay]
 ```
@@ -267,6 +274,8 @@ With a prompt list, the next task starts after the result hold. After the last t
 | Live show | `./start_stream.sh --mode live --runner docker` |
 | Codex only | `./start_stream.sh --codex` |
 | Cursor only | `./start_stream.sh --cursor` |
+| Claude Code only | `./start_stream.sh --claude` |
+| Claude Code rehearsal readiness | `./check_stream_start.sh --cli claude --mode rehearsal` |
 | Explicit CLI selection | `./start_stream.sh --cli cursor` |
 | Codex rehearsal readiness | `./check_stream_start.sh --cli codex --mode rehearsal` |
 | Rehearsal readiness | `./check_stream_start.sh --mode rehearsal` |
@@ -301,7 +310,7 @@ Without explicit session choices, legacy settings select **both CLIs** unless `s
 
 ### What readiness checks mean
 
-- **Local requirements:** Docker, images, networks, saved CLI logins and exact requested models
+- **Local requirements:** Docker, images, networks, saved CLI logins (including the Claude token) and exact requested models; Claude Code must be 2.1.259 or later
 - **Show services:** Codex quota, Jev, required private field names and media files
 - **Preview:** Temporary isolated HTML preview
 - **OBS:** Overlay Browser Source configuration
@@ -332,6 +341,7 @@ Failures print specific fixes. Interactive checks offer image builds, network se
 - **Direct app start:** Cannot launch native coding jobs without confirmation
 - **Codex login:** Private arena login
 - **Cursor login:** Native subscription login; CLI must expose `--sandbox`
+- **Claude Code login:** The same saved `claude setup-token` token as Docker (`npm run sandbox:login:claude`); your Keychain login is not used. Runs `acceptEdits` plus Claude's OS sandbox (Seatbelt on macOS) and needs Claude Code 2.1.259 or later
 - **Models:** Exact requested models remain mandatory
 - **Previews:** Still require Docker
 - **Cancellation/restart:** Process groups and ownership records
@@ -353,12 +363,13 @@ Credentials are never requested or printed in the terminal. Edit `.env.local` pr
 
 ### One or two sessions
 
-`./start_stream.sh` runs one or two sessions. For each session, choose Codex or Cursor and a model from that CLI's list; Codex may also pick a reasoning effort. Docker remains the default; native coding still requires typing `NATIVE`.
+`./start_stream.sh` runs one or two sessions. For each session, choose Codex, Cursor or Claude Code and a model from that CLI's list; Codex and Claude Code may also pick a reasoning effort. Docker remains the default; native coding still requires typing `NATIVE`.
 
 For repeatable startup, pass `--session CLI:MODEL[:EFFORT]` once or twice:
 
 ```sh
 ./start_stream.sh --session codex:MODEL_A:high --session codex:MODEL_B
+./start_stream.sh --session codex:MODEL_A:high --session claude:opus:high
 ```
 
 Or set a `sessions` array in `settings.json`:
@@ -366,7 +377,7 @@ Or set a `sessions` array in `settings.json`:
 ```json
 "sessions": [
   { "id": "session-1", "cli": "codex", "model": "MODEL_A", "effort": "high" },
-  { "id": "session-2", "cli": "codex", "model": "MODEL_B" }
+  { "id": "session-2", "cli": "claude", "model": "sonnet", "effort": "high" }
 ]
 ```
 
@@ -389,7 +400,9 @@ The configured Cursor ID is an **unverified requested ID**. It does not prove Gp
 
 Startup requires that exact ID in `cursor-agent --list-models`. Missing model or effort support pauses the show; no replacement model is used.
 
-Codex-only mode retains quota monitoring. Cursor-only mode reports usage failures through its CLI and needs no Codex login. Only the selected CLI is checked and launched; the rest of the show flow stays available.
+Claude Code has no list-models command, so the accepted IDs are the aliases `opus`, `sonnet`, `haiku`, `fable` and their full model IDs (`claude-opus-5-5` and so on). Your account decides at run time whether a model is allowed. If the model Claude reports at startup is not the one requested, the run stops instead of using a substitute.
+
+Codex-only mode retains quota monitoring. Cursor-only and Claude Code-only modes report usage failures through their CLI and need no Codex login. Only the selected CLI is checked and launched; the rest of the show flow stays available.
 
 ## Connect the platforms
 
@@ -512,7 +525,8 @@ Work ends on completion, a usage/authentication failure, or host Skip/Stop. Only
 ```text
 main/
 ├── codex/prompt_N.html
-└── cursor/prompt_N.html
+├── cursor/prompt_N.html
+└── claude/prompt_N.html
 ```
 
 A successful result must pass every step:
@@ -533,7 +547,9 @@ A successful result must pass every step:
 
 ### 5. Handle Codex quota
 
-Quota comes from official app-server `account/rateLimits/read`, using its reported **300-minute window**.
+Claude Code has no quota API here. A Claude usage limit (`billing_error`) or a failed login stops that run with a clear usage or auth error, and rate limits are retried by the CLI itself.
+
+Codex quota comes from official app-server `account/rateLimits/read`, using its reported **300-minute window**.
 
 - **Missing usage data:** Pause instead of guessing
 - **Zero quota:** Play the configured MP3 and pixel-eye visual for up to ten minutes
@@ -557,17 +573,41 @@ flowchart LR
 
 This diagram shows the default Docker mode. Native mode gives agent commands host filesystem access.
 
+### Claude Code run profile
+
+```mermaid
+flowchart TD
+    Runner[CliRunner] -->|"RunContext: boundary + general"| Adapter[Claude adapter]
+    Adapter --> Gate{"claude --version >= 2.1.259?"}
+    Gate -->|no| Refuse[Refuse: update Claude Code]
+    Gate -->|yes| Profile{Boundary}
+    Profile -->|Docker| D["bypassPermissions\ncontainer is the boundary"]
+    Profile -->|Native| N["acceptEdits + OS sandbox\nconfig outside workspace"]
+    D --> Kind{Arena or session?}
+    N --> Kind
+    Kind -->|Arena| A["--tools Read,Write,Edit,Glob,Grep\n--max-turns 30"]
+    Kind -->|Session| S[Default tool set]
+    A --> Config["Fresh CLAUDE_CONFIG_DIR\n(deleted and rebuilt)"]
+    S --> Config
+    Config --> Run[claude -p stream-json]
+    Run --> Init{"system/init matches?\nmode, model, login, tools, no MCP"}
+    Init -->|no| Stop[Stop run]
+    Init -->|yes| Feed[Activity feed + HTML snapshots after writes]
+```
+
 ### Agent containers
 
 - **User and filesystem:** Non-root; read-only root filesystem
 - **Persistent writes:** One agent workspace mount
 - **Host access:** No Docker socket; removed capabilities; resource limits
-- **Authentication:** That agent's saved subscription copied into its private workspace. After an arena round the refreshed login is saved back (for Cursor only `auth.json`, so agent edits to its config never persist) and the workspace copy is deleted; archived rounds never keep a login copy
-- **Network:** Internal network + HTTPS allowlist proxy for provider traffic
+- **Authentication:** That agent's saved subscription copied into its private workspace. After an arena round the refreshed login is saved back (for Cursor only `auth.json`, so agent edits to its config never persist) and the workspace copy is deleted; archived rounds never keep a login copy. Claude is the exception: its token is passed only through the process environment and never copied into the workspace
+- **Network:** Internal network + HTTPS allowlist proxy for provider traffic (for Claude only `api.anthropic.com`, `claude.ai` and `platform.claude.com`)
 - **CLI bypass flags:** Apply inside the Docker boundary; do not grant host access
 - **Proxy incompatibility:** Startup fails; never switches to native automatically
 
 Arena Codex sessions use fresh `HOME` and `CODEX_HOME` folders with only the project's private Codex login. Personal configuration, skills, plugins, hooks and rules are not copied.
+
+Arena Claude Code sessions get a `CLAUDE_CONFIG_DIR` that is deleted and rebuilt on every launch, holding only the managed settings file; the token arrives through the environment. Personal settings, CLAUDE.md, skills, plugins, hooks and MCP servers are never loaded. See [Claude Code run profile](#claude-code-run-profile).
 
 Apps/plugins/hooks and automatic `AGENTS.md` loading are disabled; built-in coding tools remain available. Startup requires CLI configuration/rule isolation flags and pauses if the effective configuration exposes extra integrations.
 
@@ -605,7 +645,7 @@ Focused regression checks for session startup, login retention, event parsing an
 
 ```sh
 npm run check &&
-npx tsx --test tests/startup-config.test.ts tests/login-guard.test.ts tests/cli-events.test.ts tests/preview-size.test.ts tests/sessions.test.ts tests/controller.test.ts tests/codex-profile.test.ts tests/cli-startup-repair.test.ts
+npx tsx --test tests/startup-config.test.ts tests/login-guard.test.ts tests/cli-events.test.ts tests/preview-size.test.ts tests/sessions.test.ts tests/controller.test.ts tests/codex-profile.test.ts tests/cli-startup-repair.test.ts tests/claude.test.ts tests/claude-history.test.ts
 ```
 
 `tests/preview.test.ts` additionally checks viewport sizes in a real local Chromium browser. It reuses Playwright's full Chrome or an existing macOS Chrome for Testing under `.omp/puppeteer/chrome`, with a fresh temporary browser profile. You can choose another installation by setting `ARENA_TEST_BROWSER_PATH` to its executable inside the app bundle. No browser download is needed when a supported installation is already present. Run the browser checks, then build the UI:
@@ -661,7 +701,7 @@ scripts/            Launchers, logins, replay and cleanup
 sandbox/            Containers and network policy
 tests/              Unit and integration tests (node:test)
 main/               Generated HTML examples and round output
-assets/             Break visual and provider logos (codex/, cursor/ and chatgpt/ are used by the UI)
+assets/             Break visual and provider logos (codex/, cursor/, claude/ and chatgpt/ are used by the UI)
 ```
 
 A few shared building blocks worth knowing before editing:
@@ -715,6 +755,7 @@ New here — start with [Quick start](#quick-start) for the full setup, then:
 - **Jev:** [Introduction](https://docs.typesafe.ai/introduction) · [Coding-agent boundary](https://docs.typesafe.ai/introduction/coding-agents)
 - **Codex:** [Exec JSON](https://learn.chatgpt.com/docs/non-interactive-mode) · [Models and quota protocol](https://learn.chatgpt.com/docs/app-server)
 - **Cursor:** [CLI output format](https://cursor.com/docs/cli/reference/output-format)
+- **Claude Code:** [Headless mode](https://code.claude.com/docs/en/headless) · [CLI reference](https://code.claude.com/docs/en/cli-reference) · [Permission modes](https://code.claude.com/docs/en/permission-modes) · [Sandboxing](https://code.claude.com/docs/en/sandboxing) · [Network requirements](https://code.claude.com/docs/en/network-config)
 - **YouTube:** [Streaming live chat](https://developers.google.com/youtube/v3/live/streaming-live-chat)
 - **Twitch:** [EventSub chat](https://dev.twitch.tv/docs/chat/send-receive-messages/)
 - **Kick:** [Event types](https://github.com/KickEngineering/KickDevDocs/blob/main/events/event-types.md)

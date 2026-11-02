@@ -176,7 +176,7 @@ export class Sessions extends EventEmitter {
       obs: "Open OBS only launches the app. Publishing in live mode checks that OBS is already broadcasting.",
     };
   }
-  async list(source: "managed" | Agent, search = "", before?: string) {
+  async list(source: "managed" | "all" | Agent, search = "", before?: string) {
     const publishedIds = this.overlays.host().publishedSessionIds;
     const main = this.overlays.snapshot();
     const publication = {
@@ -184,6 +184,36 @@ export class Sessions extends EventEmitter {
         main.frames.length === 1 ? main.frames[0]!.conversation.id : undefined,
       publishedIds,
     };
+    // "all" merges every saved-history connector, newest first, so one overlay can mix harnesses.
+    if (source === "all") {
+      let cursors: Record<string, string | null> = {};
+      try {
+        cursors = before ? JSON.parse(before) : {};
+      } catch {
+        cursors = {};
+      }
+      const saved = ["codex", "claude"] as const;
+      const pages = await Promise.all(
+        saved.map(async (cli) => {
+          if (cursors[cli] === null) return undefined;
+          const history = cli === "codex" ? this.history : this.claudeHistory;
+          return history.list(search, cursors[cli] ?? undefined);
+        }),
+      );
+      const next: Record<string, string | null> = {};
+      saved.forEach((cli, i) => (next[cli] = pages[i]?.before ?? null));
+      return {
+        conversations: uniqueConversations(
+          pages
+            .flatMap((page) => page?.conversations ?? [])
+            .sort((a, b) => b.updatedAt - a.updatedAt),
+        ),
+        before: Object.values(next).some(Boolean)
+          ? JSON.stringify(next)
+          : undefined,
+        ...publication,
+      };
+    }
     // CLIs without a history connector list nothing and explain why.
     if (source === "cursor")
       return {
@@ -465,6 +495,7 @@ export class Sessions extends EventEmitter {
     c.title =
       c.title === "New coding session" ? this.clean(text, 100) : c.title;
     c.model = config.model;
+    c.effort = config.effort;
     c.config = config;
     c.updatedAt = now;
     c.status = "idle";

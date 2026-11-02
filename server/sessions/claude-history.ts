@@ -9,6 +9,7 @@ import type {
 } from "../../shared/sessions.js";
 import { commandName, webActivityText } from "../activity.js";
 import { projectRelativeName } from "../../shared/safe-file-name.js";
+import { CLAUDE_WRITE_TOOLS } from "../claude-profile.js";
 
 // Claude Code keeps each session as a JSONL transcript in
 // <config>/projects/<cwd-slug>/<session-id>.jsonl. The format is internal to
@@ -42,6 +43,8 @@ const row = z
     summary: text,
     isMeta: z.boolean().catch(false),
     isSidechain: z.boolean().catch(false),
+    // The summary Claude writes after /compact is stored as a user row.
+    isCompactSummary: z.boolean().catch(false),
     // Assistant rows record the effort the turn ran at (low, medium, high, ...).
     effort: text,
     message: z
@@ -64,10 +67,11 @@ function parse(line: string): Row | undefined {
     return undefined;
   }
 }
-// Command echoes, reminders and injected context are recorded as user rows;
-// only what the person typed counts as a prompt.
-function promptText(r: Row) {
-  if (r.type !== "user" || r.isMeta || r.isSidechain) return "";
+// Command echoes, reminders, injected context, compaction summaries and
+// interrupt markers are recorded as user rows; only what the person typed
+// counts as a prompt.
+function userText(r: Row) {
+  if (r.type !== "user" || r.isMeta || r.isSidechain || r.isCompactSummary) return "";
   const content = r.message?.content;
   const value =
     typeof content === "string"
@@ -76,9 +80,34 @@ function promptText(r: Row) {
           .filter((b) => b.type === "text")
           .map((b) => b.text ?? "")
           .join("\n");
-  const trimmed = value.trim();
+  return value.trim();
+}
+// The harness wraps everything it injects in a single XML-style envelope
+// (<tag ...>...</tag>). Matching the envelope shape, not a list of tag names,
+// keeps unknown or future tags out of the "You" rows. Typed text that merely
+// starts with "<" (pasted HTML) has no closing tag at the end, so it stays a prompt.
+function envelope(text: string) {
+  const open = /^<([a-z][\w:.-]{0,60})(\s[^>]*)?>/i.exec(text);
+  if (!open) return undefined;
+  const tag = open[1]!;
+  const closed = text.toLowerCase().endsWith(`</${tag.toLowerCase()}>`);
+  return closed || /\/>$/.test(open[0]) ? { tag, attrs: open[2] ?? "" } : undefined;
+}
+// Messages from background agents and teammates arrive as user rows. Only the
+// agent's name is kept, never the body.
+function agentMessage(r: Row) {
+  const wrapped = envelope(userText(r));
+  if (!wrapped || !/(teammate|agent|task|subagent)/i.test(wrapped.tag)) return "";
+  const name = /(?:teammate_id|agent|name)="@?([\w.-]{1,60})"/i.exec(wrapped.attrs)?.[1];
+  return name ? `Message from @${name}` : "Message from background agent";
+}
+function promptText(r: Row) {
+  const trimmed = userText(r);
+  // Any harness envelope (commands, reminders, agent notices, future tags) is not typed text.
+  if (envelope(trimmed)) return "";
   if (/^<(command-|local-command|system-reminder|bash-|user-memory)/i.test(trimmed))
     return "";
+  if (/^\[Request interrupted/i.test(trimmed)) return "";
   return trimmed;
 }
 const at = (r: Row) => Date.parse(r.timestamp ?? "") || 0;
@@ -97,8 +126,37 @@ interface Located {
   path: string;
   mtime: number;
 }
+// Newest first; files with the same mtime keep a stable order by name, so a
+// "mtime|name" cursor never skips one at a page boundary.
+const newestFirst = (a: Located, b: Located) => {
+  const [x, y] = [basename(a.path), basename(b.path)];
+  return b.mtime - a.mtime || (x < y ? 1 : x > y ? -1 : 0);
+};
+// A regular transcript file, or undefined (missing, a link, or not a file).
+async function located(path: string): Promise<Located | undefined> {
+  const info = await lstat(path).catch(() => undefined);
+  return info?.isFile() ? { path, mtime: info.mtimeMs } : undefined;
+}
+const cursorOf = (t: Located) => `${t.mtime}|${basename(t.path)}`;
+function afterCursor(cursor: string) {
+  const split = cursor.indexOf("|");
+  const mtime = Number(split < 0 ? cursor : cursor.slice(0, split));
+  if (!Number.isFinite(mtime)) throw new Error("Invalid history cursor");
+  const name = split < 0 ? "" : cursor.slice(split + 1);
+  // A bare number (older cursor) means "strictly older than this mtime".
+  return (t: Located) =>
+    t.mtime < mtime || (!!name && t.mtime === mtime && basename(t.path) < name);
+}
+interface Parsed {
+  key: string;
+  items: TimelineItem[];
+  run: string;
+}
 
 export class ClaudeHistory {
+  // The last transcript parsed for the timeline, so "load older" does not
+  // re-read and re-parse up to 32 MB per page. Keyed by path, size and mtime.
+  private parsed?: Parsed;
   constructor(
     private clean: (text: string, limit?: number) => string,
     private configDir = process.env.CLAUDE_CONFIG_DIR || resolve(homedir(), ".claude"),
@@ -106,33 +164,36 @@ export class ClaudeHistory {
   private get projects() {
     return resolve(this.configDir, "projects");
   }
-  // Every real transcript file, newest first. Links are never followed.
-  private async transcripts(): Promise<Located[]> {
+  // Every project folder; a missing config means no history.
+  private async projectFolders() {
     const dirs = await readdir(this.projects, { withFileTypes: true }).catch(
       (error: NodeJS.ErrnoException) => {
         if (error.code === "ENOENT") return [];
         throw error;
       },
     );
+    return dirs.filter((dir) => dir.isDirectory()).map((dir) => resolve(this.projects, dir.name));
+  }
+  // Every real transcript file, newest first. Links are never followed.
+  private async transcripts(): Promise<Located[]> {
     const found: Located[] = [];
-    for (const dir of dirs) {
-      if (!dir.isDirectory()) continue;
-      const folder = resolve(this.projects, dir.name);
+    for (const folder of await this.projectFolders())
       for (const file of await readdir(folder, { withFileTypes: true }).catch(() => [])) {
         if (!file.isFile() || !file.name.endsWith(".jsonl")) continue;
         if (!SESSION_ID.test(file.name.slice(0, -6))) continue;
-        const path = resolve(folder, file.name);
-        const info = await lstat(path).catch(() => undefined);
-        if (info?.isFile()) found.push({ path, mtime: info.mtimeMs });
+        const info = await located(resolve(folder, file.name));
+        if (info) found.push(info);
       }
-    }
-    return found.sort((a, b) => b.mtime - a.mtime);
+    return found.sort(newestFirst);
   }
+  // Checks <project>/<id>.jsonl in each project folder directly instead of
+  // listing every transcript.
   private async locate(id: string) {
     if (!SESSION_ID.test(id)) throw new Error("Invalid Claude session ID");
-    const match = (await this.transcripts()).find(
-      (t) => basename(t.path, ".jsonl") === id,
+    const found = await Promise.all(
+      (await this.projectFolders()).map((folder) => located(resolve(folder, `${id}.jsonl`))),
     );
+    const match = found.filter((t) => t !== undefined).sort(newestFirst)[0];
     if (!match) throw new Error("Claude session not found");
     return match;
   }
@@ -186,14 +247,13 @@ export class ClaudeHistory {
     };
   }
   async list(search: string, cursor?: string) {
-    const before = cursor ? Number(cursor) : Infinity;
-    if (cursor && !Number.isFinite(before)) throw new Error("Invalid history cursor");
+    const after = cursor ? afterCursor(cursor) : () => true;
     const needle = search.trim().toLowerCase();
     const conversations: Conversation[] = [];
-    let last: number | undefined;
+    let last: string | undefined;
     for (const located of await this.transcripts()) {
-      if (located.mtime >= before) continue;
-      last = located.mtime;
+      if (!after(located)) continue;
+      last = cursorOf(located);
       const conversation = await this.metadata(located).catch(() => undefined);
       if (!conversation) continue;
       if (
@@ -206,18 +266,43 @@ export class ClaudeHistory {
     }
     return {
       conversations,
-      before: conversations.length === PAGE && last !== undefined ? String(last) : undefined,
+      before: conversations.length === PAGE ? last : undefined,
     };
   }
   async read(id: string) {
     return this.metadata(await this.locate(id));
   }
   async page(id: string, cursor?: string, limit = 60): Promise<TimelinePage> {
-    const located = await this.locate(id);
+    const { items, run } = await this.timeline(await this.locate(id));
+    // Newest last; the cursor is the index of the oldest item already sent.
+    const end = cursor ? Number(cursor) : items.length;
+    if (!Number.isSafeInteger(end) || end < 0 || end > items.length)
+      throw new Error("Invalid history cursor");
+    const start = Math.max(0, end - Math.max(1, Math.min(60, limit)));
+    // Nothing older is left to page through, so the parsed copy is let go.
+    if (start === 0) this.parsed = undefined;
+    return {
+      before: start > 0 ? String(start) : undefined,
+      latestRun: run,
+      items: items.slice(start, end).map((item) => ({
+        ...item,
+        text:
+          this.clean(item.text, 16000) +
+          (item.text.length > 16000
+            ? "\n\n[Display excerpt; full text remains in the original Claude Code session.]"
+            : ""),
+      })),
+    };
+  }
+  // Every timeline item of one transcript (unredacted; page() cleans the slice it sends).
+  private async timeline(located: Located): Promise<Parsed> {
     const handle = await open(located.path, "r");
     let raw: string;
+    let key: string;
     try {
       const { size } = await handle.stat();
+      key = `${located.path}:${size}:${located.mtime}`;
+      if (this.parsed?.key === key) return this.parsed;
       if (size <= MAX_READ) raw = await readFile(handle, "utf8");
       else {
         const buffer = Buffer.alloc(MAX_READ);
@@ -231,6 +316,11 @@ export class ClaudeHistory {
     let run = "";
     for (const r of raw.split("\n").flatMap((l) => parse(l) ?? [])) {
       if (r.isSidechain || !r.uuid) continue;
+      const fromAgent = agentMessage(r);
+      if (fromAgent) {
+        items.push({ id: r.uuid, run, at: at(r), kind: "message", text: fromAgent });
+        continue;
+      }
       const prompt = promptText(r);
       if (prompt) {
         run = r.uuid;
@@ -260,7 +350,7 @@ export class ClaudeHistory {
           else if (name === "Read" && file)
             items.push({ ...base, kind: "read", text: `Read ${file}` });
           // The name of an edited file rides along as `file`; it is shown only with "Read file names".
-          else if (["Write", "Edit", "MultiEdit", "NotebookEdit"].includes(name))
+          else if (CLAUDE_WRITE_TOOLS.includes(name))
             items.push({ ...base, kind: "edit", text: "Files edited", placeholder: true, ...(file && { file }) });
           // Each other tool gets its own row naming the tool (never its input),
           // so a run does not collapse into one "N tools used" row.
@@ -268,22 +358,7 @@ export class ClaudeHistory {
         }
       });
     }
-    // Newest last; the cursor is the index of the oldest item already sent.
-    const end = cursor ? Number(cursor) : items.length;
-    if (!Number.isSafeInteger(end) || end < 0 || end > items.length)
-      throw new Error("Invalid history cursor");
-    const start = Math.max(0, end - Math.max(1, Math.min(60, limit)));
-    return {
-      before: start > 0 ? String(start) : undefined,
-      latestRun: run,
-      items: items.slice(start, end).map((item) => ({
-        ...item,
-        text:
-          this.clean(item.text, 16000) +
-          (item.text.length > 16000
-            ? "\n\n[Display excerpt; full text remains in the original Claude Code session.]"
-            : ""),
-      })),
-    };
+    this.parsed = { key, items, run };
+    return this.parsed;
   }
 }

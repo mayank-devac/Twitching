@@ -17,7 +17,7 @@ import { Store } from "./store.js";
 import { preserveSandboxResult, sandboxPromptPath } from "./sandbox-results.js";
 import {
   CLAUDE_RUN_ENV,
-  prepareClaudeHome,
+  prepareClaudeConfig,
   readClaudeToken,
 } from "./claude-profile.js";
 import {
@@ -142,9 +142,12 @@ export class Docker {
       return dir;
     }
     // Claude's token travels in the container environment (see create), so
-    // nothing secret is written here; only the managed settings profile.
+    // nothing secret is written here; only the managed settings profile,
+    // rebuilt from nothing so a reused session starts clean. Inside the
+    // container the agent could edit it mid-run, but there it already has full
+    // control of that container, which is the boundary.
     if (agent === "claude") {
-      await prepareClaudeHome(home);
+      await prepareClaudeConfig(resolve(home, ".claude"));
       return dir;
     }
     if (auth) {
@@ -246,14 +249,11 @@ export class Docker {
   // variables are never forwarded: in -p mode they would override the token.
   private async claudeEnv() {
     const token = await this.claudeToken();
-    const args = [
+    // CLAUDE_CONFIG_DIR is set by the image (sandbox/Dockerfile).
+    const args = Object.entries(CLAUDE_RUN_ENV).flatMap(([key, value]) => [
       "-e",
-      "CLAUDE_CONFIG_DIR=/workspace/.home/.claude",
-      ...Object.entries(CLAUDE_RUN_ENV).flatMap(([key, value]) => [
-        "-e",
-        `${key}=${value}`,
-      ]),
-    ];
+      `${key}=${value}`,
+    ]);
     if (!token) return { args };
     return {
       args: [...args, "-e", "CLAUDE_CODE_OAUTH_TOKEN"],

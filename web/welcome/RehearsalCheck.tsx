@@ -110,16 +110,22 @@ export function RehearsalCheck({
     <section className="rehearsal-check">
       <button
         type="button"
-        className="host-tool-button"
+        className="host-tool-button icon-tool"
+        data-tip={
+          "Pre-live check" +
+          (review?.confirmed ? " · confirmed" : " before live")
+        }
+        aria-label={
+          "Pre-live check" +
+          (review?.confirmed ? " · confirmed" : " before live")
+        }
         disabled={!token}
         popoverTarget={panelId}
         title="Confirm the pre-live checks in OBS before going live"
       >
-        <span className="rehearsal-plus" aria-hidden="true">
-          +
-        </span>
-        Pre-live check
-        {review?.confirmed ? " · confirmed" : " before live"}
+        <svg className="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m5 12.5 4.5 4.5L19 7.5" />
+        </svg>
       </button>
       <div
         id={panelId}

@@ -6,6 +6,8 @@ import {
   uniqueConversations,
 } from "../../shared/sessions.js";
 
+export type SessionSource = "managed" | "all" | Agent;
+
 export interface SessionListing {
   publishedId?: string;
   publishedIds?: string[];
@@ -34,7 +36,7 @@ export function SessionBrowser({
   more,
   select,
 }: {
-  source: "managed" | Agent;
+  source: SessionSource;
   search: string;
   listing: SessionListing;
   selectedId?: string;
@@ -47,13 +49,37 @@ export function SessionBrowser({
   busy: boolean;
   // A list page is loading: only the list's own buttons wait for it.
   loading?: boolean;
-  changeSource(source: "managed" | Agent): void;
+  changeSource(source: SessionSource): void;
   changeSearch(search: string): void;
   refresh(): void;
   more(before: string): void;
   select(id: string): void;
 }) {
   const conversations = uniqueConversations(listing.conversations);
+  const time = (c: Conversation) =>
+    c.updatedAt ? new Date(c.updatedAt).getTime() || 0 : 0;
+  // "All saved" mixes every CLI into one list, newest first.
+  const groups: { key: string; label: string; rows: Conversation[] }[] =
+    source === "all"
+      ? conversations.length
+        ? [
+            {
+              key: "all",
+              label: "ALL · SAVED SESSIONS",
+              rows: [...conversations].sort((a, b) => time(b) - time(a)),
+            },
+          ]
+        : []
+      : CLIS.filter((cli) => source === "managed" || source === cli)
+          .map((cli) => ({
+            key: cli,
+            label:
+              cli.toUpperCase() +
+              " · " +
+              (source === "managed" ? "MANAGED SESSIONS" : "SAVED SESSIONS"),
+            rows: conversations.filter((c) => c.cli === cli),
+          }))
+          .filter((g) => source !== "managed" || g.rows.length);
   return (
     <section className="session-browser">
       <div className="session-toolbar">
@@ -76,6 +102,7 @@ export function SessionBrowser({
             value={source}
             onChange={(e) => changeSource(e.target.value as typeof source)}
           >
+            <option value="all">All saved</option>
             <option value="codex">Codex saved</option>
             <option value="claude">Claude saved</option>
             <option value="managed">Managed</option>
@@ -89,17 +116,11 @@ export function SessionBrowser({
         </p>
       )}
       <div className="session-list-card">
-        {CLIS.map((cli) => {
-          const rows = conversations.filter((c) => c.cli === cli);
-          if (source === "managed" && !rows.length) return null;
-          if (source !== "managed" && source !== cli) return null;
+        {groups.map(({ key, label, rows }) => {
           return (
-            <section className="session-group" key={cli}>
+            <section className="session-group" key={key}>
               <header>
-                <span>
-                  {cli.toUpperCase()} ·{" "}
-                  {source === "managed" ? "MANAGED SESSIONS" : "SAVED SESSIONS"}
-                </span>
+                <span>{label}</span>
                 <button
                   className="refresh-sessions"
                   disabled={busy || loading}
@@ -153,6 +174,8 @@ export function SessionBrowser({
                     <span className="session-choice-copy">
                       <b>{conversation.title}</b>
                       <small>
+                        {source === "all" &&
+                          `${CLI_LABELS[conversation.cli]} · `}
                         {conversation.project}
                         {conversation.model && ` · ${conversation.model}`}
                       </small>
@@ -169,18 +192,23 @@ export function SessionBrowser({
                             )
                           : "Unknown"}
                       </time>
-                      <small>
-                        {conversation.status === "running"
-                          ? "Running"
-                          : conversation.status === "idle"
-                            ? "Waiting"
-                            : conversation.status === "unknown"
-                              ? "Unknown"
-                              : "Disconnected"}
-                        {(conversation.id === publishedId ||
-                          publishedIds?.includes(conversation.id)) &&
-                          " · On stream"}
-                      </small>
+                      {(() => {
+                        const status =
+                          conversation.status === "running"
+                            ? "Running"
+                            : conversation.status === "idle"
+                              ? "Waiting"
+                              : conversation.status === "unknown"
+                                ? ""
+                                : "Disconnected";
+                        const onStream =
+                          conversation.id === publishedId ||
+                          publishedIds?.includes(conversation.id);
+                        const text = [status, onStream && "On stream"]
+                          .filter(Boolean)
+                          .join(" · ");
+                        return text ? <small>{text}</small> : null;
+                      })()}
                     </span>
                   </button>
                 </div>

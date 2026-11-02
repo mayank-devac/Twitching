@@ -42,6 +42,13 @@ const eventSchema = z.object({
   mcp_servers: z.array(z.unknown()).optional(),
   plugins: z.array(z.unknown()).optional(),
   errors: z.array(z.unknown()).optional(),
+  // Checked against the requested profile; lenient so another CLI's field of
+  // the same name can never make a whole event unreadable.
+  permissionMode: z.string().optional().catch(undefined),
+  apiKeySource: z.string().optional().catch(undefined),
+  model: z.string().optional().catch(undefined),
+  tools: z.array(z.unknown()).optional().catch(undefined),
+  permission_denials: z.array(z.unknown()).optional().catch(undefined),
   terminal_reason: z.string().optional(),
   timestamp_ms: z.union([z.string(), z.number()]).optional(),
   model_call_id: z.string().optional(),
