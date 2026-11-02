@@ -7,7 +7,11 @@ if ! command -v node >/dev/null 2>&1 || ! node -e 'process.exit(Number(process.v
   exit 1
 fi
 # Idle welcome startup does not need Docker until the host chooses a managed runner.
-if [ "$#" -gt 0 ] && ! command -v docker >/dev/null 2>&1; then
+needs_docker=true
+if [ "$#" -eq 1 ] && [ "$1" = "--chats" ]; then
+  needs_docker=false
+fi
+if [ "$needs_docker" = true ] && ! command -v docker >/dev/null 2>&1; then
   printf '%s\n' 'ERROR: Docker is required for previews and for the arena Codex login. Install Docker Desktop, open it, then run this file again.' >&2
   exit 1
 fi

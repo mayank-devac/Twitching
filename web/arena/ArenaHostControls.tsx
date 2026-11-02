@@ -4,6 +4,7 @@ import React from "react";
 import type { ShowState } from "../../shared/types.js";
 import { allowedActions } from "./arena-status.js";
 import { CliBoards } from "./CliBoards.js";
+import { ChatHistory } from "../chats/ChatHistory.js";
 import { chatPlatforms, type ArenaControls } from "./use-arena-controls.js";
 
 function StopMenu({
@@ -108,6 +109,7 @@ export function ArenaHostControls({
 }) {
   const { working, error, action, suggestOpen, cliBoardsOpen } = controls;
   const allowed = allowedActions(state);
+  const [historyOpen, setHistoryOpen] = React.useState(false);
   // Rehearsal tools apply to hand-run rounds, not playlists.
   const rehearsal = state.mode === "rehearsal" && !state.playlistTotal;
   return (
@@ -125,7 +127,30 @@ export function ArenaHostControls({
         <a href="/overlay" target="_blank" rel="noreferrer">
           overlay ↗
         </a>
+        <a href="/chat" target="_blank" rel="noreferrer">
+          chat ↗
+        </a>
+        <a href="/chats/prompts" target="_blank" rel="noreferrer">
+          !prompts ↗
+        </a>
+        <button
+          type="button"
+          className={`cli-toggle${historyOpen ? " toggle-on" : ""}`}
+          aria-label="Chat history"
+          title="Chat history"
+          aria-expanded={historyOpen}
+          onClick={() => setHistoryOpen((open) => !open)}
+        >
+          🕘
+        </button>
       </div>
+      {historyOpen && (
+        <ChatHistory
+          token={token}
+          arenaOpen={state.experience === "arena" && !["stopped", "break"].includes(state.status)}
+          onClose={() => setHistoryOpen(false)}
+        />
+      )}
       <div className="control-toolbar">
         <div className="buttons">
           <button

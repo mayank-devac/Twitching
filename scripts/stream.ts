@@ -29,6 +29,13 @@ import { maybeVerify } from "./stream/verify.js";
 
 const args = process.argv.slice(2);
 const command = args.shift();
+// --chats only turns the chat feed on, so it must not count as a guided-flow flag below.
+// The server (or the launcher's child server) reads TWITCHING_CHATS from this env.
+const chatsFlag = args.indexOf("--chats");
+if (chatsFlag !== -1) {
+  args.splice(chatsFlag, 1);
+  process.env.TWITCHING_CHATS = "1";
+}
 // Flags retain the guided arena flow; no flags opens the idle local welcome UI.
 if (command === "start" && args.length === 0) {
   await import("./welcome-launcher.js");
@@ -184,7 +191,11 @@ try {
     ...(twitchPending ? [chatPlatformLabels.twitch] : []),
   ];
   console.log(
-    `\nREADY: ${mode} prerequisites passed.\nControl: ${origin}/control\nOverlay: ${origin}/overlay\nPending live-only check: ${
+    `\nREADY: ${mode} prerequisites passed.\nControl: ${origin}/control\nOverlay: ${origin}/overlay\n${
+      process.env.TWITCHING_CHATS === "1"
+        ? `All chats (OBS): ${origin}/chat\nPrompts only (OBS): ${origin}/chats/prompts`
+        : "Chat feed: off (add --chats to enable)"
+    }\nPending live-only check: ${
       pendingChats.length
         ? `actual ${pendingChats.join("/")} chat after broadcasting starts.`
         : "no chat platforms; live rounds can still run from a surprise task after collection waits."

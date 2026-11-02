@@ -8,8 +8,9 @@ import { CLIS, isCli, type Agent, type RunnerMode, type SessionConfig } from "..
 export const help = `Prompt Arena guided startup
 
   ./check_stream_start.sh [--cli codex|cursor] [--mode live|rehearsal] [--runner docker|native] [--verify] [--non-interactive] [--chat yt|twitch|kick] [--skip yt|twitch|kick] [--prompts] [--no-prompts]
-  ./start_stream.sh       [--cli codex|cursor] [--mode live|rehearsal] [--runner docker|native] [--verify] [--chat yt|twitch|kick] [--skip yt|twitch|kick] [--prompts] [--no-prompts]
+  ./start_stream.sh       [--cli codex|cursor] [--mode live|rehearsal] [--runner docker|native] [--verify] [--chat yt|twitch|kick] [--skip yt|twitch|kick] [--prompts] [--no-prompts] [--chats]
 
+--chats turns on the chat history feed (/chat and /chats/prompts OBS pages). It is off by default.
 Check defaults to live readiness. Start offers rehearsal/live and Docker/native choices.
 Chat starts off. Repeat --chat for each platform you want, or enable it in Quick Settings.
 --session cli:model[:effort] selects a session; repeat once for two sessions (including Codex + Codex).

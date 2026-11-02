@@ -3,7 +3,7 @@ import { startupConfigurationId } from "./startup-config.js";
 import { QuickSettings, defaultCriteria } from "./quick-settings.js";
 import { BreakMedia } from "./break-media.js";
 import { defaultVisibility } from "../shared/settings.js";
-import { enabledFromSkips, skipEnvKey } from "./chat-skips.js";
+import { enabledFromSkips, skipEnvKey, skipRecord } from "./chat-skips.js";
 import { CHAT_PLATFORMS } from "../shared/settings.js";
 import type { ChatPlatform, QuickPreferences } from "../shared/settings.js";
 import { configuredSessions } from "../shared/types.js";
@@ -18,6 +18,9 @@ import { Docker } from "./docker.js";
 import { CliRunner } from "./runner.js";
 import { Previews } from "./preview.js";
 import { Filter } from "./filter.js";
+import { ChatFeed } from "./chat-feed.js";
+import { fakeChat } from "./chat-sim.js";
+import { missingLiveSecrets, twitchStatus } from "./live-platforms.js";
 import { Jev } from "./jev.js";
 import { Controller, roundSessionCount, type ChatPlatforms } from "./controller.js";
 import {
@@ -185,7 +188,23 @@ const connection = (platform: string, status: string, fatal = false) => {
   if (platform === "obs" && status === "Disconnected") sessionService?.obsDisconnected();
   controller?.connection(platform, status, fatal);
 };
+const chatFeed = new ChatFeed(
+  new Filter(settings.blockedWords),
+  () => new Set(controller?.state.candidates.map((c) => c.message.id) ?? []),
+);
+// Off unless the launcher got --chats (it sets TWITCHING_CHATS=1). The host can still toggle it later.
+if (process.env.TWITCHING_CHATS === "1") chatFeed.update({ enabled: true });
+// Developer-only: TWITCHING_FAKE_CHAT=1 feeds fake viewers into the chat feed (never the
+// arena) while the show is in private rehearsal, to test /chat and /chats/prompts.
+// There is deliberately no UI or HTTP route for this.
+if (process.env.TWITCHING_FAKE_CHAT === "1")
+  setInterval(() => {
+    if (controller?.state.mode !== "rehearsal") return;
+    for (const message of fakeChat(settings.blockedWords[0])) chatFeed.add(message);
+  }, 1500).unref();
 const receive = (message: Parameters<Controller["ingest"]>[0]) => {
+  // The feed sees every comment, including those the arena ignores while stopped.
+  chatFeed.add(message);
   void controller.ingest(message).catch((error) => {
     console.error(`Chat message handling failed: ${failureText(error)}`);
     controller.pause("Chat message handling failed. Check the host before resuming.");
@@ -322,6 +341,21 @@ controller.arenaEnabled = () => sessions.experience === "arena";
 sessionService = sessions;
 controller.on("state", () => sessions.settingsChanged());
 const http = makeHttp(controller, {
+  chatFeed: {
+    feed: chatFeed,
+    configured: () => {
+      const only = (platform: ChatPlatform) =>
+        missingLiveSecrets(secrets, { ...skipRecord(true), [platform]: false }).filter((name) => name !== "TYPESAFE_API_KEY").length === 0;
+      return {
+        youtube: only("youtube"),
+        twitch: twitchStatus().kind === "on",
+        kick: only("kick"),
+      };
+    },
+    connections: () => controller.state.connections,
+    arenaOpen: () => sessions.experience === "arena" && !["stopped", "break"].includes(controller.state.status),
+    send: (message) => controller.ingest(message),
+  },
   presentation,
   sessions,
   openObs: async () => {

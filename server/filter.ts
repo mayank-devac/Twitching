@@ -239,6 +239,8 @@ const CONFUSABLES: Record<string, string> = {
 const SUFFIXES = ["ing", "ers", "er", "ed", "es", "ty", "s"];
 // Longer chat suggestions are rejected before any Jev call is made.
 export const MAX_PROMPT_CHARS = 600;
+// One definition of "this comment is a prompt", shared with the chat feed.
+export const isPromptText = (text: string) => /^!prompt\s/i.test(text);
 
 const normalize = (text: string) =>
   text
@@ -360,10 +362,28 @@ export class Filter {
     }
     return false;
   }
+  // True when free chat text contains a listed word, using the same evasion rules as prompts.
+  blocked(text: string) {
+    const clean = text.normalize("NFKC");
+    return (
+      abuseTokens(clean).some((token) => this.abusive(token)) ||
+      (foldLetters(clean).match(/[a-z0-9*]+/g) ?? []).some((token) =>
+        this.masked(token),
+      )
+    );
+  }
+  // Replaces each offending word with bullets. Evasions only visible across
+  // words (f u c k) leave no single word to mask, so the caller hides the line.
+  mask(text: string): { text: string; clean: boolean } {
+    const masked = text.replace(/\S+/g, (word) =>
+      this.blocked(word) ? "•".repeat(Math.min(word.length, 8)) : word,
+    );
+    return { text: masked, clean: !this.blocked(masked) };
+  }
   check(
     message: ChatMessage,
   ): { text: string; normalized: string } | { error: string } {
-    if (!/^!prompt\s/i.test(message.text))
+    if (!isPromptText(message.text))
       return { error: "Use !prompt followed by your idea" };
     const text = message.text
       .replace(/^!prompt\s+/i, "")

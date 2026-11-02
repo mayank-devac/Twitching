@@ -5,4 +5,4 @@ VIEW THE ALL CHATS COMING FROM ALL PLATFRM
 - JUST A SIMPLE PAGE WHICH SHOWS COMMENTS FROM ALL PLAFORMS  ( which keys are on env and when on live)
 - add a feature to hide blockedWords or completly hide full comment which contains blockedWords ( defaulr - hide - toggle on )
 
-page should nested ./../prompts
+page should nested ./chat/prompts

@@ -114,6 +114,19 @@ if (!(await existing())) {
   child.once("exit", (code) => process.exit(code ?? 1));
 }
 console.log(`Welcome: ${origin}/control/welcome`);
+// A newly started server has the feed off unless --chats was passed; an existing server
+// keeps its current setting.
+if (!child) {
+  console.log(
+    "An existing server is running; this launch cannot determine or change its chat-feed setting. Check Chat history, or restart the server with --chats.",
+  );
+} else if (process.env.TWITCHING_CHATS === "1") {
+  console.log(
+    `All chats (OBS): ${origin}/chat\nPrompts only (OBS): ${origin}/chats/prompts`,
+  );
+} else {
+  console.log("Chat feed: off (add --chats to enable)");
+}
 if (process.platform === "darwin")
   execFile("open", [`${origin}/control/welcome`]);
 else console.log("Open the welcome link in your browser.");

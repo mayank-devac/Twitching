@@ -18,6 +18,7 @@ import { sessionRoutes } from "./sessions/http.js";
 import { hostCheck, hostOnly, HttpError, routeAction } from "./http-kit.js";
 import { urlHost, type BootIdentity, type BootResponse } from "../shared/boot.js";
 import type { Sessions } from "./sessions/service.js";
+import { chatFeedRoutes, type ChatFeedServices } from "./chat-feed-http.js";
 const requestSchema = z.object({
   action: z.enum([
     "start",
@@ -55,6 +56,7 @@ export function makeHttp(
     sessions?: Sessions;
     openObs?: () => Promise<void>;
     boot?: BootIdentity;
+    chatFeed?: ChatFeedServices;
   },
 ) {
   const origin = `http://${urlHost(options.host)}:${options.port}`;
@@ -122,6 +124,7 @@ export function makeHttp(
   }, { status: 409, failed: "Presentation was not saved. Retry before relying on privacy.", expose: (error) => error instanceof PresentationConflict }));
   const rehearsal = options.quick && options.presentation ? presentationRoutes(app, controller, options.quick, options.presentation, options.sessions, guard) : undefined;
   if (options.sessions && rehearsal) options.sessions.requirePresentationRehearsal = rehearsal;
+  if (options.chatFeed) chatFeedRoutes(app, options.chatFeed, guard);
   // Settings routes share the existing host cookie and CSRF token checks.
   if (options.quick)
     settingsRoutes(app, controller, options.quick, guard);
@@ -196,7 +199,7 @@ export function makeHttp(
       dotfiles: "deny",
     }),
   );
-  app.get(["/", "/overlay", "/control", "/control/welcome", "/control/settings"], (_req, res) =>
+  app.get(["/", "/overlay", "/control", "/control/welcome", "/control/settings", "/control/chats", "/chat", "/chats/prompts"], (_req, res) =>
     res.sendFile(resolve(options.root, "dist/index.html")),
   );
   app.get("/overlay/:overlayId", (req, res) => {

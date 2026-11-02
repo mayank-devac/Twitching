@@ -63,6 +63,13 @@ Purpose: Route agents to the most relevant source files quickly. Verify details 
 
 ## `server/`
 
+`server/chat-feed.ts`, `server/chat-feed-http.ts`, `web/chats/`, `tests/chat-feed.test.ts`
+
+- Work: In-memory feed of every comment from all platforms (tapped in `receive` in `server/index.ts`, so it works while no round runs). Blocked words are hidden or masked server-side, default on. `GET /api/chat-feed` is public for the OBS pages `/chat` (all) and `/chats/prompts` (!prompt only); settings and send-prompt routes are host-guarded.
+- Opt-in: the feed is off by default (nothing stored); start with `start_stream --chats` (sets `TWITCHING_CHATS=1`, stripped in `scripts/stream.ts` so it still opens the welcome UI) or turn it on in the 🕘 drawer. Poll responses carry `rev`/`reset` so clients refetch after a restart or setting change. Author names are filtered like text.
+- UI: `ChatFeedPage` (green OBS page; `?platforms=&status=1&max=&bg=`; status chips are off unless `status=1`, and the page is blank while the feed is off), the 🕘 `ChatHistory` drawer in `ArenaHostControls` (list + Send prompt) and its "Filters ↗" new tab `/control/chats` (platform/!prompt/Jev-selected/search, blocked-word mode).
+- Dev only: `TWITCHING_FAKE_CHAT=1` makes `server/index.ts` push `chat-sim.ts` fake viewers into the feed during rehearsal. No UI or route.
+
 `server/cli/index.ts`, `server/cli/types.ts`, `server/cli/codex.ts`, `server/cli/cursor.ts`
 
 - Work: Register CLI adapters for live model discovery, exact model/effort validation, commands and session-scoped activity parsers.

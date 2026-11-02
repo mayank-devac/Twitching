@@ -10,6 +10,8 @@ import "./settings/settings.css";
 import "./break-control.css";
 import { OverlayScreen } from "./overlays/OverlayScreen.js";
 import { BreakScreen } from "./break-screen.js";
+import { ChatFeedPage } from "./chats/ChatFeedPage.js";
+import { ChatHistory } from "./chats/ChatHistory.js";
 import React, { Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import "./markdown.css";
@@ -27,7 +29,8 @@ const namedOverlay = location.pathname.startsWith("/overlay/");
 const outputId = namedOverlay
   ? location.pathname.slice("/overlay/".length)
   : "default";
-const control = location.pathname === "/control" || settingsPage || welcomePage;
+const chatsPage = location.pathname === "/control/chats";
+const control = location.pathname === "/control" || settingsPage || welcomePage || chatsPage;
 if (control) preloadHostScreens(settingsPage);
 function App() {
   // One host error covers socket/bootstrap failures, privacy shortcuts and arena actions.
@@ -59,6 +62,18 @@ function App() {
       {error}
     </p>
   ) : null;
+  // The chat filter page opened in a new tab from the chat history drawer.
+  if (chatsPage)
+    return (
+      <>
+        {hostError}
+        <ChatHistory
+          page
+          token={csrf}
+          arenaOpen={state.experience === "arena" && !["stopped", "break"].includes(state.status)}
+        />
+      </>
+    );
   // A normal route keeps Quick Settings separate from the broadcast layout.
   if (settingsPage)
     return (
@@ -111,4 +126,7 @@ function App() {
     />
   );
 }
-createRoot(document.getElementById("root")!).render(<App />);
+// The OBS chat page needs no show state or host token, so it skips the socket entirely.
+createRoot(document.getElementById("root")!).render(
+  location.pathname === "/chat" || location.pathname === "/chats/prompts" ? <ChatFeedPage /> : <App />,
+);

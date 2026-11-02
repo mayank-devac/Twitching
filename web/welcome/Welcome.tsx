@@ -26,6 +26,7 @@ import { uniqueConversations } from "../../shared/sessions.js";
 import { useOverlayEditor } from "../overlays/use-overlay-editor.js";
 import { OverlayManager } from "../overlays/OverlayManager.js";
 import { OverlayPresentation } from "../overlays/OverlayPresentation.js";
+import { ChatMenu } from "../chats/ChatMenu.js";
 import "../settings/settings.css";
 
 interface Readiness {
@@ -424,6 +425,7 @@ export function Welcome({
               published={!!overlayApplied?.published}
             />
           )}
+        <ChatMenu />
         <a className="quick-settings-link" href="/control/settings">
           Quick settings ↗
         </a>
