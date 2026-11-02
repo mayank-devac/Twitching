@@ -8,7 +8,16 @@ import { placeHarness } from "../settings/harness.js";
 import { hostRequest } from "../settings/api.js";
 import { useHostAction, useHostQuery } from "../use-host-action.js";
 
-export function ArenaHarness({ token, onClose }: { token: string; onClose(): void }) {
+export function ArenaHarness({
+  token,
+  roundLive,
+  onClose,
+}: {
+  token: string;
+  // True while a round is running or its results are showing.
+  roundLive: boolean;
+  onClose(): void;
+}) {
   const [doc, setDoc] = React.useState<SettingsDocument>();
   const { busy, error, notice, setError, setNotice, run } = useHostAction();
   useHostQuery(
@@ -37,7 +46,11 @@ export function ArenaHarness({ token, onClose }: { token: string; onClose(): voi
         "PUT",
       );
       setDoc(saved);
-      setNotice("Harness saved. It runs from the next round; the current sessions continue.");
+      setNotice(
+        roundLive
+          ? "Harness saved. It runs from the next round; the current sessions continue."
+          : "Harness saved. It is used when you press Start.",
+      );
     }, "Harness was not saved");
   return (
     <div className="arena-harness">

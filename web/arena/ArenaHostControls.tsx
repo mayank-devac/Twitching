@@ -162,7 +162,13 @@ export function ArenaHostControls({
           onClose={() => setHistoryOpen(false)}
         />
       )}
-      {harnessOpen && <ArenaHarness token={token} onClose={() => setHarnessOpen(false)} />}
+      {harnessOpen && (
+        <ArenaHarness
+          token={token}
+          roundLive={["running", "results"].includes(state.status)}
+          onClose={() => setHarnessOpen(false)}
+        />
+      )}
       <div className="control-toolbar">
         <div className="buttons">
           <button

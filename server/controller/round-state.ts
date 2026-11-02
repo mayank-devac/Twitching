@@ -60,6 +60,7 @@ export function stateView(
   configured: SessionConfig[],
   clean: (s: string, limit?: number) => string,
   nativeRunner = false,
+  roundOpen = true,
 ) {
   const value = structuredClone(state);
   if (doc)
@@ -71,8 +72,19 @@ export function stateView(
       nativeRunner,
     };
   if (preparedVersion) value.preparedVersion = preparedVersion;
-  // A saved result keeps its own configuration, even after startup choices change.
-  const sessions = value.round?.sessions ?? configured;
+  // A live or just-finished round keeps its own configuration; once it is over, the
+  // panels follow the saved harnesses so a new harness shows before the next round.
+  const sessions = roundOpen ? (value.round?.sessions ?? configured) : configured;
+  if (!roundOpen && value.round) {
+    // A slot given a different harness must not show the old round's model or transcript.
+    for (const session of configured) {
+      const old = value.round.sessions?.find((s) => s.id === session.id);
+      if (old && (old.cli !== session.cli || old.model !== session.model || old.runner !== session.runner)) {
+        delete value.round.attempts[session.id];
+        value.events = value.events.filter((e) => e.agent !== session.id);
+      }
+    }
+  }
   value.sessions = sessions;
   value.agents = sessions.map((s) => s.id);
   value.models = Object.fromEntries(

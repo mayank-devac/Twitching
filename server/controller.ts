@@ -147,6 +147,8 @@ export class Controller extends EventEmitter {
     this.options.collectionMs = doc.value.stream.collectionMs;
     this.options.extensionMs = doc.value.stream.extensionMs;
     this.options.resultMs = doc.value.stream.resultMs;
+    // Harness edits show at once when idle; a live round keeps its sessions until launch.
+    if (!this.roundStillOpen()) this.options.sessions = structuredClone(doc.value.sessions);
     if (this.state.mode !== doc.value.stream.mode) {
       this.integrations.stop();
       this.state.mode = doc.value.stream.mode;
@@ -340,6 +342,7 @@ export class Controller extends EventEmitter {
       configuredSessions(this.options),
       this.clean,
       this.boundary() === "native",
+      this.roundStillOpen(),
     );
   }
   // One native session makes the round native for chat and rehearsal rules.
