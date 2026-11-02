@@ -12,6 +12,8 @@ const eventSchema = z.object({
     aggregated_output: z.string().optional(),
     changes: z.array(z.object({ path: z.string().optional() })).optional(),
     status: z.string().optional(),
+    // Codex web_search items carry the search query.
+    query: z.string().optional(),
   }).nullable().optional(),
   message: z.union([
     z.string(),
@@ -19,10 +21,28 @@ const eventSchema = z.object({
       content: z.array(z.object({
         type: z.string(),
         text: z.string().optional(),
+        // Claude Code blocks: thinking, tool_use and tool_result.
+        thinking: z.string().optional(),
+        id: z.string().optional(),
+        name: z.string().optional(),
+        input: z.unknown().optional(),
+        tool_use_id: z.string().optional(),
+        content: z.unknown().optional(),
+        is_error: z.boolean().optional(),
       })).optional(),
     }),
   ]).nullable().optional(),
-  error: z.object({ message: z.string().optional() }).nullable().optional(),
+  // Codex sends {message}; Claude's system/api_retry sends an error kind string.
+  error: z.union([
+    z.string(),
+    z.object({ message: z.string().optional() }),
+  ]).nullable().optional(),
+  // Claude Code system/init and result fields.
+  session_id: z.string().optional(),
+  mcp_servers: z.array(z.unknown()).optional(),
+  plugins: z.array(z.unknown()).optional(),
+  errors: z.array(z.unknown()).optional(),
+  terminal_reason: z.string().optional(),
   timestamp_ms: z.union([z.string(), z.number()]).optional(),
   model_call_id: z.string().optional(),
   text: z.string().optional(),

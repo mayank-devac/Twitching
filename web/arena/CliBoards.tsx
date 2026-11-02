@@ -1,9 +1,8 @@
 // The host's per-agent CLI activity boards: one scrolling column per activity lane.
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { sessionCli } from "../../shared/types.js";
-import type { Activity, ActivityLane, SessionId, ShowState } from "../../shared/types.js";
-import codexLogo from "../../assets/codex/codex.svg";
-import cursorLogo from "../../assets/cursor/Cube/SVG/CUBE_2D_DARK.svg";
+import type { Activity, ActivityLane, Agent, SessionId, ShowState } from "../../shared/types.js";
+import { cliLogo } from "../agents.js";
 
 const lanes: ActivityLane[] = ["read", "write", "tool", "terminal"];
 const laneLabel: Record<ActivityLane, string> = {
@@ -21,7 +20,7 @@ function CliColumn({
   rows,
 }: {
   agent: SessionId;
-  cli: string | undefined;
+  cli: Agent | undefined;
   lane: ActivityLane;
   rows: Activity[];
 }) {
@@ -58,7 +57,7 @@ function CliColumn({
         className={`cli-column-tag${tagVisible ? " visible" : ""}`}
         aria-hidden="true"
       >
-        <img src={cli === "cursor" ? cursorLogo : codexLogo} alt="" />
+        <img src={cliLogo(cli ?? "codex")} alt="" />
         {laneLabel[lane]}
       </span>
       <ul ref={log}>

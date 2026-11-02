@@ -28,6 +28,7 @@ import type { Store } from "../store.js";
 import { CliRunner, type CapabilityChecks, type RunHandle } from "../runner.js";
 import type { Docker } from "../docker.js";
 import { CodexHistory } from "./codex-history.js";
+import { ClaudeHistory } from "./claude-history.js";
 import { Overlays } from "./overlays.js";
 import { uniqueConversations } from "../../shared/sessions.js";
 
@@ -46,6 +47,13 @@ export const connectors: Record<Agent, ConnectorCapabilities> = {
     runtimeStatus: false,
     note: "Cursor documents interactive session selection/resume and JSON output for managed runs, but no verified passive history/live attachment API. Start a managed Cursor session here; existing Cursor processes cannot be observed.",
   },
+  claude: {
+    listing: true,
+    history: true,
+    liveEvents: false,
+    runtimeStatus: false,
+    note: "Read-only saved history from your Claude Code transcripts (~/.claude/projects, or CLAUDE_CONFIG_DIR). The transcript format is internal to Claude Code and may change; unreadable rows are skipped. No attachment to another CLI process; runtime status is unknown. Managed arena runs are not saved there.",
+  },
 };
 
 // One service owns selection/publication, separate from arena rounds and external CLI lifetimes.
@@ -53,6 +61,7 @@ export class Sessions extends EventEmitter {
   experience: Experience;
   readonly overlays: Overlays;
   private history: CodexHistory;
+  private claudeHistory: ClaudeHistory;
   private active = new Map<
     string,
     { handle?: RunHandle; settled: Promise<void> }
@@ -90,6 +99,7 @@ export class Sessions extends EventEmitter {
     super();
     this.experience = experience;
     this.history = new CodexHistory(clean);
+    this.claudeHistory = new ClaudeHistory(clean);
     this.recoveryRunners = store.disconnectConversations();
     this.publicationMode = preferences.get().value.stream.mode;
     this.overlays = new Overlays(store, {
@@ -136,18 +146,25 @@ export class Sessions extends EventEmitter {
 
   async readiness() {
     const exec = promisify(execFile);
-    const result = await Promise.allSettled([
-      exec("codex", ["--version"], { timeout: 3000, maxBuffer: 4096 }),
-      exec("cursor-agent", ["--version"], { timeout: 3000, maxBuffer: 4096 }),
-      exec("docker", ["info", "--format", "{{.ServerVersion}}"], {
-        timeout: 3000,
-        maxBuffer: 4096,
-      }),
-    ]);
+    const probes = [
+      { name: "Codex", program: "codex", args: ["--version"] },
+      { name: "Cursor", program: "cursor-agent", args: ["--version"] },
+      { name: "Claude Code", program: "claude", args: ["--version"] },
+      {
+        name: "Docker",
+        program: "docker",
+        args: ["info", "--format", "{{.ServerVersion}}"],
+      },
+    ];
+    const result = await Promise.allSettled(
+      probes.map((probe) =>
+        exec(probe.program, probe.args, { timeout: 3000, maxBuffer: 4096 }),
+      ),
+    );
     return {
       connectors,
       tools: result.map((r, i) => ({
-        name: ["Codex", "Cursor", "Docker"][i],
+        name: probes[i]!.name,
         available: r.status === "fulfilled",
         message:
           r.status === "fulfilled"
@@ -167,18 +184,20 @@ export class Sessions extends EventEmitter {
         main.frames.length === 1 ? main.frames[0]!.conversation.id : undefined,
       publishedIds,
     };
+    // CLIs without a history connector list nothing and explain why.
     if (source === "cursor")
       return {
         conversations: [],
-        note: connectors.cursor.note,
+        note: connectors[source].note,
         ...publication,
       };
-    if (source === "codex") {
-      const page = await this.history.list(search, before);
+    if (source === "codex" || source === "claude") {
+      const page = await (source === "codex" ? this.history : this.claudeHistory)
+        .list(search, before);
       return {
         ...page,
         conversations: uniqueConversations(page.conversations),
-        note: connectors.codex.note,
+        note: connectors[source].note,
         ...publication,
       };
     }
@@ -189,6 +208,7 @@ export class Sessions extends EventEmitter {
   }
   async get(id: string): Promise<Conversation> {
     if (id.startsWith("codex:")) return this.history.read(id.slice(6));
+    if (id.startsWith("claude:")) return this.claudeHistory.read(id.slice(7));
     const c = this.store.conversation(id);
     if (!c) throw new Error("Session not found");
     return c;
@@ -232,6 +252,7 @@ export class Sessions extends EventEmitter {
       project: "Isolated managed workspace",
       updatedAt: Date.now(),
       model: config.model,
+      effort: config.effort,
       config: structuredClone(config),
       runner,
       status: "idle",
@@ -260,6 +281,8 @@ export class Sessions extends EventEmitter {
       (!/^\d+$/.test(before) || !Number.isSafeInteger(Number(before)))
     )
       throw new Error("Invalid history cursor");
+    if (c.source === "claude")
+      return this.claudeHistory.page(c.providerId!, before, limit);
     return c.source === "codex"
       ? this.history.page(c.providerId!, before, limit)
       : this.store.conversationPage(
@@ -466,6 +489,7 @@ export class Sessions extends EventEmitter {
             sessions: [config],
             codexModel: config.model,
             cursorModel: config.model,
+            claudeModel: config.model,
             experience: "session",
             workspaceKey: `conversation-${id.slice(8)}`,
             nativeApproved: c.runner === "native" && this.nativeApprovals.has(id),

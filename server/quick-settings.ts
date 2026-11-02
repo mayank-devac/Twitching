@@ -12,7 +12,12 @@ const visibility = z
       Object.keys(defaultVisibility).map((k) => [k, z.boolean()]),
     ) as Record<keyof typeof defaultVisibility, z.ZodBoolean>,
   )
-  .extend({ hidePreviousRuns: z.boolean().optional() })
+  // Settings saved before the effort and web toggles existed have no key; they keep them on.
+  .extend({
+    hidePreviousRuns: z.boolean().optional(),
+    effort: z.boolean().default(true),
+    web: z.boolean().default(true),
+  })
   .strict();
 const duration = z.number().int().min(1000).max(3_600_000);
 export const preferencesSchema = z
@@ -35,7 +40,7 @@ export const preferencesSchema = z
         .max(220)
         .refine(
           (id) =>
-            validSessionId(id) || /^(managed|codex):[a-zA-Z0-9_-]+$/.test(id),
+            validSessionId(id) || /^(managed|codex|claude):[a-zA-Z0-9_-]+$/.test(id),
         ),
       visibility,
     ),

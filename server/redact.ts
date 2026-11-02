@@ -74,7 +74,7 @@ export function failureKind(text: string): "usage" | "auth" | "other" {
   )
     return "usage";
   if (
-    /unauth|not.logged|login.required|log.in|authentication|expired.token|invalid.token|401|403/i.test(
+    /unauth|not.logged|login.required|log.in|authentication|expired.token|invalid.token|invalid.api.key|oauth.token.(?:has.)?(?:expired|revoked)|401|403/i.test(
       text,
     )
   )

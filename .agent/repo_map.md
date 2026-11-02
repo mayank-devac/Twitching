@@ -70,7 +70,7 @@ Purpose: Route agents to the most relevant source files quickly. Verify details 
 - UI: `ChatFeedPage` (green OBS page; `?platforms=&status=1&max=&bg=`; status chips are off unless `status=1`, and the page is blank while the feed is off), the 🕘 `ChatHistory` drawer in `ArenaHostControls` (list + Send prompt) and its "Filters ↗" new tab `/control/chats` (platform/!prompt/Jev-selected/search, blocked-word mode).
 - Dev only: `TWITCHING_FAKE_CHAT=1` makes `server/index.ts` push `chat-sim.ts` fake viewers into the feed during rehearsal. No UI or route.
 
-`server/cli/index.ts`, `server/cli/types.ts`, `server/cli/codex.ts`, `server/cli/cursor.ts`
+`server/cli/index.ts`, `server/cli/types.ts`, `server/cli/codex.ts`, `server/cli/cursor.ts`, `server/cli/claude.ts`
 
 - Work: Register CLI adapters for live model discovery, exact model/effort validation, commands and session-scoped activity parsers.
 - Useful for: Adding a CLI protocol without duplicating the round controller; model selection during guided startup.
@@ -161,6 +161,12 @@ Purpose: Route agents to the most relevant source files quickly. Verify details 
 - Useful for: Codex session isolation, supported exec flags, or serialized compare-before-write arena login retention without copying personal config, skills, hooks or plugins.
 - Contains: `CODEX_EXEC_PROFILE_ARGS`, `prepareCodexHome`, `retainCodexLogin`, and `assertCodexProfile`.
 - Used by: `server/docker.ts`, `server/native-host.ts`, `server/runner.ts`, `tests/codex-profile.test.ts`.
+
+`server/claude-profile.ts`
+
+- Work: Claude Code isolation profile. Claude runs with a subscription token (`claude setup-token`, saved by `npm run sandbox:login:claude` to `runtime/auth/claude/oauth-token`), passed only through the process environment, never into the workspace. A managed `CLAUDE_CONFIG_DIR` settings file is rewritten each launch; `--setting-sources user`, `--strict-mcp-config`, `--disallowedTools mcp__*` and `--no-session-persistence` keep personal config, project hooks and MCP out. Native runs swap `bypassPermissions` for `acceptEdits` plus Claude's OS sandbox.
+- Contains: `CLAUDE_EXEC_PROFILE_ARGS`, `CLAUDE_NATIVE_PROFILE_JSON`, `readClaudeToken`, `prepareClaudeHome`, `claudeProfileViolation` (runtime check on `system/init`).
+- Used by: `server/cli/claude.ts`, `server/activity.ts`, `server/docker.ts`, `server/native-host.ts`, `scripts/login.ts`, `tests/claude.test.ts`.
 
 `server/native-host.ts`
 
@@ -281,7 +287,7 @@ Purpose: Route agents to the most relevant source files quickly. Verify details 
 - Work: Opens an interactive Docker login for Codex or Cursor and stores auth under ignored `runtime/auth/`.
 - Useful for: The login command or the auth mount.
 - Contains: The `docker run` login arguments.
-- Used by: `npm run sandbox:login:codex` and `npm run sandbox:login:cursor`.
+- Used by: `npm run sandbox:login:codex`, `npm run sandbox:login:cursor` and `npm run sandbox:login:claude` (Claude reads a pasted `claude setup-token` value with hidden input; no container).
 
 `scripts/replay.ts`
 

@@ -14,10 +14,11 @@
     "check": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts tests/*.test.tsx",
     "replay": "tsx scripts/replay.ts",
-    "sandbox:build": "sh -c 'c=\"${INSTALL_CURSOR:-}\"; if [ -z \"$c\" ]; then printf \"Install Cursor CLI in the sandbox image? [y/N]: \"; read a || a=; case \"$a\" in y|Y|yes|YES) c=1;; *) c=0;; esac; fi; [ \"$c\" = 1 ] || c=0; docker build --build-arg INSTALL_CURSOR=$c -t prompt-arena-agent:local sandbox'",
+    "sandbox:build": "sh -c 'c=\"${INSTALL_CURSOR:-}\"; if [ -z \"$c\" ]; then printf \"Install Cursor CLI in the sandbox image? [y/N]: \"; read a || a=; case \"$a\" in y|Y|yes|YES) c=1;; *) c=0;; esac; fi; [ \"$c\" = 1 ] || c=0; k=\"${INSTALL_CLAUDE:-}\"; if [ -z \"$k\" ]; then printf \"Install Claude Code CLI in the sandbox image? [y/N]: \"; read a || a=; case \"$a\" in y|Y|yes|YES) k=1;; *) k=0;; esac; fi; [ \"$k\" = 1 ] || k=0; docker build --build-arg INSTALL_CURSOR=$c --build-arg INSTALL_CLAUDE=$k -t prompt-arena-agent:local sandbox'",
     "sandbox:build:preview": "docker build --build-arg PLAYWRIGHT_VERSION=$(node -p \"require('playwright/package.json').version\") -f sandbox/preview.Dockerfile -t prompt-arena-preview:local sandbox",
     "sandbox:login:codex": "tsx scripts/login.ts codex",
     "sandbox:login:cursor": "tsx scripts/login.ts cursor",
+    "sandbox:login:claude": "tsx scripts/login.ts claude",
     "sandbox:export": "tsx scripts/export-sandbox-result.ts",
     "cleanup:probes": "tsx scripts/cleanup-probe-workspaces.ts"
   },

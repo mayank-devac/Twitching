@@ -25,6 +25,8 @@ const thread = lenient({
   cwd: text,
   updatedAt: time,
   model: text,
+  // Protocol `Thread.reasoningEffort`: latest persisted effort, null when unset.
+  reasoningEffort: text,
 });
 type Thread = z.output<typeof thread>;
 const threadPage = lenient({ data: list(thread), nextCursor: text });
@@ -44,6 +46,7 @@ const itemPage = lenient({
         summary: list(text),
         command: text,
         status: text,
+        query: text,
       }),
     }),
   ),
@@ -120,6 +123,7 @@ export class CodexHistory {
       project: this.clean(basename(thread.cwd), 180),
       updatedAt: thread.updatedAt * 1000,
       model: thread.model || undefined,
+      effort: thread.reasoningEffort || undefined,
       // A separate app-server cannot verify another process's runtime status.
       status: "unknown",
     };
@@ -183,9 +187,14 @@ export class CodexHistory {
               text = "Files edited";
               placeholder = true;
               break;
+            case "webSearch":
+              kind = "web";
+              text = item.query.trim()
+                ? `Searched the web: ${item.query.trim()}`
+                : "Searched the web";
+              break;
             case "mcpToolCall":
             case "dynamicToolCall":
-            case "webSearch":
             case "collabAgentToolCall":
               kind = "tool";
               text = "Recorded tool activity";

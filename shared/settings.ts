@@ -14,6 +14,7 @@ export interface SessionVisibility {
   hidePreviousRuns?: boolean;
   tool: boolean;
   command: boolean;
+  web: boolean;
   read: boolean;
   edit: boolean;
   message: boolean;
@@ -22,6 +23,8 @@ export interface SessionVisibility {
   complete: boolean;
   error: boolean;
   model: boolean;
+  // Reasoning effort (high, medium, ...) for CLIs that expose one; Cursor has none.
+  effort: boolean;
   cliIcon: boolean;
   cliName: boolean;
 }
@@ -36,6 +39,7 @@ export const breakVisualObjectFit: Record<BreakVisualMode, "contain" | "none" | 
 export const defaultVisibility: SessionVisibility = {
   tool: true,
   command: false,
+  web: true,
   read: true,
   edit: false,
   message: true,
@@ -44,6 +48,7 @@ export const defaultVisibility: SessionVisibility = {
   complete: true,
   error: true,
   model: true,
+  effort: true,
   cliIcon: true,
   cliName: true,
 };

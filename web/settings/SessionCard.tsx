@@ -1,5 +1,5 @@
 import React from "react";
-import type { SessionConfig } from "../../shared/types.js";
+import { CLI_LABELS, type SessionConfig } from "../../shared/types.js";
 import type { ModelChoice, SessionVisibility } from "../../shared/settings.js";
 import { defaultVisibility } from "../../shared/settings.js";
 
@@ -7,6 +7,7 @@ const choices: [keyof SessionVisibility, string][] = [
   ["hidePreviousRuns", "Hide previous prompt runs (history is kept)"],
   ["tool", "Tool use"],
   ["command", "Commands"],
+  ["web", "Web searches and fetches"],
   ["read", "Read file names"],
   ["edit", "Edits"],
   ["message", "Messages"],
@@ -15,6 +16,7 @@ const choices: [keyof SessionVisibility, string][] = [
   ["complete", "Completion"],
   ["error", "Errors"],
   ["model", "Model name"],
+  ["effort", "Effort (high, medium…)"],
   ["cliIcon", "CLI icon"],
   ["cliName", "CLI name"],
 ];
@@ -55,7 +57,7 @@ export function SessionCard({
       <div className="qs-row">
         <h3>
           {displayName ??
-            `${session.cli === "codex" ? "Codex" : "Cursor"} ${displayOnly ? "session" : index === 0 ? "Left" : "Right"}`}
+            `${CLI_LABELS[session.cli]} ${displayOnly ? "session" : index === 0 ? "Left" : "Right"}`}
         </h3>
         <small>{session.id}</small>
         {remove && (
@@ -147,7 +149,10 @@ export function SessionCard({
             </summary>
             <fieldset className="qs-visibility" disabled={busy}>
               <legend className="qs-sr-only">Overlay visibility</legend>
-              {choices.map(([key, label]) => (
+              {choices
+                // Cursor has no effort levels, so its card offers no effort toggle.
+                .filter(([key]) => key !== "effort" || session.cli !== "cursor")
+                .map(([key, label]) => (
                 <label key={key}>
                   <input
                     type="checkbox"

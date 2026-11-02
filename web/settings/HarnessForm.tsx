@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { Agent, SessionConfig } from "../../shared/types.js";
+import { CLIS, CLI_LABELS, type Agent, type SessionConfig } from "../../shared/types.js";
 import type { ModelChoice } from "../../shared/settings.js";
 
 // A full arena requires an explicit slot choice; applying this form only queues configuration.
@@ -42,8 +42,11 @@ export function HarnessForm({
               setModel("");
             }}
           >
-            <option value="codex">Codex</option>
-            <option value="cursor">Cursor</option>
+            {CLIS.map((option) => (
+              <option key={option} value={option}>
+                {CLI_LABELS[option]}
+              </option>
+            ))}
           </select>
         </label>
         <label>

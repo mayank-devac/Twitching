@@ -38,6 +38,19 @@
   border-color: #314257;
 }
 
+.agent-panel.claude {
+  border-color: var(--color-claude-line);
+}
+
+.claude .agent-header {
+  background: linear-gradient(
+    120deg,
+    var(--color-claude-header-from),
+    var(--color-claude-header-to)
+  );
+  border-color: var(--color-claude-line);
+}
+
 /* Arena agent logo box; only .host hides it. */
 .agent-icon {
   display: flex;
@@ -273,6 +286,7 @@
 
 .event.command,
 .event.tool,
+.event.web,
 .event.edit {
   border: 1px solid #303b48;
   border-left: 2px solid #77985a;
@@ -283,12 +297,14 @@
 
 .codex .event.command,
 .codex .event.tool,
+.codex .event.web,
 .codex .event.edit {
   border-left-color: #698ec5;
 }
 
 .event.command p,
 .event.tool p,
+.event.web p,
 .event.edit p,
 .event.edit .edit-source {
   font:

@@ -162,6 +162,8 @@ export function publicSessionView(view: SessionView, visibility: SessionVisibili
     ...c,
     project: "",
     model: visibility.model ? c.model : undefined,
+    // Sessions saved before effort was stored fall back to their saved config.
+    effort: visibility.effort !== false ? (c.effort ?? _config?.effort) : undefined,
   };
   return {
     ...view,

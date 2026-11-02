@@ -23,6 +23,7 @@ import type { TimelineItem } from "../shared/sessions.js";
 const KINDS = [
   "tool",
   "command",
+  "web",
   "read",
   "edit",
   "message",
@@ -62,6 +63,7 @@ function events(agent: string, round = 3): Activity[] {
     e("s", "summary", "sum"),
     e("t", "tool", "tool"),
     e("c", "command", "cmd"),
+    e("wb", "web", "web"),
     e("e", "edit", "edit"),
     e("o", "output", "out"),
     e("done", "complete", "done SECRET"),
@@ -80,18 +82,19 @@ const ids = (list: { id: string }[]) =>
 // Visible arena ids for agent "a" (whose entry is the variant). Agent "b" has
 // no entry and always falls back to defaultVisibility.
 const arenaExpected: Record<string, string> = {
-  default: "m t o done err rp",
-  "all-on": "m s t c e o done err rp term",
+  default: "m t wb o done err rp",
+  "all-on": "m s t c wb e o done err rp term",
   "all-off": "",
-  "flip-tool": "m o done err rp",
-  "flip-command": "m t c o done err rp term",
-  "flip-read": "m t o done err",
-  "flip-edit": "m t e o done err rp",
-  "flip-message": "t o done err rp",
-  "flip-summary": "m s t o done err rp",
-  "flip-output": "m t done err rp",
-  "flip-complete": "m t o err rp",
-  "flip-error": "m t o done rp",
+  "flip-tool": "m wb o done err rp",
+  "flip-command": "m t c wb o done err rp term",
+  "flip-web": "m t o done err rp",
+  "flip-read": "m t wb o done err",
+  "flip-edit": "m t wb e o done err rp",
+  "flip-message": "t wb o done err rp",
+  "flip-summary": "m s t wb o done err rp",
+  "flip-output": "m t wb done err rp",
+  "flip-complete": "m t wb o err rp",
+  "flip-error": "m t wb o done rp",
 };
 
 test("arena: publicActivity keeps today's rows for every visibility variant", () => {
@@ -181,6 +184,7 @@ const sessionStored = [
   "s|summary|sum",
   "t|tool|tool",
   "c|command|cmd",
+  "wb|web|web",
   "e|edit|edit",
   "o|output|out",
   "done|complete|Agent finished",
@@ -190,18 +194,19 @@ const sessionStored = [
   "result|complete|Prompt completed",
 ];
 const sessionExpected: Record<string, string> = {
-  default: "prompt m t o done err rp rx result",
-  "all-on": "prompt m s t c e o done err rp rx result",
+  default: "prompt m t wb o done err rp rx result",
+  "all-on": "prompt m s t c wb e o done err rp rx result",
   "all-off": "prompt",
-  "flip-tool": "prompt m o done err rp rx result",
-  "flip-command": "prompt m t c o done err rp rx result",
-  "flip-read": "prompt m t o done err result",
-  "flip-edit": "prompt m t e o done err rp rx result",
-  "flip-message": "prompt t o done err rp rx result",
-  "flip-summary": "prompt m s t o done err rp rx result",
-  "flip-output": "prompt m t done err rp rx result",
-  "flip-complete": "prompt m t o err rp rx",
-  "flip-error": "prompt m t o done rp rx result",
+  "flip-tool": "prompt m wb o done err rp rx result",
+  "flip-command": "prompt m t c wb o done err rp rx result",
+  "flip-web": "prompt m t o done err rp rx result",
+  "flip-read": "prompt m t wb o done err result",
+  "flip-edit": "prompt m t wb e o done err rp rx result",
+  "flip-message": "prompt t wb o done err rp rx result",
+  "flip-summary": "prompt m s t wb o done err rp rx result",
+  "flip-output": "prompt m t wb done err rp rx result",
+  "flip-complete": "prompt m t wb o err rp rx",
+  "flip-error": "prompt m t wb o done rp rx result",
 };
 
 test("session: run ingest stores only public lanes and labels", async () => {

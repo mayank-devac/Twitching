@@ -1,14 +1,24 @@
 export type Platform = "youtube" | "twitch" | "kick" | "fallback";
 // The one list of supported coding-agent CLIs; every CLI union and loop derives from it.
-export const CLIS = ["codex", "cursor"] as const;
+export const CLIS = ["codex", "cursor", "claude"] as const;
+// Display names for every CLI; the UI, launcher and messages read these instead of ternaries.
+export const CLI_LABELS: Record<(typeof CLIS)[number], string> = {
+  codex: "Codex",
+  cursor: "Cursor",
+  claude: "Claude Code",
+};
+// Claude Code has no list-models command; settings fall back to this alias.
+export const DEFAULT_CLAUDE_MODEL = "sonnet";
 export type Agent = (typeof CLIS)[number];
 export function isCli(value: unknown): value is Agent {
   return CLIS.some((cli) => cli === value);
 }
 // CLI identity selects a protocol; session identity owns files and results.
+// Legacy CLI-named ids are used by single-agent runs (--codex/--cursor/--claude).
 export const SESSION_IDS = [
   "codex",
   "cursor",
+  "claude",
   "session-1",
   "session-2",
 ] as const;
@@ -28,15 +38,24 @@ export interface SessionOptions {
   codexModel: string;
   cursorModel: string;
   codexEffort?: string;
+  claudeModel?: string;
+  claudeEffort?: string;
 }
-// settings.json keeps flat codexModel/cursorModel/codexEffort keys; this reads them as one per-CLI map.
+// settings.json keeps flat per-CLI model keys; this reads them as one per-CLI map.
 export function startupModels(
-  options: Pick<SessionOptions, "codexModel" | "cursorModel" | "codexEffort">,
+  options: Pick<
+    SessionOptions,
+    "codexModel" | "cursorModel" | "codexEffort" | "claudeModel" | "claudeEffort"
+  >,
 ): Record<Agent, Pick<SessionConfig, "model" | "effort">> {
   return {
     codex: { model: options.codexModel, effort: options.codexEffort ?? "high" },
     // Cursor sessions carry no effort key at all.
     cursor: { model: options.cursorModel },
+    claude: {
+      model: options.claudeModel ?? DEFAULT_CLAUDE_MODEL,
+      effort: options.claudeEffort ?? "high",
+    },
   };
 }
 export function configuredSessions(options: SessionOptions): SessionConfig[] {
@@ -49,6 +68,19 @@ export function configuredSessions(options: SessionOptions): SessionConfig[] {
 }
 export function sessionLabel(session: Pick<SessionConfig, "model" | "effort">) {
   return session.model + (session.effort ? ` · ${session.effort}` : "");
+}
+// Public "model · effort" text; each part follows its own visibility flag.
+export function publicModelLabel(
+  session: Partial<Pick<SessionConfig, "model" | "effort">> | undefined,
+  show: { model: boolean; effort?: boolean },
+) {
+  if (!session) return "";
+  return [
+    show.model ? session.model : undefined,
+    show.effort !== false ? session.effort : undefined,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 export function validSessionId(id: string) {
   return SESSION_IDS.some((value) => value === id);
@@ -118,6 +150,8 @@ export type ActivityKind =
   | "summary"
   | "tool"
   | "command"
+  // Web searches and page fetches: the query, or the fetched host and path.
+  | "web"
   | "edit"
   | "output"
   | "complete"

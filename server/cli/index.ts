@@ -1,9 +1,10 @@
 import type { Agent, SessionConfig } from "../../shared/types.js";
 import { validSessionId } from "../../shared/types.js";
+import { claude } from "./claude.js";
 import { codex } from "./codex.js";
 import { cursor } from "./cursor.js";
 import type { CliAdapter, CliModel } from "./types.js";
-export const cliAdapters: Record<Agent, CliAdapter> = { codex, cursor };
+export const cliAdapters: Record<Agent, CliAdapter> = { codex, cursor, claude };
 export function validateSessions(sessions: SessionConfig[]) {
   if (
     sessions.length < 1 ||

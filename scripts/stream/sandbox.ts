@@ -72,6 +72,9 @@ export async function checkSandbox(
           INSTALL_CURSOR: (await yes("Install Cursor CLI in the sandbox image?"))
             ? "1"
             : "0",
+          INSTALL_CLAUDE: (await yes("Install Claude Code CLI in the sandbox image?"))
+            ? "1"
+            : "0",
         };
         await run("npm", ["run", "sandbox:build"], env);
       },

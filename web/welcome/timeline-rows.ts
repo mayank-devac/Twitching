@@ -11,6 +11,7 @@ const kindLabel = {
   edit: "File edited",
   tool: "Tool used",
   command: "Command",
+  web: "Web",
   error: "Error",
   complete: "Completed",
   output: "Output",

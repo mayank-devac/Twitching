@@ -23,6 +23,23 @@ test("validated events select only the correct CLI's edit trigger", () => {
   assert.equal(cliAdapters.codex.edited(cursor), false);
   assert.ok(parseCliEvent({ type: "turn.completed", error: null }));
 });
+test("Claude edit trigger fires only on its tool results", () => {
+  const result = parseCliEvent({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: "t1", content: "ok" }] } })!;
+  const text = parseCliEvent({ type: "assistant", message: { content: [{ type: "text", text: "hi" }] } })!;
+  const cursor = parseCliEvent({ type: "tool_call", subtype: "completed", tool_call: {} })!;
+  assert.equal(cliAdapters.claude.edited(result), true);
+  assert.equal(cliAdapters.claude.edited(text), false);
+  assert.equal(cliAdapters.claude.edited(cursor), false);
+  assert.equal(cliAdapters.cursor.edited(result), false);
+  assert.equal(cliAdapters.codex.edited(result), false);
+});
+test("Claude events keep tool_use fields and string error kinds", () => {
+  const use = parseCliEvent({ type: "assistant", message: { content: [{ type: "tool_use", id: "t1", name: "Write", input: { file_path: "a.html" } }] } });
+  assert.ok(use && typeof use.message === "object");
+  assert.deepEqual(use.message?.content?.[0], { type: "tool_use", id: "t1", name: "Write", input: { file_path: "a.html" } });
+  const retry = parseCliEvent({ type: "system", subtype: "api_retry", error: "rate_limit", attempt: 1 });
+  assert.equal(retry?.error, "rate_limit");
+});
 test("runner-validated events and raw values produce the same activity", async () => {
   const { parseValidatedCliEvent } = await import("../server/activity.js");
   const raw = { type: "item.completed", item: { id: "m", type: "agent_message", text: "hello" } };

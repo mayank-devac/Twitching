@@ -3,7 +3,8 @@ import type { Agent } from "../shared/types.js";
 
 export function cliLoginCommand(agent: Agent, mode: RunnerMode) {
   // Codex always uses the private arena profile, including native sessions.
-  if (agent === "codex" || mode === "docker")
+  // Claude's saved token serves both Docker and native runs.
+  if (agent === "codex" || agent === "claude" || mode === "docker")
     return { program: "npm", args: ["run", `sandbox:login:${agent}`] };
   return { program: "cursor-agent", args: ["login"] };
 }
@@ -12,6 +13,10 @@ export function missingLoginError(agent: Agent, mode: RunnerMode) {
   if (agent === "codex")
     return new Error(
       "Codex arena login is missing; run npm run sandbox:login:codex with your ChatGPT subscription",
+    );
+  if (agent === "claude")
+    return new Error(
+      "Claude Code arena login is missing; run npm run sandbox:login:claude and paste the token from claude setup-token",
     );
   return new Error(
     mode === "native"
@@ -34,6 +39,11 @@ export function failedLoginAgent(error: unknown): Agent | undefined {
     /Codex arena login is missing/.test(message)
   )
     return "codex";
+  if (
+    /\/runtime\/auth\/claude(\/|$)/.test(path) ||
+    /Claude Code arena login is missing|Claude subscription authentication failed/.test(message)
+  )
+    return "claude";
 }
 
 export function cliStartupAdvice(error: unknown, mode: RunnerMode) {
@@ -54,7 +64,7 @@ export function cliStartupAdvice(error: unknown, mode: RunnerMode) {
   const agent = failedLoginAgent(error);
   const missingAuth =
     code === "ENOENT" &&
-    /\/runtime\/auth\/(codex|cursor)(\/|$)/.test(
+    /\/runtime\/auth\/(codex|cursor|claude)(\/|$)/.test(
       (error as NodeJS.ErrnoException).path ?? "",
     );
   const canRepair =
@@ -66,14 +76,18 @@ export function cliStartupAdvice(error: unknown, mode: RunnerMode) {
     mode === "native"
       ? "cursor-agent login on your Mac"
       : "npm run sandbox:login:cursor";
-  const both = `Codex: npm run sandbox:login:codex (arena profile). Cursor: ${cursorLogin}. Use the same requested models; no substitute is selected.`;
+  const advice: Record<Agent, string> = {
+    codex: "Codex: npm run sandbox:login:codex (arena profile).",
+    cursor: `Cursor: ${cursorLogin}.`,
+    claude:
+      "Claude Code: run claude setup-token, then npm run sandbox:login:claude and paste the token.",
+  };
+  const same = "Use the same requested models; no substitute is selected.";
   return {
     instruction: canRepair
-      ? agent === "codex"
-        ? "Codex: npm run sandbox:login:codex (arena profile). Use the same requested models; no substitute is selected."
-        : agent === "cursor"
-          ? `Cursor: ${cursorLogin}. Use the same requested models; no substitute is selected.`
-          : both
+      ? agent
+        ? `${advice[agent]} ${same}`
+        : `${Object.values(advice).join(" ")} ${same}`
       : "Resolve the exact CLI/model/configuration error shown above, then rerun. No login repair or model substitution is automatic.",
     canRepair,
     agent,

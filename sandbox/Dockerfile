@@ -12,6 +12,11 @@ ARG INSTALL_CURSOR=0
 ARG CURSOR_INSTALLER_SHA256=77d44de2cb8d12245077e290870ca4085644c5cfd534ba96334c4d6eeb8f0a7c
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git ripgrep && rm -rf /var/lib/apt/lists/*
 RUN npm install -g @openai/codex@${CODEX_VERSION}
+# Claude Code CLI is opt-in like Cursor: npm run sandbox:build asks first and
+# passes INSTALL_CLAUDE=1 only on yes. Pinned; it needs Node 22 or later.
+ARG INSTALL_CLAUDE=0
+ARG CLAUDE_VERSION=2.1.302
+RUN if [ "$INSTALL_CLAUDE" = "1" ]; then npm install -g @anthropic-ai/claude-code@${CLAUDE_VERSION}; fi
 ENV HOME=/opt/cursor-install
 RUN mkdir -p /opt/cursor-install && if [ "$INSTALL_CURSOR" = "1" ]; then \
       if [ -z "$CURSOR_INSTALLER_SHA256" ]; then echo "CURSOR_INSTALLER_SHA256 is required to install Cursor CLI" >&2; exit 1; fi; \
@@ -20,6 +25,7 @@ RUN mkdir -p /opt/cursor-install && if [ "$INSTALL_CURSOR" = "1" ]; then \
       bash /tmp/cursor-install.sh && rm /tmp/cursor-install.sh; \
     fi
 ENV PATH=/opt/cursor-install/.local/bin:/usr/local/bin:/usr/bin:/bin
+ENV DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 CLAUDE_CONFIG_DIR=/workspace/.home/.claude
 ENV HOME=/workspace/.home CODEX_HOME=/workspace/.home/.codex TMPDIR=/workspace/.tmp XDG_CONFIG_HOME=/workspace/.home/.config XDG_CACHE_HOME=/workspace/.home/.cache
 WORKDIR /workspace
 USER 1000:1000

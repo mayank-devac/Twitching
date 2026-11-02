@@ -31,6 +31,8 @@ export const startupSchema = z.object({
   codexModel: z.string().trim().min(1),
   codexEffort: z.string().trim().min(1).default("high"),
   cursorModel: z.string().trim().min(1),
+  claudeModel: z.string().trim().min(1).default("sonnet"),
+  claudeEffort: z.string().trim().min(1).default("high"),
   agentImage: z.string().regex(/^[\w./:-]+$/),
   previewImage: z.string().regex(/^[\w./:-]+$/),
   browserPort: z.number().int().min(1024).max(65535),

@@ -15,30 +15,59 @@
 
 Share what a coding CLI such as Codex is doing without sharing your screen.
 
-- twitch and Codex CLI support
-- select what to show (tools use , commands , edits , model name ...)
-- use it with OBS
-- viewers can prompt from comment box. when viewer comment with "!prompt"
-- Run agents in a Docker sandbox with separate CLI logins.
-- show html outputs overlays. 
-- TypeSafe Jev filters prompts according to your preferences.
-- Play music and visuals when the shared Codex account quota runs out.
+- Show multiple codex sessions in one screen
+- See chats from multiple platforms on one page (youtube , twitch , kick) .
+- select what to show (tools use , file name , commands , edits, model name, etc..)
+- use it with OBS (Browser source)
+- viewers can prompt to harness from comment box and jev will filter. when viewer comment with "!prompt".
+- Run agents in a Docker sandbox.
+- TypeSafe Jev filters prompts and chats according to your preferences.
+- Play music and visuals when the Codex account quota runs out.
+- assign goal timer .
+- Prompt arena: vs between models and harness. 
+- supports twitch and codex .
+- add breaks between live_streams .
+- show chats from multiple platforms using OBS Browser source 
 
 Developed with the help of Codex. Started for the [TwitchCon Codex hackathon](https://twitchcon-codex.devpost.com/).
 
-### Meet the CLIs
+### SESSION MODE OVERLAY
+
+Session Mode turn : coding session into full OBS Browser scene. Its timeline shows the session title, CLI/model, and cli activities.
+
+```text
++------------------------------------------------------------------+
+|  CLI · Session title                                    Model    |
++------------------------------------------------------------------+
+| Prompt                                                           |
+| ----------                                                       |
+| reponse:                                                         |
+|                                                                  |
+| Assistant message                                                |
+| annotations                                                      |
+| file edits/reads                                                 |
+| Tool activity                                                    |
+| activity summary ....                                            |
+| mermaid & tables                                                 |
+|                                                                  |
++------------------------------------------------------------------+
+```
+
+### PROMPT ARENA OVERLAY
 ```tex
-+-----------------------------+-----------------------------+ with Quota monitoring
-| Cursor CLI                  | Codex CLI                   |
++---------------with Quota monitoring-------------------------+ 
 |                             |                             |
-|                             vs                            | 
+|                             |                             |
+| Cursor CLI                  |    Codex CLI                |
+|                             |                             |
+|                             |                             |          
 |                             |                             |
 |                             |                             |
 +-----------------------------+-----------------------------+
 
-Solo mode: choose either CLI for a full-width show.
+Solo mode: use one harness and choose your models.
 ```
-Current runners support **Codex and Cursor**.
+Current runners support **Codex, Cursor and Claude Code**.
 
 ## Contents
 - [Quick start](#quick-start)
@@ -154,11 +183,22 @@ With Colima installed, run the remaining setup commands below. Image downloads c
 ./with_colima.sh docker network create --internal stram_previews
 ./with_colima.sh npm run sandbox:login:codex
 ./with_colima.sh npm run sandbox:login:cursor
+npm run sandbox:login:claude
 npm run build
 ./with_colima.sh npm run dev
 ```
 
 Sign in yourself using your existing subscriptions. Docker login commands save authentication under ignored `runtime/auth/`; never paste CLI credentials into prompts. Personal terminal chats are left alone.
+
+**Claude Code** is opt-in at `npm run sandbox:build` (`INSTALL_CLAUDE=1`), like Cursor. To log in, run `claude setup-token` on your own machine (needs a Claude Pro, Max, Team or Enterprise plan), then `npm run sandbox:login:claude` and paste the token. The input is hidden. The token is stored at `runtime/auth/claude/oauth-token` (mode 0600) and handed to each run through its environment, never written into a workspace. `ANTHROPIC_API_KEY` is never forwarded, because in print mode it would override the subscription token.
+
+Arena runs use `claude --print --output-format stream-json` with:
+- an empty, strict MCP config;
+- `--setting-sources user`, which points at a managed, per-run `CLAUDE_CONFIG_DIR`;
+- hooks disabled;
+- no session persistence.
+
+Your personal `~/.claude` settings, CLAUDE.md, skills, plugins and Keychain login are not used. In Docker the container is the boundary (`bypassPermissions`). Native runs use `acceptEdits` plus Claude's own OS sandbox for Bash (`failIfUnavailable`). Choose a model with `claudeModel` / `claudeEffort` in `settings.json` (default `sonnet` / `high`), or with `--session claude:opus:high`.
 
 To override the Codex image's CLI version at build time:
 
@@ -168,8 +208,25 @@ docker build --build-arg CODEX_VERSION=YOUR_INSTALLED_VERSION -t prompt-arena-ag
 
 ## How the show works
 
-### From suggestion to result
+### Session mode
 
+Session Mode publishes existing coding sessions as live timelines, separately from the Prompt Arena round flow. Choose up to eight sessions for an overlay; one session fills the output, while multiple sessions share a grid.
+
+```mermaid
+flowchart TD
+    Sessions[Codex / Cursor coding sessions] --> Browser[Browse and select sessions]
+    Browser --> Overlay[Choose sessions and visibility for an overlay]
+    Overlay --> Publish[Publish overlay]
+    Sessions --> Activity[Session activity]
+    Publish --> Filter[Apply public visibility and privacy filtering]
+    Activity --> Filter
+    Filter --> Timeline[Live session timeline or grid]
+    Timeline --> OBS[OBS Browser Source]
+```
+---
+### Prompt arena
+
+agent vs agent 
 ```mermaid
 flowchart TD
     Chat[YouTube / Twitch / Kick] --> Filter[Filter suggestions]
@@ -354,6 +411,9 @@ Codex-only mode retains quota monitoring. Cursor-only mode reports usage failure
 
 **Twitch**
 
+- Register an app in the [Twitch Developer Console](https://dev.twitch.tv/console/apps). Put its client ID and secret, plus a user access token with `user:read:chat` and its refresh token, in `.env.local`.
+- Set `TWITCH_BROADCASTER_ID` to the channel owner's numeric user ID and `TWITCH_BOT_USER_ID` to the numeric ID of the account authorized for the token (same ID if it's your own account). Look them up with Twitch's Helix Users API.
+- Leave all Twitch fields empty to disable Twitch. Keep tokens and the client secret private.
 - Handles keepalives/reconnects and recreates subscriptions after a dropped connection.
 - Messages missed during disconnection are not replayed.
 - Empty Twitch fields skip Twitch.
@@ -587,7 +647,7 @@ STRAM_SANDBOX_TEST=1 npx tsx --test tests/sandbox.test.ts
 server/             Control server: controller, runners, database, previews, routes
   controller/       Controller options and pure round bookkeeping
   chat/             One ChatSource per platform (YouTube, Twitch, Kick) + shared backoff
-  cli/              Codex and Cursor adapters and CLI event validation
+  cli/              Codex, Cursor and Claude Code adapters and CLI event validation
   sessions/         Managed/external coding sessions and named overlays
 shared/             Types, zod schemas and rules used by server and web
 web/                React overlay and host desk

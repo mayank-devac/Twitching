@@ -1,5 +1,5 @@
 import React from "react";
-import type { Agent, RunnerMode } from "../../shared/types.js";
+import { CLIS, CLI_LABELS, type Agent, type RunnerMode } from "../../shared/types.js";
 
 // Runner choices affect only future managed runs; external sessions are always read-only.
 export function LaunchChoices({
@@ -34,8 +34,11 @@ export function LaunchChoices({
               value={cli}
               onChange={(e) => changeCli(e.target.value as Agent)}
             >
-              <option value="codex">Codex</option>
-              <option value="cursor">Cursor</option>
+              {CLIS.map((option) => (
+                <option key={option} value={option}>
+                  {CLI_LABELS[option]}
+                </option>
+              ))}
             </select>
           </label>
           <label>

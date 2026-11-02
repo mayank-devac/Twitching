@@ -106,7 +106,7 @@ export async function startShow(show: ShowStart) {
     show;
   if (runnerMode === "native") {
     console.log(
-      "\nNATIVE WARNING: Codex/Cursor terminal commands can read and change files on your Mac, outside the project. Process-group cancellation cannot contain commands that deliberately escape it. Previews remain protected in Docker.",
+      "\nNATIVE WARNING: Codex/Cursor/Claude Code terminal commands can read and change files on your Mac, outside the project. Process-group cancellation cannot contain commands that deliberately escape it. Previews remain protected in Docker.",
     );
     if (
       (await question(

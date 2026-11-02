@@ -7,15 +7,15 @@ import { CLIS, isCli, type Agent, type RunnerMode, type SessionConfig } from "..
 
 export const help = `Prompt Arena guided startup
 
-  ./check_stream_start.sh [--cli codex|cursor] [--mode live|rehearsal] [--runner docker|native] [--verify] [--non-interactive] [--chat yt|twitch|kick] [--skip yt|twitch|kick] [--prompts] [--no-prompts]
-  ./start_stream.sh       [--cli codex|cursor] [--mode live|rehearsal] [--runner docker|native] [--verify] [--chat yt|twitch|kick] [--skip yt|twitch|kick] [--prompts] [--no-prompts] [--chats]
+  ./check_stream_start.sh [--cli codex|cursor|claude] [--mode live|rehearsal] [--runner docker|native] [--verify] [--non-interactive] [--chat yt|twitch|kick] [--skip yt|twitch|kick] [--prompts] [--no-prompts]
+  ./start_stream.sh       [--cli codex|cursor|claude] [--mode live|rehearsal] [--runner docker|native] [--verify] [--chat yt|twitch|kick] [--skip yt|twitch|kick] [--prompts] [--no-prompts] [--chats]
 
 --chats turns on the chat history feed (/chat and /chats/prompts OBS pages). It is off by default.
 Check defaults to live readiness. Start offers rehearsal/live and Docker/native choices.
 Chat starts off. Repeat --chat for each platform you want, or enable it in Quick Settings.
 --session cli:model[:effort] selects a session; repeat once for two sessions (including Codex + Codex).
 Interactive start also offers session/model selection from installed CLIs.
---codex / --cursor (or --cli codex|cursor) runs one CLI in a full-width panel. The other CLI is not checked or launched.
+--codex / --cursor / --claude (or --cli codex|cursor|claude) runs one CLI in a full-width panel. The other CLIs are not checked or launched.
 --skip yt, --skip twitch and --skip kick omit those chat connections in live mode. Repeat --skip for each.
 --prompts runs tasks from prompts.txt (or settings.promptFile) for the selected CLIs, then ends the show. OBS only; chat is skipped.
 If that file already has tasks, prompt-list mode is used unless you pass --no-prompts.
@@ -88,7 +88,7 @@ export function parseStreamOptions(
         (options.singleAgent && options.singleAgent !== agent)
       ) {
         console.error(
-          `ERROR: Choose one CLI: --codex, --cursor, or --cli codex|cursor.\n${help}`,
+          `ERROR: Choose one CLI: ${CLIS.map((cli) => `--${cli}`).join(", ")}, or --cli ${CLIS.join("|")}.\n${help}`,
         );
         process.exit(2);
       }

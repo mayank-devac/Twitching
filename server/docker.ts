@@ -16,6 +16,11 @@ import { copyLoginFile, fingerprintTree, loginFiles, loginGuard } from "./login-
 import { Store } from "./store.js";
 import { preserveSandboxResult, sandboxPromptPath } from "./sandbox-results.js";
 import {
+  CLAUDE_RUN_ENV,
+  prepareClaudeHome,
+  readClaudeToken,
+} from "./claude-profile.js";
+import {
   assertCodexProfile,
   prepareCodexHome,
   retainCodexLogin,
@@ -105,12 +110,17 @@ export class Docker {
       .digest("hex")
       .slice(0, 16);
   }
-  async command(args: string[], timeout = 15000) {
+  async command(args: string[], timeout = 15000, env?: NodeJS.ProcessEnv) {
     const result = await exec("docker", args, {
       timeout,
       maxBuffer: 2_000_000,
+      ...(env ? { env } : {}),
     });
     return result.stdout;
+  }
+  // The saved Claude subscription token (claude setup-token), or undefined.
+  claudeToken() {
+    return readClaudeToken(this.options.root);
   }
   name(agent: SessionId, round: number | string) {
     return `stram-${this.label}-${agent}-${round}`;
@@ -129,6 +139,12 @@ export class Docker {
       await assertRealDirectory(path);
     if (agent === "codex") {
       await prepareCodexHome(this.options.root, home, auth);
+      return dir;
+    }
+    // Claude's token travels in the container environment (see create), so
+    // nothing secret is written here; only the managed settings profile.
+    if (agent === "claude") {
+      await prepareClaudeHome(home);
       return dir;
     }
     if (auth) {
@@ -198,13 +214,19 @@ export class Docker {
       throw error;
     }
     try {
-      await this.command([
-        "create",
-        "-i",
-        ...this.args(name, workspace),
-        this.options.image,
-        ...command,
-      ]);
+      const claude = agent === "claude" ? await this.claudeEnv() : undefined;
+      await this.command(
+        [
+          "create",
+          "-i",
+          ...this.args(name, workspace),
+          ...(claude?.args ?? []),
+          this.options.image,
+          ...command,
+        ],
+        15000,
+        claude?.env,
+      );
     } catch (error) {
       try {
         await this.stop(name);
@@ -218,6 +240,27 @@ export class Docker {
       throw error;
     }
     return { name, dir: workspace };
+  }
+  // `-e NAME` without a value makes docker copy the variable from its own
+  // environment, so the token never appears in argv or `ps`. API-key
+  // variables are never forwarded: in -p mode they would override the token.
+  private async claudeEnv() {
+    const token = await this.claudeToken();
+    const args = [
+      "-e",
+      "CLAUDE_CONFIG_DIR=/workspace/.home/.claude",
+      ...Object.entries(CLAUDE_RUN_ENV).flatMap(([key, value]) => [
+        "-e",
+        `${key}=${value}`,
+      ]),
+    ];
+    if (!token) return { args };
+    return {
+      args: [...args, "-e", "CLAUDE_CODE_OAUTH_TOKEN"],
+      // Only variables named with -e reach the container; the rest keeps the
+      // docker client's own configuration (context, config dir) working.
+      env: { ...process.env, CLAUDE_CODE_OAUTH_TOKEN: token },
+    };
   }
   attach(name: string) {
     return spawn("docker", ["start", "-a", "-i", name], {
@@ -339,7 +382,8 @@ export class Docker {
   async retainAuth(agent: Agent, dir: string, options: { discardHome?: boolean } = {}) {
     const home = resolve(dir, ".home");
     if (agent === "codex") await retainCodexLogin(this.options.root, home);
-    else {
+    // The Claude token is read-only and never enters the home: nothing to retain.
+    else if (agent === "cursor") {
       const dest = resolve(this.options.root, "runtime/auth", agent);
       await loginGuard(this.options.root, agent).retain(home,
         () => fingerprintTree(home, CURSOR_LOGIN_ROOTS, cursorRetainEntry, dir),

@@ -1,4 +1,4 @@
-import { isCli, type Agent, type SessionConfig } from "../shared/types.js";
+import { CLIS, CLI_LABELS, isCli, type Agent, type SessionConfig } from "../shared/types.js";
 import type { CliModel } from "../server/cli/types.js";
 export type Question = (text: string, fallback?: string) => Promise<string>;
 export function parseSessionSpec(spec: string, index: number): SessionConfig {
@@ -22,10 +22,12 @@ export async function chooseSessions(
   const catalogs = new Map<Agent, CliModel[]>();
   const sessions: SessionConfig[] = [];
   for (let index = 0; index < Number(count); index++) {
-    const choice = await question(`Session ${index + 1} CLI: 1 = Codex, 2 = Cursor [1]: `);
-    if (!["", "1", "2"].includes(choice))
-      throw new Error("Choose Codex or Cursor");
-    const cli: Agent = choice === "2" ? "cursor" : "codex";
+    const menu = CLIS.map((cli, i) => `${i + 1} = ${CLI_LABELS[cli]}`).join(", ");
+    const choice = await question(`Session ${index + 1} CLI: ${menu} [1]: `);
+    const picked = choice ? Number(choice) - 1 : 0;
+    const cli: Agent | undefined = Number.isInteger(picked) ? CLIS[picked] : undefined;
+    if (!cli)
+      throw new Error(`Choose ${CLIS.map((c) => CLI_LABELS[c]).join(", ")}`);
     if (!catalogs.has(cli)) catalogs.set(cli, await discover(cli));
     const models = catalogs.get(cli)!;
     models.forEach((model, i) => log(`  ${i + 1}. ${model.id}`));

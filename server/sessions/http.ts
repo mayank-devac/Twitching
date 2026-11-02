@@ -2,6 +2,7 @@ import express from "express";
 import { z } from "zod";
 import type { Sessions } from "./service.js";
 import { cliSchema, runnerModeSchema } from "../../shared/schema.js";
+import { CLIS } from "../../shared/types.js";
 import { routeAction, type HostOnly } from "../http-kit.js";
 
 const identifier = z
@@ -11,7 +12,7 @@ const identifier = z
   .regex(/^[a-zA-Z0-9:_-]+$/);
 const cursor = z.string().min(1).max(4000).optional();
 const listing = z.object({
-  source: z.enum(["managed", "codex", "cursor"]),
+  source: z.enum(["managed", ...CLIS]),
   search: z.string().max(160).default(""),
   before: cursor,
 });

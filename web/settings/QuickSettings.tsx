@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { CLIS, type Agent, type SessionConfig, type ShowState } from "../../shared/types.js";
+import { CLIS, CLI_LABELS, type Agent, type SessionConfig, type ShowState } from "../../shared/types.js";
 import type {
   ModelChoice,
   QuickPreferences,
@@ -275,7 +275,7 @@ export function QuickSettings({
               .map((cli) => (
                 <section key={cli} className="qs-cli">
                   <div className="qs-row">
-                    <h3>{cli === "codex" ? "Codex" : "Cursor"}</h3>
+                    <h3>{CLI_LABELS[cli]}</h3>
                     <button disabled={busy} onClick={() => void discover(cli)}>
                       Refresh models
                     </button>

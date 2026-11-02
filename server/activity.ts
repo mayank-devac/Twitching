@@ -1,4 +1,5 @@
 import { parseCliEvent, jsonObject, type CliEvent } from "./cli/events.js";
+import { claudeProfileViolation } from "./claude-profile.js";
 import { createHash } from "node:crypto";
 import { StringDecoder } from "node:string_decoder";
 import { safeFileName } from "../shared/safe-file-name.js";
@@ -71,6 +72,11 @@ export class ActivityAdapter {
   private cursorMessage = 0;
   private thinkingBuffer = "";
   private thinkingMessage = 0;
+  private claudeBlock = 0;
+  private claudeTools = new Map<
+    string,
+    { name: string; args: Record<string, unknown> }
+  >();
   private shown = new Map<string, string>();
   constructor(
     private agent: Agent,
@@ -125,8 +131,19 @@ export class ActivityAdapter {
     const e = value !== null && typeof value === "object" && validated.has(value)
       ? value as CliEvent : parseCliEvent(value);
     if (!e) return;
-    if (this.agent === "codex") this.codex(e);
-    else this.cursor(e);
+    // Exhaustive: a new CLI must add its own parser rather than fall through.
+    switch (this.agent) {
+      case "codex":
+        return this.codex(e);
+      case "cursor":
+        return this.cursor(e);
+      case "claude":
+        return this.claude(e);
+      default: {
+        const unknown: never = this.agent;
+        throw new Error(`No activity parser for ${String(unknown)}`);
+      }
+    }
   }
   private codex(e: CliEvent) {
     if (e.type === "turn.completed") {
@@ -138,7 +155,7 @@ export class ActivityAdapter {
       );
     }
     if (e.type === "error" || e.type === "turn.failed") {
-      this.failure = String(e.message ?? e.error?.message ?? "CLI error");
+      this.failure = String(e.message ?? errorText(e.error) ?? "CLI error");
       this.publish("error", "CLI reported an error", `error:${this.failure}`);
     }
     const i = e.item;
@@ -194,7 +211,16 @@ export class ActivityAdapter {
         `${id}:${e.type}`,
       );
       this.track("write", paths || "file", `${id}:write:${e.type}`);
-    } else if (["mcp_tool_call", "web_search", "todo_list"].includes(i.type)) {
+    } else if (i.type === "web_search") {
+      const query = String(i.query ?? "").trim();
+      // The query usually arrives with completion; show it once it is known.
+      this.publish(
+        "web",
+        query ? `Searched the web: ${query}` : "Searching the web",
+        `${id}:web:${query ? "query" : "pending"}`,
+      );
+      this.track("tool", `web search ${i.status ?? ""}`.trim(), `${id}:tool:${e.type}`);
+    } else if (["mcp_tool_call", "todo_list"].includes(i.type)) {
       const label = `${i.type.replaceAll("_", " ")} ${i.status ?? ""}`.trim();
       this.publish("tool", label, `${id}:${e.type}`);
       this.track("tool", label, `${id}:tool:${e.type}`);
@@ -257,7 +283,7 @@ export class ActivityAdapter {
         `${e.call_id}:${e.subtype}`,
       );
       this.showWrittenHtml(String(e.call_id), name, args);
-      this.trackCursorTool(
+      this.trackTool(
         String(e.call_id ?? "tool"),
         name,
         args,
@@ -281,6 +307,105 @@ export class ActivityAdapter {
       this.publish("error", "CLI reported an error", "error");
     }
   }
+  // Claude Code stream-json: one content block per assistant event, tool
+  // results arrive on user events, and a final result event decides success.
+  private claude(e: CliEvent) {
+    const blocks =
+      e.message && typeof e.message === "object" ? e.message.content ?? [] : [];
+    if (e.type === "system" && e.subtype === "init") {
+      const violation = claudeProfileViolation(e);
+      if (violation) {
+        this.failure = violation;
+        this.publish("error", violation, "system:init");
+      } else
+        this.publish(
+          "output",
+          "Claude Code started; waiting for model output",
+          "system:init",
+        );
+    } else if (e.type === "system" && e.subtype === "api_retry") {
+      const kind = errorText(e.error) ?? "unknown";
+      // Rate limits and overloads are retried by the CLI; only failures that
+      // cannot recover by waiting stop the run. The wording feeds failureKind.
+      if (kind === "authentication_failed")
+        this.failure = "Claude subscription authentication failed";
+      else if (kind === "billing_error")
+        this.failure = "Claude usage limit reached";
+      this.publish(
+        this.failure ? "error" : "output",
+        `Claude API retry (${kind})`,
+        `api_retry:${kind}`,
+      );
+    } else if (e.type === "assistant") {
+      for (const block of blocks) {
+        const key = `block:${this.claudeBlock++}`;
+        if (block.type === "text" && block.text)
+          this.emitText("message", block.text, key, true);
+        else if (block.type === "thinking" && block.thinking)
+          this.emitText("summary", block.thinking, key, true);
+        else if (block.type === "tool_use" && block.id) {
+          const name = block.name ?? "tool";
+          const args = claudeToolArgs(name, block.input);
+          this.claudeTools.set(block.id, { name, args });
+          this.claudeToolEvent(block.id, name, args, "started");
+          this.showWrittenHtml(block.id, name, args);
+        }
+      }
+    } else if (e.type === "user") {
+      for (const block of blocks) {
+        if (block.type !== "tool_result" || !block.tool_use_id) continue;
+        const tool = this.claudeTools.get(block.tool_use_id) ?? {
+          name: "tool",
+          args: {},
+        };
+        // Tool output (file contents, command output) stays private.
+        this.claudeToolEvent(
+          block.tool_use_id,
+          tool.name,
+          tool.args,
+          block.is_error ? "failed" : "completed",
+        );
+      }
+    } else if (e.type === "result") {
+      this.successful = e.subtype === "success" && e.is_error !== true;
+      if (!this.successful)
+        this.failure = String(
+          (typeof e.result === "string" && e.result) ||
+            claudeErrorText(e.errors) ||
+            e.terminal_reason ||
+            e.subtype ||
+            "Claude Code failed",
+        );
+      this.publish(
+        this.successful ? "complete" : "error",
+        this.successful
+          ? this.general ? "Agent finished" : "Agent finished; checking HTML"
+          : "CLI reported an error",
+        "result",
+      );
+    }
+  }
+  private claudeToolEvent(
+    id: string,
+    name: string,
+    args: Record<string, unknown>,
+    subtype: string,
+  ) {
+    const lane = claudeLane(name);
+    const web = webActivityText(name, args);
+    if (web) {
+      // One row per search or fetch; a completed result adds nothing new.
+      if (subtype !== "completed")
+        this.publish("web", subtype === "failed" ? `${web} (failed)` : web, `${id}:${subtype}`);
+      this.trackTool(id, name, args, subtype, lane);
+      return;
+    }
+    const kind =
+      lane === "write" ? "edit" : lane === "terminal" ? "command" : "tool";
+    const path = String(args.path ?? "").split("/").pop();
+    this.publish(kind, `${name} ${subtype}${path ? ` · ${path}` : ""}`, `${id}:${subtype}`);
+    this.trackTool(id, name, args, subtype, lane);
+  }
   // Public filenames are separate from host-only search strings and raw tool arguments.
   private track(
     lane: ActivityLane,
@@ -293,11 +418,12 @@ export class ActivityAdapter {
     this.seen.add(key);
     this.emit(this.make("command", shown, key, { publicFile, lane }));
   }
-  private trackCursorTool(
+  private trackTool(
     callId: string,
     tool: string,
     args: Record<string, unknown>,
     subtype: string,
+    knownLane?: ActivityLane,
   ) {
     const name = String(args.name ?? tool);
     const rawPath = String(
@@ -314,7 +440,7 @@ export class ActivityAdapter {
       args.pattern ?? args.glob ?? args.glob_pattern ?? args.query ?? "",
     );
     const command = String(args.command ?? args.cmd ?? "");
-    const lane = classifyTool(name);
+    const lane = knownLane ?? classifyTool(name);
     let text = name;
     if (lane === "terminal") text = `${subtype || "running"} ${command || name}`;
     else if (lane === "write") text = path || name;
@@ -380,6 +506,56 @@ function classifyTool(name: string): ActivityLane {
   if (/write|edit|replace|delete/i.test(name) && !/read/i.test(name)) return "write";
   if (/read|grep|glob|search/i.test(name)) return "read";
   return "tool";
+}
+// Claude Code names its built-in tools exactly; TodoWrite is a plan, not a file write.
+function claudeLane(name: string): ActivityLane {
+  if (name === "Bash" || name === "BashOutput" || name === "KillShell")
+    return "terminal";
+  if (["Write", "Edit", "MultiEdit", "NotebookEdit"].includes(name))
+    return "write";
+  if (["Read", "Grep", "Glob", "LS", "NotebookRead"].includes(name))
+    return "read";
+  return "tool";
+}
+// Public text for a Claude web tool, or undefined for any other tool. A search
+// shows its query; a fetch shows host and path only, because query strings and
+// fragments often carry tokens. Callers still pass the result through clean().
+export function webActivityText(name: string, input: Record<string, unknown>) {
+  if (name === "WebSearch") {
+    const query = typeof input.query === "string" ? input.query.trim() : "";
+    return query ? `Searched the web: ${query}` : "Searched the web";
+  }
+  if (name === "WebFetch") return `Fetched ${publicUrl(input.url)}`;
+  return undefined;
+}
+function publicUrl(value: unknown) {
+  try {
+    const url = new URL(String(value));
+    if (url.protocol !== "https:" && url.protocol !== "http:") return "a web page";
+    return url.pathname === "/" ? url.host : `${url.host}${url.pathname}`;
+  } catch {
+    return "a web page";
+  }
+}
+// Maps Claude tool input onto the argument names the shared tracking and
+// HTML-publication helpers already read (path, contents, command, pattern).
+function claudeToolArgs(name: string, input: unknown): Record<string, unknown> {
+  const raw = jsonObject(input) ?? {};
+  const args: Record<string, unknown> = { ...raw, name };
+  const path = raw.file_path ?? raw.notebook_path ?? raw.path;
+  if (typeof path === "string") args.path = path;
+  if (typeof raw.content === "string") args.contents = raw.content;
+  return args;
+}
+function claudeErrorText(errors: unknown[] | undefined) {
+  const first = errors?.[0];
+  if (typeof first === "string") return first;
+  const message = jsonObject(first)?.message;
+  return typeof message === "string" ? message : undefined;
+}
+function errorText(error: CliEvent["error"]) {
+  if (typeof error === "string") return error;
+  return error?.message;
 }
 function toolArgs(value: unknown): Record<string, unknown> {
   const detail = jsonObject(value) ?? {};

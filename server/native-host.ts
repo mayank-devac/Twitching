@@ -25,6 +25,12 @@ import { assertRealDirectory, Docker, type RunApproval, type WorkspaceRequest } 
 import { enforceDiskBudget } from "./disk-budget.js";
 import { removeProbeWorkspace } from "./probe-workspace-cleanup.js";
 import { prepareCodexHome, retainCodexLogin } from "./codex-profile.js";
+import {
+  CLAUDE_NATIVE_PERMISSION,
+  CLAUDE_NATIVE_PROFILE_JSON,
+  CLAUDE_RUN_ENV,
+  prepareClaudeHome,
+} from "./claude-profile.js";
 import type { Store } from "./store.js";
 import { CLIS, SESSION_IDS, type Agent, type SessionId } from "../shared/types.js";
 
@@ -164,6 +170,8 @@ export class NativeHost extends Docker {
       await this.capture("codex", ["codex", "--version"]);
     if (agents.includes("cursor"))
       await this.capture("cursor", ["cursor-agent", "--version"]);
+    if (agents.includes("claude"))
+      await this.capture("claude", ["claude", "--version"]);
   }
   override async create(
     agent: Agent,
@@ -193,13 +201,26 @@ export class NativeHost extends Docker {
       );
     }
     // Native runs have no container, so each CLI keeps its own sandbox:
-    // Cursor runs with its default sandbox, and Codex swaps the Docker-only
-    // bypass flag for a workspace-write sandbox rooted at the round folder.
-    const args = command.map((arg) =>
-      coding && agent === "codex" && arg === "--dangerously-bypass-approvals-and-sandbox"
-        ? "--sandbox=workspace-write"
-        : arg,
-    );
+    // Cursor runs with its default sandbox, Codex swaps the Docker-only
+    // bypass flag for a workspace-write sandbox rooted at the round folder,
+    // and Claude swaps bypassPermissions for acceptEdits plus its OS sandbox.
+    const args = command.map((arg, index) => {
+      if (!coding) return arg;
+      if (agent === "codex" && arg === "--dangerously-bypass-approvals-and-sandbox")
+        return "--sandbox=workspace-write";
+      if (agent === "claude" && command[index - 1] === "--permission-mode")
+        return CLAUDE_NATIVE_PERMISSION;
+      if (agent === "claude" && command[index - 1] === "--settings")
+        return CLAUDE_NATIVE_PROFILE_JSON;
+      return arg;
+    });
+    if (
+      coding &&
+      agent === "claude" &&
+      (!args.includes(CLAUDE_NATIVE_PERMISSION) ||
+        !args.includes(CLAUDE_NATIVE_PROFILE_JSON))
+    )
+      throw new Error("Native Claude run is missing its sandbox profile");
     const workspace =
       dir ?? (await this.workspace({ cli: agent, round, session }));
     // Keep task instructions identical across native agents; the fixed output is relative to cwd.
@@ -240,6 +261,18 @@ export class NativeHost extends Docker {
       env.CODEX_HOME = await prepareCodexHome(this.nativeRoot, home);
       env.HOME = home;
       env.XDG_CONFIG_HOME = resolve(home, ".config");
+      return env;
+    }
+    if (agent === "claude") {
+      // A private CLAUDE_CONFIG_DIR keeps the user's ~/.claude settings,
+      // CLAUDE.md, skills and Keychain login out. Only the saved token is
+      // passed; API-key variables are never inherited (they override it).
+      env.HOME = home;
+      env.XDG_CONFIG_HOME = resolve(home, ".config");
+      env.CLAUDE_CONFIG_DIR = await prepareClaudeHome(home);
+      Object.assign(env, CLAUDE_RUN_ENV);
+      const token = await this.claudeToken();
+      if (token) env.CLAUDE_CODE_OAUTH_TOKEN = token;
       return env;
     }
     await mkdir(resolve(home, ".cursor"), { recursive: true, mode: 0o700 });

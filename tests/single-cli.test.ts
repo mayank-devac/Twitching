@@ -14,7 +14,12 @@ function fakeHost(agent: Agent, created: Agent[], output?: string) {
       assert.equal(selected, agent);
       if (args.includes("status")) return "Logged in";
       if (args.includes("--list-models")) return "requested-cursor";
-      return "--ignore-user-config --ignore-rules --disable --print --stream-partial-output --output-format --model --force";
+      return "--ignore-user-config --ignore-rules --disable --print --stream-partial-output --output-format --model --force " +
+        "--verbose --effort --permission-mode --no-session-persistence --strict-mcp-config --mcp-config --setting-sources --settings --disallowedTools";
+    },
+    claudeToken: async () => {
+      assert.equal(agent, "claude", "Other modes must not read the Claude login");
+      return "sk-ant-oat01-fixture-token-value-000000";
     },
     codexInfo: async () => {
       assert.equal(agent, "codex", "Cursor mode must not query Codex");
@@ -51,7 +56,7 @@ function fakeHost(agent: Agent, created: Agent[], output?: string) {
     } as unknown as Docker;
 }
 
-for (const agent of ["codex", "cursor"] as const) {
+for (const agent of ["codex", "cursor", "claude"] as const) {
   test(`${agent} mode checks and launches only the selected CLI`, async () => {
     const created: Agent[] = [];
     const host = fakeHost(agent, created);

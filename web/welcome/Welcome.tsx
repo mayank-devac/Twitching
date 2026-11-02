@@ -45,9 +45,11 @@ const visibilityChoices: [keyof SessionVisibility, string][] = [
   ["complete", "Completion"],
   ["error", "Errors"],
   ["model", "Model name"],
+  ["effort", "Effort"],
   ["cliIcon", "Icon"],
   ["cliName", "Name"],
   ["command", "Commands"],
+  ["web", "Web searches"],
   ["read", "Read file names"],
 ];
 
@@ -816,7 +818,7 @@ export function Welcome({
               <option value="live">Live</option>
             </select>
           </label>
-          {(["Codex", "Docker", "Cursor"] as const).map((name) => {
+          {(["Codex", "Docker", "Cursor", "Claude Code"] as const).map((name) => {
             const tool = toolStatus(name);
             return (
               <span className="readiness-pill" key={name}>

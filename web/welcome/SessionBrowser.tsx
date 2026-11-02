@@ -1,5 +1,5 @@
 import React from "react";
-import { CLIS, type Agent } from "../../shared/types.js";
+import { CLIS, CLI_LABELS, type Agent } from "../../shared/types.js";
 import type { Conversation } from "../../shared/sessions.js";
 import {
   MAX_OVERLAY_SESSIONS,
@@ -77,6 +77,7 @@ export function SessionBrowser({
             onChange={(e) => changeSource(e.target.value as typeof source)}
           >
             <option value="codex">Codex saved</option>
+            <option value="claude">Claude saved</option>
             <option value="managed">Managed</option>
           </select>
         </label>
@@ -192,7 +193,8 @@ export function SessionBrowser({
         })}
         {source === "cursor" && (
           <p className="session-list-empty">
-            Cursor history isn't browsable here. Start a managed Cursor session.
+            {CLI_LABELS[source]} history isn't browsable here. Start a managed{" "}
+            {CLI_LABELS[source]} session.
           </p>
         )}
         {listing.note && <p className="session-list-note">{listing.note}</p>}

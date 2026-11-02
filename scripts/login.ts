@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { spawn } from "node:child_process";
 import {
@@ -8,9 +8,63 @@ import {
 } from "../server/constants.js";
 import { settings, root } from "../server/config.js";
 import { assertProviderProxy } from "../server/provider-proxy.js";
+import { writeFileAtomic } from "../server/atomic-file.js";
+import { CLAUDE_TOKEN_PATH, validClaudeToken } from "../server/claude-profile.js";
 const agent = process.argv[2];
-if (agent !== "codex" && agent !== "cursor")
-  throw new Error("Choose codex or cursor");
+if (agent !== "codex" && agent !== "cursor" && agent !== "claude")
+  throw new Error("Choose codex, cursor or claude");
+
+// Claude Code: `claude setup-token` runs a browser login on the user's own
+// machine and prints a long-lived subscription token. The token is pasted
+// here (not echoed) and stored host-only; runs receive it via environment.
+async function readHidden(question: string) {
+  const input = process.stdin;
+  if (!input.isTTY) throw new Error("Run this login in an interactive terminal");
+  process.stdout.write(question);
+  input.setRawMode(true);
+  input.resume();
+  input.setEncoding("utf8");
+  return await new Promise<string>((done, fail) => {
+    let value = "";
+    const finish = (error?: Error) => {
+      input.setRawMode(false);
+      input.pause();
+      input.off("data", onData);
+      process.stdout.write("\n");
+      error ? fail(error) : done(value.trim());
+    };
+    const onData = (chunk: string) => {
+      for (const char of chunk) {
+        if (char === "\r" || char === "\n") return finish();
+        if (char === "\u0003") return finish(new Error("Login cancelled"));
+        if (char === "\u007f" || char === "\b") value = value.slice(0, -1);
+        else value += char;
+      }
+    };
+    input.on("data", onData);
+  });
+}
+
+if (agent === "claude") {
+  console.log(
+    "Run `claude setup-token` in another terminal (needs a Claude Pro, Max, Team or Enterprise plan),\nthen paste the printed token here. It is saved only to " +
+      CLAUDE_TOKEN_PATH +
+      ".",
+  );
+  const token = await readHidden("Claude Code token: ");
+  if (!validClaudeToken(token))
+    throw new Error("That does not look like a Claude Code token (expected sk-ant-…)");
+  const dir = resolve(root, "runtime/auth/claude");
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  const info = await lstat(dir);
+  if (info.isSymbolicLink() || !info.isDirectory())
+    throw new Error("runtime/auth/claude must be a real directory");
+  await chmod(dir, 0o700);
+  await writeFileAtomic(resolve(root, CLAUDE_TOKEN_PATH), `${token}\n`, 0o600);
+  console.log("Claude Code login saved.");
+  process.exit(0);
+}
+
 await assertProviderProxy(root);
 const dir = resolve(root, "runtime/auth", agent);
 await mkdir(resolve(dir, ".codex"), { recursive: true, mode: 0o700 });

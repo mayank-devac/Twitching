@@ -26,7 +26,13 @@ export function presentationRoutes(
   const key = (context: string, nextOverlay?: OverlayDefinition) => {
     const value = preferences.get().value;
     const c = store.conversation(context);
-    const cli = c?.cli ?? (context.startsWith("codex:") ? "codex" : undefined);
+    const cli =
+      c?.cli ??
+      (context.startsWith("codex:")
+        ? "codex"
+        : context.startsWith("claude:")
+          ? "claude"
+          : undefined);
     const outputs = store.overlays()?.overlays ?? [];
     const layouts = nextOverlay ? outputs.map((output) => output.id === nextOverlay.id ? nextOverlay : output) : outputs;
     return createHash("sha256")

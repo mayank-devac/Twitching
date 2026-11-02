@@ -12,7 +12,7 @@ import {
   failedLoginAgent,
 } from "../../server/cli-startup-repair.js";
 import { credentialGuard } from "../../server/redact.js";
-import { configuredSessions, sessionCount, type Agent, type RunnerMode } from "../../shared/types.js";
+import { CLIS, CLI_LABELS, configuredSessions, sessionCount, type Agent, type RunnerMode } from "../../shared/types.js";
 import { newestSource } from "../boot-client.js";
 import {
   fix,
@@ -117,13 +117,10 @@ export async function checkServices(check: ServiceCheck) {
       const choice = known
         ? undefined
         : await question(
-            "Which login needs fixing? 1 = Codex, 2 = Cursor [cancel]: ",
+            `Which login needs fixing? ${CLIS.map((cli, i) => `${i + 1} = ${CLI_LABELS[cli]}`).join(", ")} [cancel]: `,
           );
-      const agent =
-        known ??
-        (choice === "1" ? "codex" : choice === "2" ? "cursor" : undefined);
-      if (agent !== "codex" && agent !== "cursor")
-        throw new Error("Login repair cancelled");
+      const agent = known ?? CLIS[Number(choice) - 1];
+      if (!agent) throw new Error("Login repair cancelled");
       if (known) console.log(`Running ${agent} login repair…`);
       const login = cliLoginCommand(agent, runnerMode);
       await run(login.program, login.args);

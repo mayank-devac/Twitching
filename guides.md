@@ -23,7 +23,7 @@ flowchart TD
 
 - [ ] Docker Desktop engine is running
 - [ ] One-time setup done: `npm ci`, images built, provider proxy up, `stram_previews` network — see [README Quick start](README.md#quick-start)
-- [ ] Agent logins saved (`npm run sandbox:login:codex` / `npm run sandbox:login:cursor` for Docker agents)
+- [ ] Agent logins saved (`npm run sandbox:login:codex` / `npm run sandbox:login:cursor` for Docker agents; `npm run sandbox:login:claude` with a `claude setup-token` token for Claude Code in either mode)
 - [ ] `.env.local` filled privately; own `assets/break.mp3` supplied; blocked words configured in `settings.json`
 - [ ] OBS: WebSocket v5 enabled with its password in `.env.local`; overlay Browser Source `http://127.0.0.1:3210/overlay` at 1920 × 1080; **Start Streaming not pressed**
 - [ ] `./check_stream_start.sh --mode rehearsal --runner docker --verify` ends with `READY: rehearsal prerequisites passed`

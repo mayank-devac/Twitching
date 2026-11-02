@@ -1,12 +1,10 @@
 // One agent's arena panel: header, live transcript, HTML result or failure card.
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { sessionCli, sessionLabel } from "../../shared/types.js";
+import { legacyModel, publicModelLabel, sessionCli } from "../../shared/types.js";
 import type { Activity, SessionId, ShowState } from "../../shared/types.js";
 import { defaultVisibility } from "../../shared/settings.js";
 import { SafeMarkdown } from "../markdown.js";
-import codexLogo from "../../assets/codex/codex.svg";
-import botLogo from "../../assets/chatgpt/chatgpt-icon.svg";
-import cursorLogo from "../../assets/cursor/Cube/SVG/CUBE_2D_DARK.svg";
+import { cliIdleLogo, cliLogo, cliName } from "../agents.js";
 import { attemptFailed } from "./arena-status.js";
 import { AttemptTimer } from "./timers.js";
 
@@ -30,12 +28,13 @@ export function AgentPanel({
 }) {
   const attempt = state.round?.attempts[agent];
   const cli = sessionCli(state, agent);
-  const model = attempt ? sessionLabel(attempt) : state.models?.[agent];
   // Visibility affects public presentation only; host inspection keeps the full view.
   const visibility = host
     ? defaultVisibility
     : (state.quickSettings?.visibility[agent] ?? defaultVisibility);
-  const cliLabel = `${cli === "codex" ? "Codex" : "Cursor"} ${(state.agents?.indexOf(agent) ?? 0) === 0 ? "Left" : "Right"}`;
+  const label = state.models?.[agent];
+  const model = publicModelLabel(attempt ?? (label ? legacyModel(label) : undefined), visibility);
+  const cliLabel = `${cliName(cli)} ${(state.agents?.indexOf(agent) ?? 0) === 0 ? "Left" : "Right"}`;
   const showIntro = !host && !state.round;
   const events = useMemo(
     () => state.events.filter((e) => e.agent === agent && !e.lane),
@@ -86,14 +85,14 @@ export function AgentPanel({
         {visibility.cliIcon && (
           <div className="agent-icon">
             <img
-              src={cli === "codex" ? codexLogo : cursorLogo}
-              alt={cli === "codex" ? "Codex" : "Cursor"}
+              src={cliLogo(cli)}
+              alt={cliName(cli)}
             />
           </div>
         )}
         <div>
           {visibility.cliName && <h2>{cliLabel}</h2>}
-          {visibility.model && model && <p>{model}</p>}
+          {model && <p>{model}</p>}
         </div>
         <div className="agent-state" aria-label={attempt?.status ?? "idle"}>
           <span
@@ -111,12 +110,12 @@ export function AgentPanel({
             {visibility.cliIcon && (
               <img
                 className="empty-logo"
-                src={cli === "codex" ? codexLogo : cursorLogo}
+                src={cliLogo(cli)}
                 alt=""
               />
             )}
             {visibility.cliName && <h3>{cliLabel}</h3>}
-            {visibility.model && model && <p>{model}</p>}
+            {model && <p>{model}</p>}
           </div>
         ) : attempt?.status === "complete" && attempt.preview && !failed ? (
           <>
@@ -171,7 +170,7 @@ export function AgentPanel({
                 {visibility.cliIcon && (
                   <img
                     className="empty-logo"
-                    src={cli === "codex" ? botLogo : cursorLogo}
+                    src={cliIdleLogo(cli)}
                     alt=""
                   />
                 )}

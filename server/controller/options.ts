@@ -17,6 +17,8 @@ export interface ControllerOptions {
   codexModel: string;
   codexEffort?: string;
   cursorModel: string;
+  claudeModel?: string;
+  claudeEffort?: string;
   collectionMs: number;
   extensionMs: number;
   resultMs: number;

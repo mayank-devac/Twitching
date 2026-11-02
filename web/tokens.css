@@ -21,4 +21,8 @@
   --color-accent-line: #4a3fa8;
   --color-accent-fill: #262050;
   --color-danger-text: #ffc4ca;
+  /* Claude Code agent panel accent (warm clay over the dark surface). */
+  --color-claude-line: #5c3b2e;
+  --color-claude-header-from: #2a1d18;
+  --color-claude-header-to: #1c1717;
 }

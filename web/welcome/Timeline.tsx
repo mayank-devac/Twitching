@@ -3,8 +3,8 @@ import { PromptText } from "./PromptText.js";
 import { TimelineMarkdown } from "./timeline-markdown.js";
 import { groupRows, isPlaceholder, rowLabel } from "./timeline-rows.js";
 import type { SessionView, TimelineItem } from "../../shared/sessions.js";
-import codexLogo from "../../assets/codex/codex.svg";
-import cursorLogo from "../../assets/cursor/Cube/SVG/CUBE_2D_DARK.svg";
+import { cliLogo } from "../agents.js";
+import { publicModelLabel } from "../../shared/types.js";
 import "./welcome.css";
 import "./timeline.css";
 import { mergeTimeline, visibleTimeline } from "../../shared/timeline.js";
@@ -130,15 +130,18 @@ export function Timeline({
     latestRun,
   );
   const c = view.conversation;
+  const effort = c.effort ?? c.config?.effort;
   return (
     <section className="session-timeline" aria-label="Conversation">
       <header className="timeline-heading">
         {view.visibility.cliIcon && (
-          <img alt="" src={c.cli === "codex" ? codexLogo : cursorLogo} />
+          <img alt="" src={cliLogo(c.cli)} />
         )}
         <h2>{c.title}</h2>
-        {view.visibility.model && (
-          <span className="timeline-model">{c.model || "Model unknown"}</span>
+        {(view.visibility.model || (view.visibility.effort !== false && effort)) && (
+          <span className="timeline-model">
+            {publicModelLabel({ model: c.model, effort }, view.visibility) || "Model unknown"}
+          </span>
         )}
       </header>
       {view.hidePreviousRuns && (

@@ -12,13 +12,14 @@ export interface ConnectorCapabilities {
 // Provider IDs never double as managed process/workspace IDs.
 export interface Conversation {
   id: string;
-  source: "managed" | "codex";
+  source: "managed" | "codex" | "claude";
   providerId?: string;
   cli: Agent;
   title: string;
   project: string;
   updatedAt: number;
   model?: string;
+  effort?: string;
   status: "running" | "idle" | "disconnected" | "unknown";
   config?: SessionConfig;
   runner?: RunnerMode;
@@ -83,7 +84,7 @@ export interface OverlayHostDocument extends OverlayDocument {
 export function uniqueConversations(rows: Conversation[]): Conversation[] {
   const unique = new Map<string, Conversation>();
   for (const row of rows) {
-    if (!row.id || row.id === "codex:") continue;
+    if (!row.id || row.id === "codex:" || row.id === "claude:") continue;
     const previous = unique.get(row.id);
     if (!previous || row.updatedAt >= previous.updatedAt)
       unique.set(row.id, row);
