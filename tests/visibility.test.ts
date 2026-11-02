@@ -12,6 +12,7 @@ import { CliRunner } from "../server/runner.js";
 import { publicActivity } from "../server/settings-view.js";
 import { stateView } from "../server/controller/round-state.js";
 import { visibleTimeline } from "../shared/timeline.js";
+import { visiblePage, withFileName } from "../shared/visibility.js";
 import {
   defaultVisibility,
   type QuickPreferences,
@@ -311,4 +312,18 @@ test("client: visibleTimeline filters kinds and previous runs", () => {
   ];
   for (const [v, hide, show, latest, expected] of cases)
     assert.equal(ids(visibleTimeline(items, v, hide, show, latest)), expected);
+});
+
+test("edit rows name their file only when read file names is on", () => {
+  const item = { id: "a:0", run: "r", at: 1, kind: "edit" as const, text: "Files edited", placeholder: true as const, file: "runner.ts" };
+  const off = withFileName(item, { ...defaultVisibility, read: false });
+  assert.equal(off.file, undefined);
+  assert.equal(off.text, "Files edited");
+  assert.equal(off.placeholder, true);
+  assert.ok(!JSON.stringify(off).includes("runner.ts"));
+  const on = withFileName(item, { ...defaultVisibility, read: true });
+  assert.equal(on.text, "Edited runner.ts");
+  assert.equal(on.placeholder, undefined);
+  const page = visiblePage({ items: [item] }, { ...defaultVisibility, read: false, edit: true });
+  assert.ok(!JSON.stringify(page).includes("runner.ts"));
 });

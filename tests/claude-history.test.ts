@@ -11,7 +11,7 @@ const line = (value: object) => JSON.stringify(value);
 const transcript = [
   line({ type: "user", uuid: "u0", isMeta: true, timestamp: "2026-11-02T10:00:00Z", cwd: "/Users/me/Twitching", message: { content: "<command-name>/model</command-name>" } }),
   line({ type: "user", uuid: "u1", timestamp: "2026-11-02T10:00:01Z", cwd: "/Users/me/Twitching", message: { role: "user", content: "Build the Claude harness" } }),
-  line({ type: "assistant", uuid: "a1", timestamp: "2026-11-02T10:00:02Z", message: { model: "claude-opus-5-5", content: [
+  line({ type: "assistant", uuid: "a1", timestamp: "2026-11-02T10:00:02Z", cwd: "/Users/me/Twitching", effort: "high", message: { model: "claude-opus-5-5", content: [
     { type: "thinking", thinking: "Read the adapters first." },
     { type: "text", text: "Reading the adapters." },
     { type: "tool_use", id: "t1", name: "Bash", input: { command: "grep -rn SECRET_ARG ." } },
@@ -19,6 +19,8 @@ const transcript = [
     { type: "tool_use", id: "t3", name: "Read", input: { file_path: "/Users/me/y.ts" } },
     { type: "tool_use", id: "t4", name: "WebSearch", input: { query: "claude stream-json events" } },
     { type: "tool_use", id: "t5", name: "WebFetch", input: { url: "https://code.claude.com/docs/en/hooks.md?key=PRIVATE_QS", prompt: "PRIVATE PROMPT" } },
+    { type: "tool_use", id: "t6", name: "Read", input: { file_path: "/Users/me/Twitching/web/Timeline.tsx" } },
+    { type: "tool_use", id: "t7", name: "Read", input: { file_path: "/Users/me/Twitching/.env.local" } },
   ] } }),
   line({ type: "user", uuid: "r1", timestamp: "2026-11-02T10:00:03Z", message: { content: [{ type: "tool_result", tool_use_id: "t1", content: "PRIVATE OUTPUT" }] } }),
   line({ type: "assistant", uuid: "s1", isSidechain: true, message: { content: [{ type: "text", text: "SUBAGENT TEXT" }] } }),
@@ -48,6 +50,8 @@ test("Claude history lists saved sessions newest first with title, project and m
     assert.equal(first.title, "Claude harness plan");
     assert.equal(first.project, "Twitching");
     assert.equal(first.model, "claude-opus-5-5");
+    assert.equal(first.effort, "high");
+    assert.equal(page.conversations[1]!.effort, undefined);
     assert.equal(first.cli, "claude");
     assert.equal(first.source, "claude");
     assert.equal(page.conversations[1]!.title, "Older task");
@@ -66,16 +70,23 @@ test("Claude history timeline shows prompts and replies but keeps tool details p
     const json = JSON.stringify(page);
     for (const hidden of ["PRIVATE OUTPUT", "PRIVATE EDIT", "SECRET_ARG", "SUBAGENT TEXT", "/model", "/Users/me", "PRIVATE_QS", "PRIVATE PROMPT"])
       assert.ok(!json.includes(hidden), hidden);
-    assert.deepEqual(page.items.map((i) => i.kind), ["prompt", "summary", "message", "command", "edit", "tool", "web", "web"]);
+    assert.ok(!json.includes(".env"));
+    // A read outside the project or of a hidden file stays a plain tool row.
+    assert.deepEqual(page.items.map((i) => i.kind), ["prompt", "summary", "message", "command", "edit", "tool", "web", "web", "read", "tool"]);
+    assert.equal(page.items[8]!.text, "Read Timeline.tsx");
+    // /Users/me/x.ts is outside the fixture's project folder, so no file name is attached.
+    assert.equal(page.items[4]!.file, undefined);
     assert.equal(page.items[0]!.text, "Build the Claude harness");
     assert.equal(page.items[3]!.text, "Command: grep (recorded)");
+    assert.equal(page.items[5]!.text, "Read");
+    assert.equal(page.items[5]!.placeholder, undefined);
     assert.equal(page.items[6]!.text, "Searched the web: claude stream-json events");
     assert.equal(page.items[7]!.text, "Fetched code.claude.com/docs/en/hooks.md");
     assert.equal(page.latestRun, "u1");
     const older = await new ClaudeHistory((s) => s, config).page(A, undefined, 2);
     assert.equal(older.items.length, 2);
-    assert.equal(older.before, "6");
-    assert.equal((await new ClaudeHistory((s) => s, config).page(A, older.before, 60)).items.length, 6);
+    assert.equal(older.before, "8");
+    assert.equal((await new ClaudeHistory((s) => s, config).page(A, older.before, 60)).items.length, 8);
   } finally {
     await rm(config, { recursive: true, force: true });
   }

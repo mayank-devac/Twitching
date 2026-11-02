@@ -32,5 +32,7 @@ export interface CliAdapter {
     clean: Clean,
     emit: (event: Activity) => void,
     general?: boolean,
+    // Folder the agent works in; absolute paths inside it are shown relative to it.
+    root?: string,
   ): CliActivity;
 }

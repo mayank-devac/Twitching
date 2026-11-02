@@ -45,6 +45,6 @@ export const codex: CliAdapter = {
       prompt,
     ];
   },
-  activity: (session, round, clean, emit, general) =>
-    new ActivityAdapter("codex", round, clean, emit, Date.now, session.id, general),
+  activity: (session, round, clean, emit, general, root) =>
+    new ActivityAdapter("codex", round, clean, emit, Date.now, session.id, general, root),
 };

@@ -7,6 +7,7 @@ import type {
   TimelinePage,
 } from "../../shared/sessions.js";
 import { commandName } from "../activity.js";
+import { projectRelativeName } from "../../shared/safe-file-name.js";
 import { CodexAppServerClient } from "../codex-app-server.js";
 
 // Provider rows are read leniently: a wrong-typed field becomes empty rather
@@ -47,15 +48,23 @@ const itemPage = lenient({
         command: text,
         status: text,
         query: text,
+        // Protocol FileUpdateChange: only the path is read, never the diff.
+        changes: list(lenient({ path: text })),
       }),
     }),
   ),
 });
 
+// A changed file's name when it lies inside the thread's folder; never a path.
+function projectFileName(path: string, cwd: string) {
+  return cwd ? projectRelativeName(path, cwd) : undefined;
+}
+
 // This client has no start/resume/turn methods. It reads through the installed CLI API only.
 export class CodexHistory {
   private child?: ChildProcessWithoutNullStreams;
   private ready?: Promise<CodexAppServerClient>;
+  private folders = new Map<string, string>();
   constructor(private clean: (text: string, limit?: number) => string) {}
   private connect() {
     return (this.ready ??= (async () => {
@@ -139,16 +148,26 @@ export class CodexHistory {
     return this.metadata(result.thread);
   }
   async page(id: string, cursor?: string, limit = 60): Promise<TimelinePage> {
-    const page = await (await this.connect()).call(
-      "thread/items/list",
-      {
-        threadId: id,
-        cursor,
-        limit: Math.max(1, Math.min(60, limit)),
-        sortDirection: "desc",
-      },
-      itemPage,
-    );
+    const client = await this.connect();
+    // The thread's folder turns absolute edit paths into project-relative file names.
+    // It never changes for a thread, so it is read once and fetched alongside the items.
+    const known = this.folders.get(id);
+    const [cwd, page] = await Promise.all([
+      known ??
+        client
+          .call("thread/read", { threadId: id, includeTurns: false }, threadRead)
+          .then((r) => (this.folders.set(id, r.thread.cwd), r.thread.cwd)),
+      client.call(
+        "thread/items/list",
+        {
+          threadId: id,
+          cursor,
+          limit: Math.max(1, Math.min(60, limit)),
+          sortDirection: "desc",
+        },
+        itemPage,
+      ),
+    ]);
     return {
       before: page.nextCursor || undefined,
       latestRun: page.data[0]?.turnId ?? "",
@@ -158,7 +177,8 @@ export class CodexHistory {
           const item = row.item;
           let kind: TimelineItem["kind"],
             text = "",
-            placeholder = false;
+            placeholder = false,
+            file: string | undefined;
           switch (item.type) {
             case "userMessage":
               kind = "prompt";
@@ -186,6 +206,18 @@ export class CodexHistory {
               kind = "edit";
               text = "Files edited";
               placeholder = true;
+              // Validated names only (same rule as Claude); shown with "Read file names".
+              file =
+                [
+                  ...new Set(
+                    item.changes.flatMap((c) => {
+                      const name = projectFileName(c.path, cwd);
+                      return name ? [name] : [];
+                    }),
+                  ),
+                ]
+                  .slice(0, 5)
+                  .join(", ") || undefined;
               break;
             case "webSearch":
               kind = "web";
@@ -218,6 +250,7 @@ export class CodexHistory {
                       : ""),
                   // The text stays for older clients; current ones key off the flag.
                   ...(placeholder && { placeholder: true as const }),
+                  ...(file && { file }),
                 },
               ]
             : [];

@@ -21,3 +21,10 @@ export function safeFileName(path: string): string | undefined {
     return undefined;
   return name;
 }
+
+// The safe file name of `path` when it lies inside `root`; undefined for anything else.
+// A path already relative (or under /workspace/) is judged as it is.
+export function projectRelativeName(path: string, root?: string): string | undefined {
+  if (root && path.startsWith(`${root}/`)) return safeFileName(path.slice(root.length + 1));
+  return safeFileName(path);
+}

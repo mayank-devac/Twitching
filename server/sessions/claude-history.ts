@@ -8,6 +8,7 @@ import type {
   TimelinePage,
 } from "../../shared/sessions.js";
 import { commandName, webActivityText } from "../activity.js";
+import { projectRelativeName } from "../../shared/safe-file-name.js";
 
 // Claude Code keeps each session as a JSONL transcript in
 // <config>/projects/<cwd-slug>/<session-id>.jsonl. The format is internal to
@@ -41,6 +42,8 @@ const row = z
     summary: text,
     isMeta: z.boolean().catch(false),
     isSidechain: z.boolean().catch(false),
+    // Assistant rows record the effort the turn ran at (low, medium, high, ...).
+    effort: text,
     message: z
       .object({
         model: text,
@@ -79,6 +82,16 @@ function promptText(r: Row) {
   return trimmed;
 }
 const at = (r: Row) => Date.parse(r.timestamp ?? "") || 0;
+// The file name of a Read inside the session's project folder. Files outside it,
+// hidden files and credential-like names return undefined (same rule as the arena).
+function readName(path: unknown, cwd: string | undefined) {
+  return typeof path === "string" && cwd ? projectRelativeName(path, cwd) : undefined;
+}
+// A tool name as recorded (Read, Agent, mcp__server__tool); anything that is
+// not a plain identifier is shown generically.
+function toolName(name: string) {
+  return /^[A-Za-z][A-Za-z0-9_-]{0,80}$/.test(name) ? name : "Tool";
+}
 
 interface Located {
   path: string;
@@ -152,10 +165,12 @@ export class ClaudeHistory {
     const summary = [...rows].reverse().find((r) => r.type === "summary" && r.summary)?.summary;
     const prompt = head.map(promptText).find(Boolean);
     const cwd = rows.find((r) => r.cwd)?.cwd ?? "";
-    const model = [...rows]
+    const latest = [...rows]
       .reverse()
-      .find((r) => r.type === "assistant" && r.message?.model && r.message.model !== "<synthetic>")
-      ?.message?.model;
+      .find((r) => r.type === "assistant" && r.message?.model && r.message.model !== "<synthetic>");
+    const model = latest?.message?.model;
+    // Only a short level name is shown; anything else in the field is ignored.
+    const effort = /^[a-z]{1,16}$/.test(latest?.effort ?? "") ? latest!.effort : undefined;
     return {
       id: `claude:${providerId}`,
       providerId,
@@ -165,6 +180,7 @@ export class ClaudeHistory {
       project: this.clean(basename(cwd), 180),
       updatedAt: Math.round(located.mtime),
       model: model || undefined,
+      effort,
       // Another Claude process's runtime state cannot be verified from its file.
       status: "unknown",
     };
@@ -233,6 +249,7 @@ export class ClaudeHistory {
           const input = (b.input ?? {}) as Record<string, unknown>;
           // Only the executable name of a command is shown, never its arguments or output.
           const web = webActivityText(name, input);
+          const file = readName(input.file_path ?? input.notebook_path, r.cwd);
           if (name === "Bash")
             items.push({
               ...base,
@@ -240,10 +257,14 @@ export class ClaudeHistory {
               text: `Command: ${commandName(String(input.command ?? "shell"))} (recorded)`,
             });
           else if (web) items.push({ ...base, kind: "web", text: web });
+          else if (name === "Read" && file)
+            items.push({ ...base, kind: "read", text: `Read ${file}` });
+          // The name of an edited file rides along as `file`; it is shown only with "Read file names".
           else if (["Write", "Edit", "MultiEdit", "NotebookEdit"].includes(name))
-            items.push({ ...base, kind: "edit", text: "Files edited", placeholder: true });
-          else
-            items.push({ ...base, kind: "tool", text: "Recorded tool activity", placeholder: true });
+            items.push({ ...base, kind: "edit", text: "Files edited", placeholder: true, ...(file && { file }) });
+          // Each other tool gets its own row naming the tool (never its input),
+          // so a run does not collapse into one "N tools used" row.
+          else items.push({ ...base, kind: "tool", text: toolName(name) });
         }
       });
     }

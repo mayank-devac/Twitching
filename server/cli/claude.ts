@@ -73,6 +73,6 @@ export const claude: CliAdapter = {
     ...CLAUDE_EXEC_PROFILE_ARGS,
     prompt,
   ],
-  activity: (session, round, clean, emit, general) =>
-    new ActivityAdapter("claude", round, clean, emit, Date.now, session.id, general),
+  activity: (session, round, clean, emit, general, root) =>
+    new ActivityAdapter("claude", round, clean, emit, Date.now, session.id, general, root),
 };

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { tmpdir } from "node:os";
-import { ActivityAdapter } from "../server/activity.js";
+import { ActivityAdapter, commandName } from "../server/activity.js";
 import { claude } from "../server/cli/claude.js";
 import {
   CLAUDE_EXEC_PROFILE_ARGS,
@@ -110,7 +110,23 @@ test("Claude web searches and fetches get their own rows, separate from tools an
   const json = JSON.stringify(events);
   assert.ok(!json.includes("PRIVATE"));
   assert.ok(!events.some((e) => e.kind === "tool" && !e.lane));
-  assert.ok(events.some((e) => e.kind === "command" && !e.lane && /^Bash/.test(e.text)));
+  assert.ok(events.some((e) => e.kind === "command" && !e.lane && e.text === "Running command: ls"));
+});
+
+test("command rows name each program in a chain, never its arguments", () => {
+  const cases: [string, string][] = [
+    ["grep -rn TOKEN .", "grep"],
+    ["cd /private/src && npm test | tail -5", "npm test, tail"],
+    ["FOO=secret python3 script.py", "python3"],
+    ["sudo /usr/bin/cat /etc/hosts; git status", "cat, git status"],
+    ["git --no-pager log", "git"],
+    ["cat a | grep b | grep c", "cat, grep"],
+    ["for f in *.ts; do wc -l $f; done", "wc"],
+    ["a; b; c; d; e", "a, b, c, d, …"],
+    ["./PRIVATE_value_that_is_far_too_long_for_a_program_name", "shell"],
+    ["", "shell"],
+  ];
+  for (const [input, expected] of cases) assert.equal(commandName(input), expected, input);
 });
 
 test("Claude error results, auth retries and exposed MCP servers fail the run", () => {

@@ -141,12 +141,23 @@ export function publicActivity(
   });
 }
 
+// An edit row names its file only when "Read file names" is on; otherwise the name is dropped.
+export function withFileName(item: TimelineItem, visibility: SessionVisibility): TimelineItem {
+  if (item.file === undefined) return item;
+  const { file, ...rest } = item;
+  if (!visibility.read) return rest;
+  const { placeholder: _placeholder, ...named } = rest;
+  return { ...named, file, text: `Edited ${file}` };
+}
+
 // A page holding only the kinds these choices show (S6, S8).
 export function visiblePage(page: TimelinePage, visibility: SessionVisibility): TimelinePage {
   return {
     ...page,
     latestRun: page.latestRun ?? page.items.at(-1)?.run,
-    items: page.items.filter((item) => kindVisible(visibility, item.kind)),
+    items: page.items
+      .filter((item) => kindVisible(visibility, item.kind))
+      .map((item) => withFileName(item, visibility)),
   };
 }
 
@@ -156,14 +167,17 @@ export function publicSessionView(view: SessionView, visibility: SessionVisibili
     config: _config,
     providerId: _provider,
     pendingRun: _pending,
+    effort: savedEffort,
     ...c
   } = view.conversation;
+  // Sessions saved before effort was stored fall back to their saved config.
+  const effort = visibility.effort !== false ? (savedEffort ?? _config?.effort) : undefined;
   const conversation: Conversation = {
     ...c,
     project: "",
     model: visibility.model ? c.model : undefined,
-    // Sessions saved before effort was stored fall back to their saved config.
-    effort: visibility.effort !== false ? (c.effort ?? _config?.effort) : undefined,
+    // The key is absent, not undefined, when effort is hidden or unknown.
+    ...(effort && { effort }),
   };
   return {
     ...view,

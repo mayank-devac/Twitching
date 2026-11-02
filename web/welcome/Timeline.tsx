@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { PromptText } from "./PromptText.js";
 import { TimelineMarkdown } from "./timeline-markdown.js";
-import { groupRows, isPlaceholder, rowLabel } from "./timeline-rows.js";
+import { columnKinds, groupRows, isPlaceholder, rowLabel } from "./timeline-rows.js";
 import type { SessionView, TimelineItem } from "../../shared/sessions.js";
 import { cliLogo } from "../agents.js";
 import { publicModelLabel } from "../../shared/types.js";
@@ -183,7 +183,7 @@ export function Timeline({
         {!visible.length && (
           <p className="timeline-empty">No visible activity yet.</p>
         )}
-        {groupRows(visible).map(({ item, count }, index, rows) => (
+        {groupRows(visible).map(({ item, items: group, count, text }, index, rows) => (
           <React.Fragment key={item.id}>
             {(index === 0 || rows[index - 1]!.item.run !== item.run) && (
               <div className="run-boundary">Run {item.run.slice(0, 8)}</div>
@@ -196,8 +196,10 @@ export function Timeline({
               {!isPlaceholder(item) &&
                 (item.kind === "prompt" ? (
                   <PromptText text={item.text} />
+                ) : columnKinds.has(item.kind) ? (
+                  group.map((m) => <TimelineMarkdown key={m.id} text={m.text} />)
                 ) : (
-                  <TimelineMarkdown text={item.text} />
+                  <TimelineMarkdown text={text ?? item.text} />
                 ))}
             </article>
           </React.Fragment>

@@ -2,7 +2,7 @@ import { parseCliEvent, jsonObject, type CliEvent } from "./cli/events.js";
 import { claudeProfileViolation } from "./claude-profile.js";
 import { createHash } from "node:crypto";
 import { StringDecoder } from "node:string_decoder";
-import { safeFileName } from "../shared/safe-file-name.js";
+import { projectRelativeName } from "../shared/safe-file-name.js";
 import type {
   Activity,
   ActivityKind,
@@ -86,6 +86,7 @@ export class ActivityAdapter {
     private now = Date.now,
     private session: SessionId = agent,
     private general = false,
+    private root?: string,
   ) {}
   private publish(
     kind: ActivityKind,
@@ -400,6 +401,13 @@ export class ActivityAdapter {
       this.trackTool(id, name, args, subtype, lane);
       return;
     }
+    if (name === "Bash") {
+      // Same rule as Codex: the programs that ran, not their arguments.
+      const verb = subtype === "started" ? "Running" : subtype === "failed" ? "Failed" : "Finished";
+      this.publish("command", `${verb} command: ${commandName(String(args.command ?? "shell"))}`, `${id}:${subtype}`);
+      this.trackTool(id, name, args, subtype, lane);
+      return;
+    }
     const kind =
       lane === "write" ? "edit" : lane === "terminal" ? "command" : "tool";
     const path = String(args.path ?? "").split("/").pop();
@@ -430,7 +438,8 @@ export class ActivityAdapter {
       args.path ?? args.target_file ?? args.file_path ?? args.file ?? "",
     );
     const path = rawPath.split("/").pop();
-    const publicFile = this.general ? safeFileName(rawPath) : [
+    // Native agents report absolute host paths; inside the workspace they are made relative.
+    const publicFile = this.general ? projectRelativeName(rawPath, this.root) : [
       `prompt_${this.round}.html`,
       `/workspace/prompt_${this.round}.html`,
     ].includes(rawPath)
@@ -570,7 +579,37 @@ function toolArgs(value: unknown): Record<string, unknown> {
   if (typeof detail.name === "string" && detail.name) args = { ...args, name: detail.name };
   return args;
 }
+// Words that only set up the real program; the program after them is shown.
+const PREFIXES = new Set(["cd", "sudo", "env", "export", "time", "nohup", "exec", "command", "builtin", "then", "do", "else", "if", "while", "until", "!"]);
+// Shell syntax that is not a program; a segment starting with one is skipped.
+const KEYWORDS = new Set(["for", "in", "done", "fi", "esac", "case", "function", "true", "false"]);
+// Tools whose first plain word (git status, npm test) says what ran.
+const SUBCOMMANDS = new Set(["git", "npm", "npx", "pnpm", "yarn", "bun", "docker", "cargo", "go", "uv", "pip", "pip3", "gh", "brew", "make", "kubectl"]);
+// Long words are more likely values than program names, so they are skipped.
+const WORD = /^[a-zA-Z][a-zA-Z0-9._-]{0,39}$/;
+// The programs a shell command runs, e.g. "cd x && npm test | tail" -> "npm test, tail".
+// Only program and subcommand names are shown, never paths, arguments or values.
 export function commandName(command: string) {
-  const match = command.match(/(?:^|[;\s])([a-zA-Z][a-zA-Z0-9._-]*)(?=\s|$)/);
-  return match?.[1] ?? "shell";
+  const names: string[] = [];
+  // Heredoc bodies (python3 - <<'EOF' ... EOF) and quoted strings are data, not programs;
+  // removing them first keeps "|" inside a grep pattern from being read as a pipe.
+  const code = command
+    .replace(/<<-?\s*(['"]?)([A-Za-z_]\w*)\1[^\n]*\n[\s\S]*?(?:\n\s*\2\s*(?=\n|$)|$)/g, " ")
+    .replace(/"(?:\\.|[^"\\])*"|'[^']*'/g, '""')
+    .replace(/\\\n/g, " ");
+  for (const segment of code.split(/&&|\|\||[;|\n]/)) {
+    const words = segment.trim().split(/\s+/).filter((w) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(w));
+    let index = 0;
+    while (index < words.length && PREFIXES.has(words[index]!)) {
+      // cd and export take one argument that is not a program.
+      if (words[index] === "cd" || words[index] === "export") index++;
+      index++;
+    }
+    const program = words[index]?.split("/").pop() ?? "";
+    if (!WORD.test(program) || KEYWORDS.has(program)) continue;
+    const sub = words[index + 1] ?? "";
+    const name = SUBCOMMANDS.has(program) && WORD.test(sub) ? `${program} ${sub}` : program;
+    if (!names.includes(name)) names.push(name);
+  }
+  return names.length ? names.slice(0, 4).join(", ") + (names.length > 4 ? ", …" : "") : "shell";
 }

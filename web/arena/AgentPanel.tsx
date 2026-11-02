@@ -154,7 +154,11 @@ export function AgentPanel({
               lines.map((e) => (
                 <div key={e.id} className={`event ${e.kind}`}>
                   <span className="event-kind">
-                    {e.kind === "summary" ? "THINKING" : e.kind.toUpperCase()}
+                    {e.kind === "summary"
+                      ? "THINKING"
+                      : e.kind === "web"
+                        ? "WEB SEARCH"
+                        : e.kind.toUpperCase()}
                   </span>
                   {e.kind === "message" || e.kind === "summary" ? (
                     <MarkdownText>{e.text}</MarkdownText>

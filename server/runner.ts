@@ -258,6 +258,7 @@ export class CliRunner implements PairRunner {
       this.clean,
       emit,
       this.options.experience === "session",
+      container.dir,
     );
     const process = this.docker.attach(container.name);
     let stderr = "";

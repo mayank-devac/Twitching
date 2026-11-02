@@ -34,6 +34,9 @@ export interface TimelineItem {
   text: string;
   // The text only restates the row label ("Files edited"); clients show the label alone.
   placeholder?: true;
+  // A validated project file name for an edit row. Shown only when "Read file names" is on;
+  // otherwise it is removed before the item leaves the server.
+  file?: string;
 }
 export interface TimelinePage {
   latestRun?: string;

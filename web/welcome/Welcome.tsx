@@ -381,17 +381,52 @@ export function Welcome({
     settingsDoc?.value.visibility[slot] ??
     selected?.visibility ??
     defaultVisibility;
-  const updateVisibility = (next: SessionVisibility) =>
+  // Visibility saves straight away so the overlay follows each toggle. Only
+  // this slot's choices are written, on top of the server's latest settings,
+  // so other unsaved drafts on this page (mode, models) are not saved with it.
+  const updateVisibility = (next: SessionVisibility) => {
+    const key = slot;
     setSettingsDoc(
       (current) =>
         current && {
           ...current,
           value: {
             ...current.value,
-            visibility: { ...current.value.visibility, [slot]: next },
+            visibility: { ...current.value.visibility, [key]: next },
           },
         },
     );
+    void perform(async () => {
+      const latest = await request<SettingsDocument>("/api/settings");
+      const saved = await request<SettingsDocument>(
+        "/api/settings",
+        {
+          ...latest,
+          value: {
+            ...latest.value,
+            visibility: { ...latest.value.visibility, [key]: next },
+          },
+        },
+        "PUT",
+      );
+      setSettingsDoc(
+        (current) =>
+          current && {
+            ...current,
+            revision: saved.revision,
+            value: { ...current.value, visibility: saved.value.visibility },
+          },
+      );
+      // Refresh the private preview now instead of waiting for the 4s poll.
+      if (selected) {
+        const id = selected.conversation.id;
+        const view = await request<SessionView>(
+          `/api/sessions/view?id=${encodeURIComponent(id)}`,
+        );
+        setSelected((old) => (old?.conversation.id === id ? view : old));
+      }
+    });
+  };
   const toolStatus = (name: string) =>
     ready?.tools.find((tool) => tool.name === name);
   const overlayDraft = overlayEditor.draft;
