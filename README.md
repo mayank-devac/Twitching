@@ -44,6 +44,7 @@ Current runners support **Codex and Cursor**.
 - [Quick start](#quick-start)
 - [How the show works](#how-the-show-works)
 - [Startup options](#startup-options)
+- [Chat feed, filters and simulation](#chat-feed-filters-and-simulation)
 - [Configuration and credentials](#configuration-and-credentials)
 - [Connect the platforms](#connect-the-platforms)
 - [Rehearse and go live](#rehearse-and-go-live)
@@ -215,8 +216,29 @@ With a prompt list, the next task starts after the result hold. After the last t
 | Live readiness + verification | `./check_stream_start.sh --mode live --verify` |
 | Non-interactive live readiness | `./check_stream_start.sh --mode live --non-interactive` |
 | Live chat, skipping YouTube and kick | `./start_stream.sh --mode live --no-prompts --skip yt --skip kick` |
+| Start with OBS chat feeds enabled | `./start_stream.sh --chats` |
 | Optional native agents | `./start_stream.sh --mode rehearsal --runner native` |
 | Native live, prompt list only | `./start_stream.sh --mode live --runner native --prompts` |
+
+### Chat feed, filters and simulation
+
+The chat feed is separate from arena prompt collection. It can show incoming YouTube, Twitch and Kick comments on the host page or as an OBS Browser Source. It is off by default; when off, comments are not retained in the feed.
+
+- Start with `./start_stream.sh --chats` to enable the feed at startup. The launcher prints the OBS URLs.
+- In the welcome page, open **Chats → Chat history** to view comments and turn the feed on or off. Turning it off clears the in-memory history.
+- Add `http://127.0.0.1:3210/chat` as an OBS Browser Source for all comments, or `http://127.0.0.1:3210/chats/prompts` for comments beginning with `!prompt`.
+- Chat history filters include platform, `!prompt` only, Jev-selected comments, and text search. The blocked-word filter uses the words in `settings.json`; by default comments with blocked words are hidden. The host can instead choose to mask the word, or turn off blocked-word hiding.
+- The feed keeps at most 300 recent comments in memory. It is not a permanent chat archive.
+
+To preview the feed without connecting real chat accounts, stop any already-running Twitching server, then run:
+
+```sh
+TWITCHING_FAKE_CHAT=1 ./start_stream.sh --chats
+```
+
+This generates sample chat and `!prompt` comments during private rehearsal. It needs no chat-platform credentials and does not automatically submit simulated comments as arena prompts or start coding jobs. Stop the launcher with **Ctrl+C** when finished. The simulation flag is for local testing; do not use it for a public show.
+
+The OBS pages accept optional query parameters, for example `http://127.0.0.1:3210/chat?platforms=twitch,kick&max=14`. Configured platform names appear in the bottom-right corner; add `status=1` to show connection indicators, or use `bg=000000` to set the background color. By default the pages use a green background for chroma key.
 
 Without explicit session choices, legacy settings select **both CLIs** unless `singleAgent` is set. Rebuild the frontend with `npm run build` after UI code changes. Use `--help` for all options.
 
