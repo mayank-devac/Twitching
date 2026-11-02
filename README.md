@@ -1,4 +1,4 @@
-# Twitching
+# Twitching👀
 
 > **Taglines:**
 > 1. Share **live coding sessions for Twitch**: show your coding CLI without sharing your computer screen.
