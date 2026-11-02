@@ -66,6 +66,10 @@ export function configuredSessions(options: SessionOptions): SessionConfig[] {
   const models = startupModels(options);
   return clis.map((cli) => ({ id: cli, cli, ...models[cli] }));
 }
+// The weakest boundary of a round: one native session makes the whole round native.
+export function arenaBoundary(sessions: SessionConfig[], launched: RunnerMode = "docker"): RunnerMode {
+  return launched === "native" || sessions.some((s) => s.runner === "native") ? "native" : "docker";
+}
 export function sessionLabel(session: Pick<SessionConfig, "model" | "effort">) {
   return session.model + (session.effort ? ` · ${session.effort}` : "");
 }

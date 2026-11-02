@@ -4,6 +4,7 @@ import type { Sessions } from "./service.js";
 import { cliSchema, runnerModeSchema } from "../../shared/schema.js";
 import { CLIS } from "../../shared/types.js";
 import { routeAction, type HostOnly } from "../http-kit.js";
+import { SetupError } from "../cli-startup-repair.js";
 
 const identifier = z
   .string()
@@ -120,7 +121,9 @@ export function sessionRoutes(
         .parse(req.query);
       try {
         return { models: await sessions.models(input.cli, input.runner) };
-      } catch {
+      } catch (error) {
+        // Setup messages are written by the app and safe to show; anything else may hold CLI output.
+        if (error instanceof SetupError) throw new Error(error.message);
         throw new Error(
           "Models unavailable. Check that this CLI is installed and signed in for the selected runner. Docker uses the arena login; native uses the installed CLI login.",
         );

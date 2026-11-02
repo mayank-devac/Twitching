@@ -23,7 +23,11 @@ import { ChatFeed } from "./chat-feed.js";
 import { fakeChat } from "./chat-sim.js";
 import { missingLiveSecrets, twitchStatus } from "./live-platforms.js";
 import { Jev } from "./jev.js";
-import { Controller, roundSessionCount, type ChatPlatforms } from "./controller.js";
+import {
+  Controller,
+  roundSessionCount,
+  type ChatPlatforms,
+} from "./controller.js";
 import {
   YouTubeChat,
   TwitchChat,
@@ -40,15 +44,22 @@ import { Sessions } from "./sessions/service.js";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 await mkdir(resolve(root, "runtime"), { recursive: true, mode: 0o700 });
-if (settings.experience === "arena" && settings.promptPlaylist && housePrompts.length === 0)
+if (
+  settings.experience === "arena" &&
+  settings.promptPlaylist &&
+  housePrompts.length === 0
+)
   throw new Error(
     `No tasks in ${settings.promptFile}. Add one prompt per line, or set ARENA_NO_PROMPTS=1 to use live chat.`,
   );
 // An exclusive local lock prevents two controllers from driving the same show.
-const { open, unlink, readFile, rename, link } = await import("node:fs/promises");
+const { open, unlink, readFile, rename, link } =
+  await import("node:fs/promises");
 const lockPath = resolve(root, "runtime/controller.lock");
 const runningError = () =>
-  new Error("Another controller is running. Close it before starting this one.");
+  new Error(
+    "Another controller is running. Close it before starting this one.",
+  );
 const createLock = async () => {
   const handle = await open(lockPath, "wx", 0o600);
   await handle.writeFile(String(process.pid));
@@ -94,7 +105,9 @@ const pruneStore = () => {
   try {
     store.prune();
   } catch (error) {
-    console.error(`Database pruning failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(
+      `Database pruning failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 };
 pruneStore();
@@ -155,19 +168,32 @@ const kickToken = new KickToken(secrets.kick);
 // The saved Claude token is hidden by value too, not only by its sk- shape.
 // A token saved after startup is still caught by the shape check.
 const claudeToken = await readClaudeToken(root).catch(() => undefined);
-const { clean, privateValues } = createRedactor(secrets, root, () => kickToken.current(), [claudeToken]);
+const { clean, privateValues } = createRedactor(
+  secrets,
+  root,
+  () => kickToken.current(),
+  [claudeToken],
+);
 const presentation = new PresentationControls(store, clean);
 // Persist running elapsed time periodically; a restart restores the last checkpoint paused.
 const presentationCheckpoint = setInterval(() => {
   if (!presentation.hasRunningClock()) return;
-  try { presentation.checkpoint(); }
-  catch { console.error("Stopwatch checkpoint could not be saved; check available disk space."); }
+  try {
+    presentation.checkpoint();
+  } catch {
+    console.error(
+      "Stopwatch checkpoint could not be saved; check available disk space.",
+    );
+  }
 }, 1000);
 presentationCheckpoint.unref();
 const docker = new Docker(store, { root, image: settings.agentImage });
 const native = new NativeHost(store, root);
 const runnerHost = settings.runnerMode === "native" ? native : docker;
-const runner = new CliRunner(runnerHost, settings, clean);
+const runner = new CliRunner(runnerHost, settings, clean, undefined, {
+  docker,
+  native,
+});
 const browserSandbox = new BrowserSandbox(
   docker,
   root,
@@ -183,21 +209,40 @@ const preview = new Previews(
   settings.previewView,
 );
 // Direct preview skips the Docker browser; only native agents may use it, and the saved toggle applies at once.
-preview.direct = () => settings.runnerMode === "native" && preferences.get().value.directPreview;
-preview.publicHidden = () => { const p = presentation.get("default"); return p.hidden || !!p.breakActive; };
+// A per-session native runner counts only when every session is native, so a Docker agent's page never skips the sandbox.
+// Both the running sessions and the saved ones (applied next round) must be native.
+preview.direct = () => {
+  const saved = preferences.get().value;
+  return (
+    [...configuredSessions(settings), ...saved.sessions].every(
+      (s) => (s.runner ?? settings.runnerMode) === "native",
+    ) && saved.directPreview
+  );
+};
+preview.publicHidden = () => {
+  const p = presentation.get("default");
+  return p.hidden || !!p.breakActive;
+};
 const previewServer = preview.app().listen(settings.previewPort, settings.host);
 let controller: Controller;
 let sessionService: Sessions | undefined;
-const failureText = (error: unknown) => clean(error instanceof Error ? error.message : String(error), 300);
+const failureText = (error: unknown) =>
+  clean(error instanceof Error ? error.message : String(error), 300);
 // Last resort: Node 24 exits on an unhandled rejection, which would drop a live
 // show mid-round. Log a redacted reason and pause new rounds instead.
 process.on("unhandledRejection", (error) => {
   console.error(`Unhandled controller error: ${failureText(error)}`);
-  try { controller?.pause("Unexpected controller error. Check the host log before resuming."); }
-  catch { console.error("Show could not be paused after an unexpected error."); }
+  try {
+    controller?.pause(
+      "Unexpected controller error. Check the host log before resuming.",
+    );
+  } catch {
+    console.error("Show could not be paused after an unexpected error.");
+  }
 });
 const connection = (platform: string, status: string, fatal = false) => {
-  if (platform === "obs" && status === "Disconnected") sessionService?.obsDisconnected();
+  if (platform === "obs" && status === "Disconnected")
+    sessionService?.obsDisconnected();
   controller?.connection(platform, status, fatal);
 };
 const chatFeed = new ChatFeed(
@@ -212,14 +257,17 @@ if (process.env.TWITCHING_CHATS === "1") chatFeed.update({ enabled: true });
 if (process.env.TWITCHING_FAKE_CHAT === "1")
   setInterval(() => {
     if (controller?.state.mode !== "rehearsal") return;
-    for (const message of fakeChat(settings.blockedWords[0])) chatFeed.add(message);
+    for (const message of fakeChat(settings.blockedWords[0]))
+      chatFeed.add(message);
   }, 1500).unref();
 const receive = (message: Parameters<Controller["ingest"]>[0]) => {
   // The feed sees every comment, including those the arena ignores while stopped.
   chatFeed.add(message);
   void controller.ingest(message).catch((error) => {
     console.error(`Chat message handling failed: ${failureText(error)}`);
-    controller.pause("Chat message handling failed. Check the host before resuming.");
+    controller.pause(
+      "Chat message handling failed. Check the host before resuming.",
+    );
   });
 };
 const since = () => controller.collection.openedAt;
@@ -258,8 +306,15 @@ const obs = new Obs(
   (active) => controller?.setReconnecting(active),
 );
 const chatSources = { youtube, twitch, kick };
-const startSelectedChats = (platforms: Partial<Record<ChatPlatform, boolean>>) =>
-  startChatSources(chatSources, platforms, () => controller.state.connections, connection);
+const startSelectedChats = (
+  platforms: Partial<Record<ChatPlatform, boolean>>,
+) =>
+  startChatSources(
+    chatSources,
+    platforms,
+    () => controller.state.connections,
+    connection,
+  );
 const integrations = {
   async preflight() {
     await preview.ready();
@@ -347,10 +402,20 @@ controller.configureQuick({
   apply: applyPreferences,
 });
 // Welcome startup stays idle; provider discovery and model runs require explicit host actions.
-const sessions = new Sessions(store, preferences, { docker, native }, clean, settings.experience,
-  () => obs.streaming(), () => controller.sessionReady,
-  async (agent, round) => { await preview.ready(); return preview.validate(agent, round, 1); },
-  (choice) => controller.leaveArena(choice));
+const sessions = new Sessions(
+  store,
+  preferences,
+  { docker, native },
+  clean,
+  settings.experience,
+  () => obs.streaming(),
+  () => controller.sessionReady,
+  async (agent, round) => {
+    await preview.ready();
+    return preview.validate(agent, round, 1);
+  },
+  (choice) => controller.leaveArena(choice),
+);
 controller.arenaEnabled = () => sessions.experience === "arena";
 sessionService = sessions;
 controller.on("state", () => sessions.settingsChanged());
@@ -359,7 +424,10 @@ const http = makeHttp(controller, {
     feed: chatFeed,
     configured: () => {
       const only = (platform: ChatPlatform) =>
-        missingLiveSecrets(secrets, { ...skipRecord(true), [platform]: false }).filter((name) => name !== "TYPESAFE_API_KEY").length === 0;
+        missingLiveSecrets(secrets, {
+          ...skipRecord(true),
+          [platform]: false,
+        }).filter((name) => name !== "TYPESAFE_API_KEY").length === 0;
       return {
         youtube: only("youtube"),
         twitch: twitchStatus().kind === "on",
@@ -367,13 +435,18 @@ const http = makeHttp(controller, {
       };
     },
     connections: () => controller.state.connections,
-    arenaOpen: () => sessions.experience === "arena" && !["stopped", "break"].includes(controller.state.status),
+    arenaOpen: () =>
+      sessions.experience === "arena" &&
+      !["stopped", "break"].includes(controller.state.status),
     send: (message) => controller.ingest(message),
   },
   presentation,
   sessions,
   openObs: async () => {
-    if (process.platform !== "darwin") throw new Error("Open OBS from your computer's app menu, then retry publication");
+    if (process.platform !== "darwin")
+      throw new Error(
+        "Open OBS from your computer's app menu, then retry publication",
+      );
     await promisify(execFile)("open", ["-a", "OBS"], { timeout: 5000 });
   },
   quick: {
@@ -381,7 +454,8 @@ const http = makeHttp(controller, {
     preferences,
     media,
     store,
-    discover: (cli, boundary) => boundary ? sessions.models(cli, boundary) : runner.discover(cli),
+    discover: (cli, boundary) =>
+      boundary ? sessions.models(cli, boundary) : runner.discover(cli),
     defaults: {
       audio: settings.musicPath,
       visual: settings.visualPath,
@@ -401,18 +475,21 @@ const http = makeHttp(controller, {
 });
 await controller.recover();
 // Recover only app-owned orphan runners; external provider sessions have no managed PID here.
-if (sessions.recoveryRunners.has("native") && settings.runnerMode !== "native") await native.recover();
-if (sessions.recoveryRunners.has("docker") && settings.runnerMode !== "docker") await docker.recover();
-if (settings.experience === "arena") await browserSandbox
-  .recover()
-  .catch(() => {
+if (sessions.recoveryRunners.has("native") && settings.runnerMode !== "native")
+  await native.recover();
+if (sessions.recoveryRunners.has("docker") && settings.runnerMode !== "docker")
+  await docker.recover();
+if (settings.experience === "arena")
+  await browserSandbox.recover().catch(() => {
     if (!preview.direct())
       controller.pause(
         "Docker is not ready. Start Docker Desktop before running the show.",
       );
   });
 if (settings.experience === "arena" && controller.state.round)
-  for (const [agent, attempt] of Object.entries(controller.state.round.attempts)) {
+  for (const [agent, attempt] of Object.entries(
+    controller.state.round.attempts,
+  )) {
     if (attempt.status === "complete") {
       try {
         await preview.ready();

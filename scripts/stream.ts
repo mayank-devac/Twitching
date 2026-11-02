@@ -110,8 +110,9 @@ try {
   launcher.safeMessage = clean;
   const store = new Store(":memory:");
   const docker = new Docker(store, { root, image: settings.agentImage });
-  const host = runnerMode === "native" ? new NativeHost(store, root) : docker;
-  const runner = new CliRunner(host, settings, clean);
+  const native = new NativeHost(store, root);
+  const host = runnerMode === "native" ? native : docker;
+  const runner = new CliRunner(host, settings, clean, undefined, { docker, native });
   const obs = new Obs(
     settings.obsUrl,
     secrets.obs,

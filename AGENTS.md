@@ -2,7 +2,7 @@
 
 - Never open `.env.local`, `runtime/auth/`, workspace `.home/`, or CLI credential files. Ask Mayank for sanitized diagnostics when needed.
 - Keep credentials server-only. Serve only `dist/`; never use the repository as a static root.
-- Docker is the default agent boundary. Native agents require explicit opt-in through `start_stream.sh`.
+- Docker is the default agent boundary. Native agents require explicit opt-in: `start_stream.sh` for the whole app, or a per-harness runner saved with typed `NATIVE` consent (checked in `server/settings-http.ts`).
 - Tests/builds/type checks require permission unless explicitly included in the current request.
 
 ## Where things live

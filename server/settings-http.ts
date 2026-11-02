@@ -11,6 +11,7 @@ import type { CliModel } from "./cli/types.js";
 import type { Store } from "./store.js";
 import type { BreakMedia } from "./break-media.js";
 import { HttpError, routeAction, type HostOnly } from "./http-kit.js";
+import { SetupError } from "./cli-startup-repair.js";
 
 export interface SettingsServices {
   preferences: QuickSettings;
@@ -56,8 +57,8 @@ export function settingsRoutes(
     return { models: boundary ? await services.discover(cli.data, boundary) : await discover(cli.data) };
   }, {
     status: 409,
-    // Discovery errors can carry CLI output, so none of them is shown.
-    expose: () => false,
+    // Discovery errors can carry CLI output; only setup messages written by the app are shown.
+    expose: (error) => error instanceof SetupError,
     failed: "Model discovery failed. Check that this CLI is installed and signed in through the arena startup flow, then retry.",
   }));
   app.put(
@@ -69,26 +70,43 @@ export function settingsRoutes(
       const parsed = saveSettingsSchema.safeParse(req.body);
       if (!parsed.success)
         throw new HttpError(400, "Invalid settings. Check text lengths, timings and session choices.");
-      const { revision, value } = parsed.data;
+      const { revision, value, nativeConsent } = parsed.data;
       const old = preferences.get();
       if (revision !== old.revision)
         throw new Error(
           "Settings changed in another tab. Reload settings before saving.",
         );
+      // A session that newly runs natively gets no Docker boundary, so the host confirms it each time.
+      const newlyNative = value.sessions.some(
+        (s) =>
+          s.runner === "native" &&
+          !old.value.sessions.some((o) => o.id === s.id && o.runner === "native"),
+      );
+      if (newlyNative && nativeConsent !== "NATIVE")
+        throw new HttpError(
+          400,
+          "Type NATIVE to allow this harness to run on this computer without Docker isolation",
+        );
       // Visibility/media-only saves never start a CLI discovery probe.
       if (
         JSON.stringify(value.sessions) !== JSON.stringify(old.value.sessions)
       ) {
-        for (const cli of new Set(value.sessions.map((s) => s.cli))) {
+        // A session with its own runner is checked on that runner, not the launch one.
+        const groups = new Map<string, { cli: Agent; boundary?: RunnerMode }>();
+        for (const s of value.sessions) {
+          const boundary = s.runner ?? runner.data;
+          groups.set(`${boundary ?? ""}:${s.cli}`, { cli: s.cli, boundary });
+        }
+        for (const [key, { cli, boundary }] of groups) {
           let models: CliModel[];
           try {
-            models = runner.data ? await services.discover(cli, runner.data) : await discover(cli);
+            models = boundary ? await services.discover(cli, boundary) : await discover(cli);
           } catch {
             throw new Error(
               "Could not verify installed models. Check CLI login and retry; no settings were saved.",
             );
           }
-          for (const session of value.sessions.filter((s) => s.cli === cli))
+          for (const session of value.sessions.filter((s) => `${s.runner ?? runner.data ?? ""}:${s.cli}` === key))
             validateModel(session, models);
         }
       }

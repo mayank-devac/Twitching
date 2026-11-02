@@ -5,6 +5,7 @@ import type { ShowState } from "../../shared/types.js";
 import { allowedActions } from "./arena-status.js";
 import { CliBoards } from "./CliBoards.js";
 import { ChatHistory } from "../chats/ChatHistory.js";
+import { ArenaHarness } from "./ArenaHarness.js";
 import { chatPlatforms, type ArenaControls } from "./use-arena-controls.js";
 
 function StopMenu({
@@ -110,6 +111,7 @@ export function ArenaHostControls({
   const { working, error, action, suggestOpen, cliBoardsOpen } = controls;
   const allowed = allowedActions(state);
   const [historyOpen, setHistoryOpen] = React.useState(false);
+  const [harnessOpen, setHarnessOpen] = React.useState(false);
   // Rehearsal tools apply to hand-run rounds, not playlists.
   const rehearsal = state.mode === "rehearsal" && !state.playlistTotal;
   return (
@@ -135,6 +137,15 @@ export function ArenaHostControls({
         </a>
         <button
           type="button"
+          className={`cli-toggle${harnessOpen ? " toggle-on" : ""}`}
+          aria-expanded={harnessOpen}
+          disabled={!token}
+          onClick={() => setHarnessOpen((open) => !open)}
+        >
+          Harness
+        </button>
+        <button
+          type="button"
           className={`cli-toggle${historyOpen ? " toggle-on" : ""}`}
           aria-label="Chat history"
           title="Chat history"
@@ -151,6 +162,7 @@ export function ArenaHostControls({
           onClose={() => setHistoryOpen(false)}
         />
       )}
+      {harnessOpen && <ArenaHarness token={token} onClose={() => setHarnessOpen(false)} />}
       <div className="control-toolbar">
         <div className="buttons">
           <button

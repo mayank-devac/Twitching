@@ -82,6 +82,8 @@ export const saveSettingsSchema = z
   .object({
     revision: z.number().int().nonnegative(),
     value: preferencesSchema,
+    // Typed by the host whenever a save newly runs a session natively.
+    nativeConsent: z.literal("NATIVE").optional(),
   })
   .strict();
 export const defaultCriteria =

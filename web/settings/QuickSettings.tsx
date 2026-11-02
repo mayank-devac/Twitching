@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { CLIS, CLI_LABELS, type Agent, type SessionConfig, type ShowState } from "../../shared/types.js";
+import { CLIS, CLI_LABELS, type Agent, type RunnerMode, type SessionConfig, type ShowState } from "../../shared/types.js";
 import type {
   ModelChoice,
   QuickPreferences,
@@ -14,6 +14,7 @@ import { PreparedPrompt } from "./PreparedPrompt.js";
 import { HistoryPanel } from "./HistoryPanel.js";
 import { BreakMedia } from "./BreakMedia.js";
 import { HarnessForm } from "./HarnessForm.js";
+import { placeHarness } from "./harness.js";
 import { StreamSettings } from "./StreamSettings.js";
 import { ActionBar } from "./ActionBar.js";
 import "./settings.css";
@@ -38,6 +39,8 @@ export function QuickSettings({
     "sessions" | "stream" | "media" | "jev"
   >("sessions");
   const [harness, setHarness] = useState(false);
+  // Consent typed in the harness form, sent with the next full save.
+  const [nativeConsent, setNativeConsent] = useState<string>();
   const [promptDirty, setPromptDirty] = useState(false);
   // The leave warning covers both durable settings and the separate prepared-prompt editor.
   // Memoised: serialising both settings trees on every live-state render is wasteful.
@@ -62,13 +65,19 @@ export function QuickSettings({
   useEffect(() => {
     if (token) void reload();
   }, [token]);
-  const discover = (cli: Agent) =>
+  const discover = (cli: Agent, runner?: RunnerMode) =>
     run(async () => {
+      const boundary =
+        runner ??
+        (state.sharedSession?.conversation.source === "managed" && state.sharedSession.conversation.cli === cli
+          ? state.sharedSession.conversation.runner
+          : undefined);
       const result = await hostRequest<{ models: ModelChoice[] }>(
         token,
-        `/api/models/${cli}${state.sharedSession?.conversation.source === "managed" && state.sharedSession.conversation.cli === cli ? `?runner=${state.sharedSession.conversation.runner}` : ""}`,
+        `/api/models/${cli}${boundary ? `?runner=${boundary}` : ""}`,
       );
       setModels((old) => ({ ...old, [cli]: result.models }));
+      return result.models;
     }, "Model discovery failed", { keepNotice: true });
   async function save(value?: QuickPreferences, visibilityOnly = false) {
     if (!settingsDoc || !draft) return;
@@ -76,9 +85,10 @@ export function QuickSettings({
       const saved = await hostRequest<SettingsDocument>(
         token,
         "/api/settings",
-        { revision: settingsDoc.revision, value: value ?? draft },
+        { revision: settingsDoc.revision, value: value ?? draft, ...(!value && nativeConsent ? { nativeConsent } : {}) },
         "PUT",
       );
+      if (!value) setNativeConsent(undefined);
       setSettingsDoc(saved);
       setDraft((old) =>
         visibilityOnly && old
@@ -117,36 +127,17 @@ export function QuickSettings({
     harnessCli: Agent,
     harnessModel: string,
     replacement: string,
+    runner?: RunnerMode,
+    consent?: string,
   ) {
     if (!draft || !harnessModel) return;
-    if (replacement && !draft.sessions.some((s) => s.id === replacement)) {
-      setError(
-        "That slot changed. Reopen the harness form and choose a current slot.",
-      );
+    const sessions = placeHarness(draft.sessions, harnessCli, harnessModel, replacement, runner);
+    if (typeof sessions === "string") {
+      setError(sessions);
       return;
     }
-    const target =
-      replacement ||
-      ["session-1", "session-2"].find(
-        (id) => !draft.sessions.some((s) => s.id === id),
-      );
-    if (!target) {
-      setError(
-        "Both slots are occupied. Choose an explicit replacement for the next round.",
-      );
-      return;
-    }
-    const session: SessionConfig = {
-      id: target,
-      cli: harnessCli,
-      model: harnessModel,
-    };
-    setDraft({
-      ...draft,
-      sessions: replacement
-        ? draft.sessions.map((s) => (s.id === replacement ? session : s))
-        : [...draft.sessions, session],
-    });
+    if (consent) setNativeConsent(consent);
+    setDraft({ ...draft, sessions });
     setHarness(false);
     setNotice(
       "Harness configured for the next round. Save settings to queue it; the current sessions continue.",
@@ -274,7 +265,7 @@ export function QuickSettings({
                 <section key={cli} className="qs-cli">
                   <div className="qs-row">
                     <h3>{CLI_LABELS[cli]}</h3>
-                    <button disabled={busy} onClick={() => void discover(cli)}>
+                    <button disabled={busy} onClick={() => void discover(cli, draft.sessions.find((s) => s.cli === cli)?.runner)}>
                       Refresh models
                     </button>
                   </div>
@@ -321,9 +312,8 @@ export function QuickSettings({
           {harness && section === "sessions" && (
             <HarnessForm
               sessions={draft.sessions}
-              models={models}
               busy={busy}
-              discover={(cli) => void discover(cli)}
+              discover={discover}
               apply={prepareHarness}
               cancel={() => setHarness(false)}
             />

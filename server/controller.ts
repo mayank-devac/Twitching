@@ -10,7 +10,7 @@ import type {
   ShowState,
   Task,
 } from "../shared/types.js";
-import { configuredSessions, type SessionCount } from "../shared/types.js";
+import { arenaBoundary, configuredSessions, type SessionCount } from "../shared/types.js";
 import { Collection } from "./collection.js";
 import { Filter, MAX_PROMPT_CHARS } from "./filter.js";
 import type { Judge } from "./jev.js";
@@ -126,6 +126,17 @@ export class Controller extends EventEmitter {
     )
       throw new Error(
         "Pause and finish active work before changing rehearsal/live mode",
+      );
+    // The same rule as starting a show: viewer prompts never reach a native agent mid-show.
+    if (
+      value.stream.mode === "live" &&
+      !this.usingPlaylist() &&
+      arenaBoundary(value.sessions, this.options.runnerMode) === "native" &&
+      this.boundary() === "docker" &&
+      !this.options.allowNativeLiveChat
+    )
+      throw new Error(
+        "Live chat rounds need the Docker runner. Use Docker for every harness, or switch to rehearsal first.",
       );
   }
   settingsChanged() {
@@ -328,8 +339,12 @@ export class Controller extends EventEmitter {
       this.collection?.prepared ? this.preparedVersion() : undefined,
       configuredSessions(this.options),
       this.clean,
-      this.options.runnerMode === "native",
+      this.boundary() === "native",
     );
+  }
+  // One native session makes the round native for chat and rehearsal rules.
+  private boundary() {
+    return arenaBoundary(configuredSessions(this.options), this.options.runnerMode);
   }
   // The serialized state last written, so idle ticks can skip identical writes.
   private persisted?: string;
@@ -393,7 +408,7 @@ export class Controller extends EventEmitter {
     if (
       this.state.mode === "live" &&
       !this.usingPlaylist() &&
-      this.options.runnerMode === "native" &&
+      this.boundary() === "native" &&
       !this.options.allowNativeLiveChat
     )
       throw new Error(
@@ -403,8 +418,7 @@ export class Controller extends EventEmitter {
       this.state.mode === "live" &&
       !this.usingPlaylist() &&
       (!this.state.rehearsalComplete ||
-        (this.state.rehearsalRunnerMode ?? "docker") !==
-          (this.options.runnerMode ?? "docker"))
+        (this.state.rehearsalRunnerMode ?? "docker") !== this.boundary())
     )
       throw new Error(
         "Complete and confirm a private OBS rehearsal with this runner mode before live mode",
@@ -512,7 +526,7 @@ export class Controller extends EventEmitter {
     )
       throw new Error("Finish a successful private round first");
     this.state.rehearsalComplete = true;
-    this.state.rehearsalRunnerMode = this.options.runnerMode ?? "docker";
+    this.state.rehearsalRunnerMode = this.boundary();
     this.state.reason = "Private OBS rehearsal confirmed by host";
     this.persist();
   }

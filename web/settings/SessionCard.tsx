@@ -60,6 +60,7 @@ export function SessionCard({
             `${CLI_LABELS[session.cli]} ${displayOnly ? "session" : index === 0 ? "Left" : "Right"}`}
         </h3>
         <small>{session.id}</small>
+        {session.runner && <span className="qs-badge">{session.runner === "native" ? "Native" : "Docker"}</span>}
         {remove && (
           <button type="button" disabled={busy} onClick={remove}>
             Remove next round

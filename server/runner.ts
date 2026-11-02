@@ -3,6 +3,7 @@ import { z } from "zod";
 import type {
   Activity,
   Agent,
+  RunnerMode,
   SessionId,
   SessionConfig,
   SessionOptions,
@@ -44,12 +45,16 @@ export function instructions(task: Task, round: number) {
 }
 // Mirrors the app-server rate-limit shape Docker.codexInfo validates; the
 // catalog stores it as unknown, so it is checked again at this boundary.
-const quotaWindow = z.object({
-  windowDurationMins: z.number().nullish(),
-  usedPercent: z.number().nullish(),
-  resetsAt: z.number().nullish(),
-}).nullish();
-const quotaBucket = z.object({ primary: quotaWindow, secondary: quotaWindow }).nullish();
+const quotaWindow = z
+  .object({
+    windowDurationMins: z.number().nullish(),
+    usedPercent: z.number().nullish(),
+    resetsAt: z.number().nullish(),
+  })
+  .nullish();
+const quotaBucket = z
+  .object({ primary: quotaWindow, secondary: quotaWindow })
+  .nullish();
 const quotaLimits = z.object({
   rateLimits: quotaBucket,
   rateLimitsByLimitId: z.record(z.string(), quotaBucket).nullish(),
@@ -57,21 +62,29 @@ const quotaLimits = z.object({
 export function parseQuota(input: unknown) {
   const parsed = quotaLimits.safeParse(input);
   if (!parsed.success)
-    throw new Error("Codex returned an unreadable usage report; show is paused");
+    throw new Error(
+      "Codex returned an unreadable usage report; show is paused",
+    );
   const limits = parsed.data;
   const bucket = limits.rateLimitsByLimitId?.codex ?? limits.rateLimits;
   const windows = [bucket?.primary, bucket?.secondary];
   const fiveHour = windows.find((w) => w?.windowDurationMins === 300);
-  const used = fiveHour?.usedPercent, resetsAt = fiveHour?.resetsAt;
+  const used = fiveHour?.usedPercent,
+    resetsAt = fiveHour?.resetsAt;
   if (
     typeof used !== "number" ||
     !Number.isFinite(used) ||
     typeof resetsAt !== "number" ||
     !Number.isFinite(resetsAt)
-  )
+  ) {
+    // Only window lengths are named: they say which limits the plan has, nothing about the account.
+    const reported = windows
+      .map((w) => w?.windowDurationMins)
+      .filter((m): m is number => typeof m === "number");
     throw new Error(
-      "Codex did not expose its five-hour usage window; show is paused",
+      `Codex did not expose its five-hour usage window (reported: ${reported.length ? reported.map((m) => `${m} min`).join(", ") : "no usage windows; check that Codex uses a ChatGPT subscription login"}); show is paused`,
     );
+  }
   return {
     remainingPercent: Math.max(0, 100 - used),
     resetsAt: resetsAt * 1000,
@@ -89,21 +102,23 @@ async function allInOrder<T>(tasks: Promise<T>[]) {
   return results.map((r) => (r as PromiseFulfilledResult<T>).value);
 }
 export class CliRunner implements PairRunner {
-  private capabilityChecks: CapabilityChecks;
-  private async ensureCapabilities(cli: Agent) {
-    let check = this.capabilityChecks.get(cli);
+  // Checks per execution host; the launch host uses the map the caller shared.
+  private capabilityChecks = new Map<Docker, CapabilityChecks>();
+  private async ensureCapabilities(cli: Agent, host = this.docker) {
+    let checks = this.capabilityChecks.get(host);
+    if (!checks) this.capabilityChecks.set(host, (checks = new Map()));
+    let check = checks.get(cli);
     if (!check) {
       check = (async () => {
-        await this.docker.inspect([cli]);
-        await cliAdapters[cli].check(this.docker);
+        await host.inspect([cli]);
+        await cliAdapters[cli].check(host);
       })();
-      this.capabilityChecks.set(cli, check);
+      checks.set(cli, check);
     }
     try {
       await check;
     } catch (error) {
-      if (this.capabilityChecks.get(cli) === check)
-        this.capabilityChecks.delete(cli);
+      if (checks.get(cli) === check) checks.delete(cli);
       throw error;
     }
   }
@@ -117,15 +132,29 @@ export class CliRunner implements PairRunner {
     },
     private clean: (s: string, limit?: number, streaming?: boolean) => string,
     capabilityChecks: CapabilityChecks = new Map(),
+    // Hosts a session may pick with its own runner; the launch host is the default.
+    private hosts: Partial<Record<RunnerMode, Docker>> = {},
   ) {
-    this.capabilityChecks = capabilityChecks;
+    this.capabilityChecks.set(docker, capabilityChecks);
   }
-  recover() {
-    return this.docker.recover();
+  private host(session: SessionConfig) {
+    if (!session.runner || session.runner === this.docker.executionBoundary)
+      return this.docker;
+    const host = this.hosts[session.runner];
+    if (!host)
+      throw new Error(`The ${session.runner} runner is not available here`);
+    return host;
   }
-  private runContext(): RunContext {
+  async recover() {
+    // A configured session may run on a host other than the launch one.
+    const hosts = new Set([this.docker]);
+    for (const session of configuredSessions(this.options))
+      hosts.add(this.host(session));
+    for (const host of hosts) await host.recover();
+  }
+  private runContext(host = this.docker): RunContext {
     return {
-      boundary: this.docker.executionBoundary,
+      boundary: host.executionBoundary,
       general: this.options.experience === "session",
     };
   }
@@ -139,30 +168,59 @@ export class CliRunner implements PairRunner {
   private async checkSelections() {
     const sessions = configuredSessions(this.options);
     validateSessions(sessions);
-    const models = new Map<Agent, CliCatalog>();
     const checks = [
-      this.docker.executionBoundary === "native"
+      sessions.some((s) => this.host(s).executionBoundary === "native")
         ? "Native agent terminals: no execution boundary; previews use Docker unless direct preview is on"
         : "Docker isolation and internal egress network ready",
     ];
-    // Each CLI's discovery is independent; run them together, validate in order.
-    const clis = [...new Set(sessions.map((s) => s.cli))];
-    const catalogs = await allInOrder(clis.map(async (cli) => {
-      await this.ensureCapabilities(cli);
-      return [cli, await cliAdapters[cli].discover(this.docker)] as const;
-    }));
-    for (const [cli, catalog] of catalogs) models.set(cli, catalog);
+    // Each CLI's discovery on each host is independent; run them together, validate in order.
+    const pairs = [
+      ...new Map(
+        sessions.map((s) => {
+          const host = this.host(s);
+          return [
+            `${host.executionBoundary}:${s.cli}`,
+            { host, cli: s.cli },
+          ] as const;
+        }),
+      ).entries(),
+    ];
+    const catalogs = new Map<string, CliCatalog>(
+      await allInOrder(
+        pairs.map(async ([key, { host, cli }]) => {
+          await this.ensureCapabilities(cli, host);
+          return [key, await cliAdapters[cli].discover(host)] as const;
+        }),
+      ),
+    );
     for (const session of sessions) {
-      validateModel(session, models.get(session.cli)!.models);
+      validateModel(
+        session,
+        catalogs.get(`${this.host(session).executionBoundary}:${session.cli}`)!
+          .models,
+      );
       checks.push(
         `${session.id}: ${session.cli} · ${sessionLabel(session)} available`,
       );
     }
-    if (models.has("codex") && this.options.experience !== "session") parseQuota(models.get("codex")!.limits);
+    // Each host has its own Codex login, so every one's quota is checked.
+    if (this.options.experience !== "session")
+      for (const [key, catalog] of catalogs)
+        if (key.endsWith(":codex")) parseQuota(catalog.limits);
     return checks;
   }
+  // The tightest Codex quota across the hosts the sessions use.
   async quota() {
-    return parseQuota((await this.docker.codexInfo()).limits);
+    const hosts = new Set(
+      configuredSessions(this.options)
+        .filter((s) => s.cli === "codex")
+        .map((s) => this.host(s)),
+    );
+    if (!hosts.size) hosts.add(this.docker);
+    const quotas = await allInOrder(
+      [...hosts].map(async (host) => parseQuota((await host.codexInfo()).limits)),
+    );
+    return quotas.reduce((low, q) => (q.remainingPercent < low.remainingPercent ? q : low));
   }
   async launch(
     round: number,
@@ -185,25 +243,45 @@ export class CliRunner implements PairRunner {
         "a 960 by 1044 box, aspect ratio 80:87, half of a 1920 by 1080 frame",
         "a 1920 by 1044 box, aspect ratio 160:87, filling a 1920 by 1080 frame",
       );
-    const containers: Record<SessionId, { name: string; dir: string }> = {};
+    const containers: Record<
+      SessionId,
+      { name: string; dir: string; host: Docker }
+    > = {};
     const handles: Record<SessionId, RunHandle> = {};
     try {
       // Containers are created together; every one that was created is recorded
       // before a failure is rethrown, so the catch below stops all of them.
-      const created = await Promise.allSettled(sessions.map(async (session) => {
-        const container = await this.docker.create(
-          session.cli,
-          round,
-          cliAdapters[session.cli].command(session, prompt, this.runContext()),
-          this.options.workspaceKey
-            ? await this.docker.workspace({ cli: session.cli, round: this.options.workspaceKey, session: session.id })
-            : undefined,
-          session.id,
-          { nativeApproved: this.options.nativeApproved },
-        );
-        containers[session.id] = container;
-        return container;
-      }));
+      const created = await Promise.allSettled(
+        sessions.map(async (session) => {
+          const host = this.host(session);
+          const container = await host.create(
+            session.cli,
+            round,
+            cliAdapters[session.cli].command(
+              session,
+              prompt,
+              this.runContext(host),
+            ),
+            this.options.workspaceKey
+              ? await host.workspace({
+                  cli: session.cli,
+                  round: this.options.workspaceKey,
+                  session: session.id,
+                })
+              : undefined,
+            session.id,
+            // An arena slot's native runner was approved when the host saved it;
+            // coding sessions approve only through their own consent.
+            {
+              nativeApproved:
+                this.options.nativeApproved ||
+                (this.options.experience !== "session" && session.runner === "native"),
+            },
+          );
+          containers[session.id] = { ...container, host };
+          return container;
+        }),
+      );
       const failed = created.find((r) => r.status === "rejected");
       if (failed) throw failed.reason;
       const containerOf = (id: SessionId) => {
@@ -236,15 +314,18 @@ export class CliRunner implements PairRunner {
     } catch (error) {
       const cleanup = await Promise.allSettled(
         Object.entries(containers).map(([id, c]) =>
-          handles[id]
-            ? handles[id]!.stop("cancelled")
-            : this.docker.stop(c.name),
+          handles[id] ? handles[id]!.stop("cancelled") : c.host.stop(c.name),
         ),
       );
-      const failed = cleanup.flatMap((result) => result.status === "rejected" ? [result.reason] : []);
+      const failed = cleanup.flatMap((result) =>
+        result.status === "rejected" ? [result.reason] : [],
+      );
       if (failed.length)
-        throw new AggregateError([error, ...failed],
-          `Session startup failed (${this.clean(error instanceof Error ? error.message : String(error))}); cleanup could not be confirmed; recover runners before restarting`, { cause: error });
+        throw new AggregateError(
+          [error, ...failed],
+          `Session startup failed (${this.clean(error instanceof Error ? error.message : String(error))}); cleanup could not be confirmed; recover runners before restarting`,
+          { cause: error },
+        );
       await Promise.allSettled(Object.values(handles).map((h) => h.done));
       throw error;
     }
@@ -253,20 +334,21 @@ export class CliRunner implements PairRunner {
   private attach(
     session: SessionConfig,
     round: number,
-    container: { name: string; dir: string },
+    container: { name: string; dir: string; host: Docker },
     emit: (e: Activity) => void,
     diffs: HtmlDiffs,
   ): RunHandle {
     const agent = session.id;
+    const host = container.host;
     const adapter = cliAdapters[session.cli].activity(
       session,
       round,
       this.clean,
       emit,
-      this.runContext(),
+      this.runContext(host),
       container.dir,
     );
-    const process = this.docker.attach(container.name);
+    const process = host.attach(container.name);
     let stderr = "";
     let reason: "timeout" | "cancelled" | undefined;
     let stopping: Promise<void> | undefined;
@@ -275,7 +357,7 @@ export class CliRunner implements PairRunner {
       const kind = failureKind(text);
       if (kind === "other" || interruption) return;
       interruption = kind;
-      stopping ??= this.docker.stop(container.name);
+      stopping ??= host.stop(container.name);
       void stopping.catch(() => {});
     };
     const lines = new JsonLines(
@@ -284,7 +366,8 @@ export class CliRunner implements PairRunner {
         const e = parseValidatedCliEvent(value);
         if (!e) return;
         adapter.receive(e);
-        if (this.options.experience !== "session" && adapter.edited(e)) void diffs.capture();
+        if (this.options.experience !== "session" && adapter.edited(e))
+          void diffs.capture();
         if (adapter.failure) interrupt(adapter.failure);
       },
       () =>
@@ -304,7 +387,7 @@ export class CliRunner implements PairRunner {
     });
     const stop = (r: "timeout" | "cancelled") => {
       reason = r;
-      return (stopping ??= this.docker.stop(container.name));
+      return (stopping ??= host.stop(container.name));
     };
     const done = new Promise<RunOutcome>((resolve) => {
       let settled = false;
@@ -346,28 +429,40 @@ export class CliRunner implements PairRunner {
         } else outcome = { status: "complete" };
         try {
           // Optional result errors are display notices, never a failed coding/conversation run.
-          if (this.options.experience === "session" && outcome.status === "complete") {
+          if (
+            this.options.experience === "session" &&
+            outcome.status === "complete"
+          ) {
             try {
-              if (await this.docker.preserveOutput(agent, round, container.dir)) {
-                await this.docker.output(agent, round, container.dir);
+              if (await host.preserveOutput(agent, round, container.dir)) {
+                await host.output(agent, round, container.dir);
                 outcome.hasResult = true;
               }
             } catch {
-              emit({ id: `${round}:${agent}:result-unavailable`, round, agent, at: Date.now(), kind: "output", text: "Optional HTML result unavailable; conversation is kept" });
+              emit({
+                id: `${round}:${agent}:result-unavailable`,
+                round,
+                agent,
+                at: Date.now(),
+                kind: "output",
+                text: "Optional HTML result unavailable; conversation is kept",
+              });
             }
           }
           // Save a finished or partial page before runner cleanup. Hidden CLI
           // homes are never copied; preserveOutput accepts only the expected HTML.
           try {
-            if (this.options.experience !== "session") await this.docker.preserveOutput(agent, round, container.dir);
+            if (this.options.experience !== "session")
+              await host.preserveOutput(agent, round, container.dir);
           } finally {
-            await (stopping ?? this.docker.stop(container.name));
+            await (stopping ?? host.stop(container.name));
           }
           if (outcome.status === "complete") {
-            if (this.options.experience !== "session") await this.docker.output(agent, round, container.dir);
+            if (this.options.experience !== "session")
+              await host.output(agent, round, container.dir);
             // Arena rounds never reuse their folder, so the login copy goes once
             // retained; session runs (workspaceKey) keep it for the next turn.
-            await this.docker.retainAuth(session.cli, container.dir, {
+            await host.retainAuth(session.cli, container.dir, {
               discardHome: !this.options.workspaceKey,
             });
           }
@@ -378,7 +473,9 @@ export class CliRunner implements PairRunner {
             error:
               error instanceof LoginRefreshConflict
                 ? "Shared login changed during this session; saved login kept. Check authentication before resuming."
-                : this.options.experience === "session" ? "Runner cleanup failed" : "Runner cleanup or HTML output failed; show must pause",
+                : this.options.experience === "session"
+                  ? "Runner cleanup failed"
+                  : "Runner cleanup or HTML output failed; show must pause",
           };
         }
         resolve(outcome);
@@ -387,12 +484,15 @@ export class CliRunner implements PairRunner {
       // as a runner failure so callers pause instead of waiting forever or crashing.
       const settle = (code: number | null) =>
         finish(code).catch(() => {
-          stopping ??= this.docker.stop(container.name);
+          stopping ??= host.stop(container.name);
           void stopping.catch(() => {});
           resolve({
             status: "error",
             failure: "other",
-            error: this.options.experience === "session" ? "Runner cleanup failed" : "Runner cleanup or HTML output failed; show must pause",
+            error:
+              this.options.experience === "session"
+                ? "Runner cleanup failed"
+                : "Runner cleanup or HTML output failed; show must pause",
           });
         });
       process.once("close", (code) => {

@@ -283,7 +283,8 @@ export class Sessions extends EventEmitter {
       updatedAt: Date.now(),
       model: config.model,
       effort: config.effort,
-      config: structuredClone(config),
+      // The conversation's own runner applies; an arena slot's runner is not copied.
+      config: structuredClone({ ...config, runner: undefined }),
       runner,
       status: "idle",
     };
@@ -472,6 +473,8 @@ export class Sessions extends EventEmitter {
     const config = {
       ...c.config!,
       ...this.preferences.get().value.managedModels?.[id],
+      // Conversations saved before this rule may still carry an arena slot's runner.
+      runner: undefined,
     };
     const run = randomUUID(),
       round = this.store.runId();

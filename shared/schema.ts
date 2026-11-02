@@ -23,6 +23,8 @@ export const sessionConfigSchema = z
     cli: cliSchema,
     model: z.string().trim().min(1).max(160),
     effort: z.string().trim().min(1).max(40).optional(),
+    // Absent: the runner the app was launched with. Native needs host consent when saved.
+    runner: runnerModeSchema.optional(),
   })
   .strict();
 export type SessionConfig = z.infer<typeof sessionConfigSchema>;

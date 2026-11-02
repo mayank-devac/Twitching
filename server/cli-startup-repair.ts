@@ -9,16 +9,19 @@ export function cliLoginCommand(agent: Agent, mode: RunnerMode) {
   return { program: "cursor-agent", args: ["login"] };
 }
 
+// A setup problem whose message is written here, never CLI output, so routes may show it as-is.
+export class SetupError extends Error {}
+
 export function missingLoginError(agent: Agent, mode: RunnerMode) {
   if (agent === "codex")
-    return new Error(
+    return new SetupError(
       "Codex arena login is missing; run npm run sandbox:login:codex with your ChatGPT subscription",
     );
   if (agent === "claude")
-    return new Error(
+    return new SetupError(
       "Claude Code arena login is missing; run npm run sandbox:login:claude and paste the token from claude setup-token",
     );
-  return new Error(
+  return new SetupError(
     mode === "native"
       ? "Cursor must use saved subscription login on this Mac. Run cursor-agent login once; each native home reuses that login."
       : "Cursor must use saved subscription login; run sandbox:login:cursor",
