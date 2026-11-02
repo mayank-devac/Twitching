@@ -87,7 +87,12 @@ Current runners support **Codex, Cursor and Claude Code**.
 
 ## Quick start
 
-clone repo and 
+Clone the repository and enter its directory:
+
+```sh
+git clone https://github.com/mayank-devac/Twitching.git
+cd Twitching
+```
 
 ### 1. Prepare your machine
 
@@ -103,12 +108,17 @@ Agent logins and private settings are local only; the repository does not includ
 
 To install the one-command launcher, run this once from the repository:
 
+
+
 ```sh
 ./install_start_stream.sh
 source ~/.zshrc
-start_stream
 ```
 
+```sh
+start_stream
+```
+Run `start_stream` to open Twitching.
 `start_stream` opens the welcome page. The page lets you choose the sandbox (Docker) or native runner. If Docker is not reachable and Colima is installed, the launcher starts Colima and uses its isolated Docker socket automatically. The installer only adds a marked function to `~/.zshrc`; it does not copy credentials.
 
 With **Docker Desktop insalled**
