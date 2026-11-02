@@ -68,7 +68,18 @@ export function parseQuota(input: unknown) {
   const limits = parsed.data;
   const bucket = limits.rateLimitsByLimitId?.codex ?? limits.rateLimits;
   const windows = [bucket?.primary, bucket?.secondary];
-  const fiveHour = windows.find((w) => w?.windowDurationMins === 300);
+  const usable = (w: (typeof windows)[number]) =>
+    typeof w?.usedPercent === "number" &&
+    Number.isFinite(w.usedPercent) &&
+    typeof w.resetsAt === "number" &&
+    Number.isFinite(w.resetsAt);
+  // Some plans have no five-hour window, only weekly or monthly. Prefer the
+  // five-hour one; otherwise track the most used (binding) readable window.
+  const fiveHour =
+    windows.find((w) => w?.windowDurationMins === 300 && usable(w)) ??
+    windows
+      .filter(usable)
+      .sort((a, b) => (b?.usedPercent ?? 0) - (a?.usedPercent ?? 0))[0];
   const used = fiveHour?.usedPercent,
     resetsAt = fiveHour?.resetsAt;
   if (
@@ -82,7 +93,7 @@ export function parseQuota(input: unknown) {
       .map((w) => w?.windowDurationMins)
       .filter((m): m is number => typeof m === "number");
     throw new Error(
-      `Codex did not expose its five-hour usage window (reported: ${reported.length ? reported.map((m) => `${m} min`).join(", ") : "no usage windows; check that Codex uses a ChatGPT subscription login"}); show is paused`,
+      `Codex did not expose a readable usage window, five-hour or otherwise (reported: ${reported.length ? reported.map((m) => `${m} min`).join(", ") : "no usage windows; check that Codex uses a ChatGPT subscription login"}); show is paused`,
     );
   }
   return {
@@ -464,6 +475,7 @@ export class CliRunner implements PairRunner {
             // retained; session runs (workspaceKey) keep it for the next turn.
             await host.retainAuth(session.cli, container.dir, {
               discardHome: !this.options.workspaceKey,
+              session: agent,
             });
           }
         } catch (error) {

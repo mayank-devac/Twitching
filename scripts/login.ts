@@ -66,7 +66,8 @@ if (agent === "claude") {
 }
 
 await assertProviderProxy(root);
-const dir = resolve(root, "runtime/auth", agent);
+// `npm run sandbox:login:codex -- 2` saves a second Codex account for session-2.
+const dir = resolve(root, "runtime/auth", agent === "codex" && process.argv[3] === "2" ? "codex-2" : agent);
 await mkdir(resolve(dir, ".codex"), { recursive: true, mode: 0o700 });
 if (agent === "codex")
   await writeFile(

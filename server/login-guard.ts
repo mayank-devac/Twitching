@@ -6,7 +6,7 @@ import type { Agent } from "../shared/types.js";
 export class LoginRefreshConflict extends Error {}
 const guards = new Map<string, LoginGuard>();
 // Every host instance for this project/account shares the same in-process guard.
-export function loginGuard(root: string, cli: Agent) {
+export function loginGuard(root: string, cli: Agent | "codex-2") {
   const key = `${resolve(root)}:${cli}`;
   let guard = guards.get(key);
   if (!guard) {

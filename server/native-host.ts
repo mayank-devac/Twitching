@@ -44,6 +44,7 @@ interface ProcessRecord {
 }
 interface Prepared {
   agent: Agent;
+  session?: SessionId;
   dir: string;
   command: string[];
   env?: NodeJS.ProcessEnv;
@@ -236,6 +237,7 @@ export class NativeHost extends Docker {
     this.nativeStore.container(name);
     this.prepared.set(name, {
       agent,
+      session,
       dir: workspace,
       command: args,
       env,
@@ -253,7 +255,7 @@ export class NativeHost extends Docker {
     // This home has neither, so the prompt session does not start those servers or rules.
     const home = resolve(dir, ".cli-home");
     if (agent === "codex") {
-      env.CODEX_HOME = await prepareCodexHome(this.nativeRoot, home);
+      env.CODEX_HOME = await prepareCodexHome(this.nativeRoot, home, true, session);
       env.HOME = home;
       env.XDG_CONFIG_HOME = resolve(home, ".config");
       return env;
@@ -413,7 +415,7 @@ export class NativeHost extends Docker {
     let authError: unknown;
     if (workspace && prepared?.agent === "codex") {
       try {
-        await this.retainAuth("codex", workspace);
+        await this.retainAuth("codex", workspace, { session: prepared.session });
       } catch (error) {
         authError = error;
       }
@@ -486,10 +488,10 @@ export class NativeHost extends Docker {
   override async retainAuth(
     agent: Agent,
     dir: string,
-    options: { discardHome?: boolean } = {},
+    options: { discardHome?: boolean; session?: SessionId } = {},
   ) {
     const home = resolve(dir, ".cli-home");
-    if (agent === "codex") await retainCodexLogin(this.nativeRoot, home);
+    if (agent === "codex") await retainCodexLogin(this.nativeRoot, home, options.session);
     // Cursor keeps its saved native login behaviour; its .cli-home holds a copy
     // of the host auth.json, so a finished arena round discards it as well.
     if (options.discardHome) await rm(home, { recursive: true, force: true });

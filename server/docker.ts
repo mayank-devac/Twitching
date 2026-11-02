@@ -138,7 +138,7 @@ export class Docker {
     for (const path of [dir, resolve(dir, ".tmp"), home])
       await assertRealDirectory(path);
     if (agent === "codex") {
-      await prepareCodexHome(this.options.root, home, auth);
+      await prepareCodexHome(this.options.root, home, auth, session);
       return dir;
     }
     // Claude's token travels in the container environment (see create), so
@@ -379,9 +379,9 @@ export class Docker {
   // login is safely back in runtime/auth the token copy in .home is deleted.
   // A failed retain throws first and keeps .home: a rotated refresh token may
   // exist only there.
-  async retainAuth(agent: Agent, dir: string, options: { discardHome?: boolean } = {}) {
+  async retainAuth(agent: Agent, dir: string, options: { discardHome?: boolean; session?: SessionId } = {}) {
     const home = resolve(dir, ".home");
-    if (agent === "codex") await retainCodexLogin(this.options.root, home);
+    if (agent === "codex") await retainCodexLogin(this.options.root, home, options.session);
     // The Claude token is read-only and never enters the home: nothing to retain.
     else if (agent === "cursor") {
       const dest = resolve(this.options.root, "runtime/auth", agent);
