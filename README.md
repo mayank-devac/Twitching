@@ -94,47 +94,58 @@ git clone https://github.com/mayank-devac/Twitching.git
 cd Twitching
 ```
 
-### 1. Prepare your machine
+### 1. Run setup (once)
 
-- [ ] Install **Node.js 24+** 
-- [ ] Run `npm ci`. 
+```sh
+./setup.sh            # asks before each change; ./setup.sh --yes accepts them all
+```
 
-optional: 
-- [ ] Docker engine: **Colima** or **Docker Desktop**. 
-- [ ] Copy `.env.example` to `.env.local`; fill in credentials privately.
-- [ ] Supply your own `assets/break.mp3`; audio is not distributed.
-- [ ] Add blocked words in `settings.json`.
+`setup.sh` works on macOS and Linux (Windows: inside WSL2), and is safe to rerun. Each step checks first and only fixes what is missing:
 
-Agent logins and private settings are local only; the repository does not include them.
+1. **Node.js 24+.** On macOS it offers `brew install node`.
+2. **App dependencies** (`npm ci`).
+3. **Local files.** Creates `.env.local` from `.env.example` and an empty `prompts.txt`. Existing files are never opened or overwritten.
+4. **Docker engine.** Uses Docker Desktop or Colima if one is running. Otherwise it starts Colima, or on macOS offers `brew install colima docker docker-compose docker-buildx`. A new Colima VM gets 4 CPUs, 6 GB RAM and a 20 GB disk.
+5. **Sandbox images, egress proxy, preview network.** Also checks that Docker can see this folder.
+6. **Coding CLI logins.** Optional: Codex, Claude Code, Cursor. At least one is needed for the arena.
+7. **Terminal commands.** Adds them to `~/.zshrc`, or for bash to `~/.bash_profile` (macOS) / `~/.bashrc` (Linux).
+
+Optional extras: fill in `.env.local` only for the chat platforms, Jev and OBS password you use; add your own `assets/break.mp3` (audio is not distributed); add blocked words in `settings.json`. Agent logins and private settings stay local; the repository does not include them.
+
+**Something wrong?** Run `./doctor.sh` (or `twitching_doctor`). It changes nothing, checks every item above plus ports and OBS, and prints a fix for each problem. The report hides your home path and never reads credentials, so you can paste it into a [GitHub issue](https://github.com/mayank-devac/Twitching/issues). `./doctor.sh --save report.txt` also writes it to a file.
 
 ### 2. Use guided startup
 
-To install the one-command launcher, run this once from the repository:
-
-
+`setup.sh` already installs the terminal commands. To (re)install only them, for example after moving the clone:
 
 ```sh
 ./install_start_stream.sh
-source ~/.zshrc
+source ~/.zshrc       # bash: source ~/.bash_profile (macOS) or ~/.bashrc (Linux), or open a new terminal
 ```
 
-This installs three commands:
+```sh
+start_sessions
+```
+
+This installs these commands (plus `twitching_doctor` for diagnostics):
 
 | Command | Opens | Flags |
 | --- | --- | --- |
-| `start_arena` | **Prompt arena controls**: the guided arena startup (rehearsal/live, Docker/native, sessions, checks), even with no flags | Same flags as `./start_stream.sh` |
-| `start_sessions` | **Session mode controls**: the welcome page for coding sessions | `--chats` only |
+| `start_sessions` (run this first) | **Session mode controls**: the welcome page for coding sessions | `--chats` only |
 | `start_stream` | Old behaviour: no flags opens the welcome page, any flag runs the guided arena | All |
+| `start_arena` | **Prompt arena controls**: the guided arena startup (rehearsal/live, Docker/native, sessions, checks), even with no flags | Same flags as `./start_stream.sh` |
+
 
 ```sh
-start_arena                        # prompt arena
+start_sessions                     # session mode , choose this to show codex , claude chats in obs browser source 
+start_arena                        # prompt arena requires you will need docker / colima with sandbox login (under construstion)
 start_arena --mode rehearsal --codex
-start_sessions                     # session mode
 ```
+> sessions to share coding cli sessions and Prompt arena for fun autmoated runs .
 
 Without the installer, run the files directly: `./start_arena.sh` and `./start_sessions.sh`.
 
-If Docker is not reachable and Colima is installed, each command starts Colima and uses its isolated Docker socket automatically. The installer only adds a marked block of functions to `~/.zshrc`; it does not copy credentials. Rerunning it after an older install replaces the old `start_stream` block, and keeps a backup at `~/.zshrc.twitching-backup`.
+If Docker is not reachable and Colima is installed, each command starts Colima and uses its isolated Docker socket automatically. The installer only adds a marked block of functions to your shell file; it does not copy credentials. Rerunning it replaces an older block, or one that points at a moved or deleted clone, and keeps a backup next to the file (`*.twitching-backup`). If the clone moves later, the commands say so and tell you to rerun the installer.
 
 **OBS is optional at startup.** If OBS is closed or the overlay Browser Source is missing, the launcher prints a `WARNING` with the setup steps and continues. You can open OBS later. A **live** broadcast still needs OBS running when you confirm the public start.
 
@@ -163,7 +174,16 @@ To use your Mac's installed Codex CLI and saved login, with Colima only for prev
 
 The launcher requires `NATIVE` confirmation because agent commands can access host files. The app seeds its private arena profile from your saved Codex login when available; personal settings and plugins are not copied.
 
-On this Mac, Colima is configured for **4 CPUs, 6 GB RAM and a 12 GB container disk**. Container images still consume disk space. Use `colima stop` after stopping the show to release VM memory.
+When `setup.sh` or `with_colima.sh` creates a new Colima VM, it uses **4 CPUs, 6 GB RAM and a 20 GB disk**. An existing VM keeps its size; `./doctor.sh` warns below 5 GB RAM. Container images still consume disk space. Use `colima stop` after stopping the show to release VM memory.
+
+**Docker must see the project folder.** Colima and Docker Desktop run containers in a VM that only sees shared Mac folders. Startup checks this (**project folder shared with Docker**) before any agent runs. If it fails with Colima, the launcher offers to restart Colima with your home folder (and the project, if it is cloned outside home) shared. Manual fix:
+
+```sh
+colima stop
+colima start --mount "$HOME:w"                 # add --mount "/path/to/Twitching:w" if cloned outside $HOME
+```
+
+With Docker Desktop, add the folder under **Settings → Resources → File sharing**. The old symptom was `bind source path does not exist: …/runtime/workspaces/…`.
 
 **Docker Desktop — open it first:**
 

@@ -9,9 +9,11 @@ for tool in node colima docker docker-compose docker-buildx; do
   fi
 done
 
+. scripts/shell-lib.sh
 # Ask Colima for its socket instead of inheriting another Docker context.
+# A brand-new profile is sized for two agents and shares this clone.
 if ! colima_status=$(colima status --json 2>/dev/null); then
-  colima start
+  colima_start "$PWD"
   colima_status=$(colima status --json)
 fi
 export DOCKER_HOST

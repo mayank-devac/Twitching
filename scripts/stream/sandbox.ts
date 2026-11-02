@@ -1,6 +1,11 @@
 // Owns the Docker side of startup: engine, agent/preview images (with build consent), provider proxy and preview network.
 import type { RunnerMode } from "../../shared/types.js";
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { isAbsolute, relative, resolve } from "node:path";
+import { promisify } from "node:util";
 import type { Docker } from "../../server/docker.js";
 import { PREVIEW_NETWORK } from "../../server/constants.js";
 import { assertProviderProxy } from "../../server/provider-proxy.js";
@@ -15,8 +20,15 @@ import {
   type Settings,
 } from "./runtime.js";
 
+const hasColima = () =>
+  execFileAsync("colima", ["version"], { timeout: 10_000 }).then(() => true, () => false);
+
 async function waitForDockerEngine(docker: Docker) {
-  if (process.platform === "darwin") {
+  // Prefer the engine the user actually has: Colima if installed, else Docker Desktop.
+  if (await hasColima()) {
+    console.log("Starting Colima…");
+    await run("colima", ["start"]);
+  } else if (process.platform === "darwin") {
     console.log("Opening Docker Desktop…");
     await new Promise<void>((done) => {
       const child = spawn("open", ["-a", "Docker"], { stdio: "inherit" });
@@ -40,8 +52,63 @@ async function waitForDockerEngine(docker: Docker) {
     }
   }
   throw new Error(
-    "Docker engine did not start within 90 seconds. Open Docker Desktop and wait until it is ready.",
+    "Docker engine did not start within 90 seconds. Start Colima (colima start) or Docker Desktop and wait until it is ready. Run ./doctor.sh for details.",
   );
+}
+
+const execFileAsync = promisify(execFile);
+const outsideHome = () => {
+  const home = homedir();
+  const inner = relative(home, root);
+  return !home || inner === "" ? false : inner.startsWith("..") || isAbsolute(inner);
+};
+// Home stays shared (Colima's default) so other projects keep working.
+const colimaMounts = () => [`${homedir()}:w`, ...(outsideHome() ? [`${root}:w`] : [])];
+
+// True when the Docker engine this launcher talks to is Colima's.
+async function activeColima(docker: Docker) {
+  try {
+    const { stdout } = await execFileAsync("colima", ["status", "--json"], { timeout: 10_000 });
+    const socket = JSON.parse(stdout).docker_socket as string | undefined;
+    if (!socket) return false;
+    const endpoint =
+      process.env.DOCKER_HOST ||
+      (await docker.command(["context", "inspect", "--format", "{{.Endpoints.docker.Host}}"])).trim();
+    return endpoint === socket;
+  } catch {
+    return false;
+  }
+}
+
+// Agent and preview containers bind-mount folders under runtime/. A VM-backed
+// engine only sees shared host folders, so prove a fresh folder is visible.
+async function assertProjectShared(docker: Docker, image: string) {
+  const dir = resolve(root, "runtime/workspaces", `.share-probe-${randomUUID()}`);
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  try {
+    await writeFile(resolve(dir, "ok"), "");
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await docker.command(
+          ["run", "--rm", "--network", "none", "--user", "0:0", "--entrypoint", "test",
+            "--mount", `type=bind,source=${dir},target=/probe,readonly`, image, "-e", "/probe/ok"],
+          30_000,
+        );
+        return;
+      } catch (error) {
+        // A slow VM file share can lag a moment behind a new folder.
+        if (attempt >= 5)
+          throw new Error(
+            /bind source path does not exist|mounts denied|not shared/i.test(String(error))
+              ? "Docker cannot see this project folder"
+              : "Docker could not open a test file in this project folder",
+          );
+        await new Promise((done) => setTimeout(done, 1000));
+      }
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 }
 
 // Returns true when previews will skip Docker (direct preview), so callers can skip the isolated render check.
@@ -71,10 +138,10 @@ export async function checkSandbox(
     }
   }
   await repair(
-    "Docker Desktop",
+    "Docker engine",
     () =>
       docker.command(["info", "--format", "{{.ServerVersion}}"]).then(() => {}),
-    "Open Docker Desktop and wait until its engine is running. Docker is required for previews even with native agents.",
+    "Start Colima (colima start) or Docker Desktop and wait until its engine is running. Docker is required for previews even with native agents. No engine installed? Run ./setup.sh.",
     () => waitForDockerEngine(docker),
   );
   if (runnerMode === "docker")
@@ -108,6 +175,20 @@ export async function checkSandbox(
         .then(() => {}),
     "Run npm run sandbox:build:preview.",
     () => run("npm", ["run", "sandbox:build:preview"]),
+  );
+  const colima = await activeColima(docker);
+  await repair(
+    "project folder shared with Docker",
+    () => assertProjectShared(docker, settings.previewImage),
+    colima
+      ? `Colima does not share this folder. The fix restarts Colima with your home folder${outsideHome() ? " and this project folder" : ""} shared (running containers stop and the launcher restarts what it needs). Or run it yourself: colima stop && colima start ${colimaMounts().map((m) => `--mount "${m}"`).join(" ")}`
+      : "Add this project folder under Docker Desktop → Settings → Resources → File sharing, apply, then rerun. Or clone the project inside your home folder.",
+    colima
+      ? async () => {
+          await run("colima", ["stop"]);
+          await run("colima", ["start", ...colimaMounts().flatMap((m) => ["--mount", m])]);
+        }
+      : undefined,
   );
   await repair(
     "provider proxy",

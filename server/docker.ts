@@ -33,7 +33,11 @@ const clientVersion = (
     version: string;
   }
 ).version;
-const CURSOR_LOGIN_ROOTS = [".config/cursor", ".cursor"] as const;
+export const UNSHARED_PROJECT_MESSAGE =
+  "Docker cannot see this project folder, so containers cannot use their workspaces. " +
+  "Colima: run colima stop, then colima start --mount \"$HOME:w\" (add --mount \"<project folder>:w\" if the clone is outside your home folder). " +
+  "Docker Desktop: add the project folder under Settings → Resources → File sharing. Then rerun.";
+const CURSOR_LOGIN_ROOTS =[".config/cursor", ".cursor"] as const;
 // Seeding copies the whole trusted runtime/auth/cursor folder (config.toml,
 // cli-config.json included). Only auth.json flows back from the
 // agent-writable home: config files there could carry agent-chosen settings
@@ -218,18 +222,28 @@ export class Docker {
     }
     try {
       const claude = agent === "claude" ? await this.claudeEnv() : undefined;
-      await this.command(
-        [
-          "create",
-          "-i",
-          ...this.args(name, workspace),
-          ...(claude?.args ?? []),
-          this.options.image,
-          ...command,
-        ],
-        15000,
-        claude?.env,
-      );
+      const createArgs = [
+        "create",
+        "-i",
+        ...this.args(name, workspace),
+        ...(claude?.args ?? []),
+        this.options.image,
+        ...command,
+      ];
+      // A VM-backed engine (Colima, Docker Desktop) can take a moment to see a
+      // folder created just now; a folder it never sees is not shared at all.
+      for (let attempt = 1; ; attempt++) {
+        try {
+          await this.command(createArgs, 15000, claude?.env);
+          break;
+        } catch (error) {
+          if (!(error instanceof Error && /bind source path does not exist/i.test(error.message)))
+            throw error;
+          if (attempt >= 5)
+            throw new Error(UNSHARED_PROJECT_MESSAGE, { cause: error });
+          await new Promise((done) => setTimeout(done, 1000));
+        }
+      }
     } catch (error) {
       try {
         await this.stop(name);

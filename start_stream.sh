@@ -3,7 +3,7 @@ set -eu
 cd -- "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 
 if ! command -v node >/dev/null 2>&1 || ! node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 24 ? 0 : 1)'; then
-  printf '%s\n' 'ERROR: Node.js 24 or newer is required. Install it, reopen your terminal, then run this file again.' >&2
+  printf '%s\n' 'ERROR: Node.js 24 or newer is required. Install it (or run ./setup.sh), reopen your terminal, then run this file again.' >&2
   exit 1
 fi
 # Docker-dependent features check for Docker when they are selected. Keep the

@@ -259,7 +259,7 @@ try {
   // Do not dump exception stacks, subprocess output, cookies, CLI account info or secret values.
   if (!launcher.stopping) {
     console.error(
-      `\nERROR: ${launcher.safeMessage(error instanceof Error ? error.message : "Startup failed")}\nstopping....`,
+      `\nERROR: ${launcher.safeMessage(error instanceof Error ? error.message : "Startup failed")}\nNeed help? Run ./doctor.sh (or twitching_doctor) and paste its report into a GitHub issue: https://github.com/mayank-devac/Twitching/issues\nstopping....`,
     );
     process.exitCode = 1;
   }
