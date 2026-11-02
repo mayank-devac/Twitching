@@ -168,15 +168,18 @@ export async function checkServices(check: ServiceCheck) {
     console.log(
       "NOTE: Jev is not configured. Rehearsal can use a house task; live mode cannot.",
     );
-  await repair(
-    "OBS WebSocket and overlay source",
-    async () => {
-      const ready = await check.obs.readiness(`${check.origin}/overlay`);
-      if (!ready.overlayConfigured)
-        throw new Error("No OBS Browser Source uses this app overlay");
-    },
-    `Open OBS, enable Tools → WebSocket Server Settings, add OBS_PASSWORD privately, and add ${check.origin}/overlay as a Browser Source (1920 × 1080).`,
-  );
+  // OBS is optional at startup: the host may open it later, so a miss only warns.
+  console.log("\nChecking OBS WebSocket and overlay source…");
+  try {
+    const ready = await check.obs.readiness(`${check.origin}/overlay`);
+    if (!ready.overlayConfigured)
+      throw new Error("No OBS Browser Source uses this app overlay");
+    console.log("OK: OBS WebSocket and overlay source");
+  } catch (error) {
+    console.warn(
+      `WARNING: OBS is not ready (${clean(error instanceof Error ? error.message : "check failed")}). Continuing without it.\nWhen you open OBS: enable Tools → WebSocket Server Settings, add OBS_PASSWORD privately, and add ${check.origin}/overlay as a Browser Source (1920 × 1080).`,
+    );
+  }
   if (check.directPreview) {
     console.log("\nSkipping isolated HTML rendering: direct preview is on.");
     return;

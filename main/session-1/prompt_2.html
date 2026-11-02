@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diwali at the Little Tower</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #11152b; }
+  body { color: #ffe7ae; font-family: Georgia, 'Times New Roman', serif; }
+  .scene { position: relative; width: 100%; height: 100%; overflow: hidden; isolation: isolate; background: linear-gradient(180deg,#10152d 0%,#262348 42%,#71405a 76%,#df8552 100%); }
+  .scene:before { content:""; position:absolute; inset:0; opacity:.2; background-image:radial-gradient(#fff 0.65px,transparent .8px); background-size:29px 31px; mask-image:linear-gradient(#000,transparent 76%); }
+  .moon { position:absolute; width:clamp(64px,10vw,112px); aspect-ratio:1; border-radius:50%; top:10%; right:14%; background:#ffe8b8; box-shadow:0 0 40px #ffd89766,0 0 110px #ffc8753c; }
+  .moon:after { content:""; position:absolute; width:100%; height:100%; border-radius:50%; background:#252143; transform:translate(18%,-10%); opacity:.22; }
+  .distant { position:absolute; inset:auto 0 20% 0; height:27%; background:#332745; clip-path:polygon(0 45%,8% 42%,8% 31%,15% 31%,15% 48%,23% 48%,23% 27%,31% 27%,31% 44%,39% 44%,39% 20%,47% 20%,47% 45%,58% 45%,58% 33%,67% 33%,67% 47%,78% 47%,78% 24%,86% 24%,86% 42%,94% 42%,94% 34%,100% 34%,100% 100%,0 100%); opacity:.58; }
+  .ground { position:absolute; bottom:-7%; left:-8%; width:116%; height:32%; border-radius:50% 50% 0 0/18% 18% 0 0; background:linear-gradient(180deg,#382944,#17182e 75%); box-shadow:0 -18px 55px #f8a15d22; }
+  .tower { position:absolute; left:50%; bottom:17%; width:min(44vw,400px); height:min(62vh,590px); transform:translateX(-50%); }
+  .tower svg { display:block; width:100%; height:100%; overflow:visible; }
+  .title { position:absolute; left:7%; top:8%; z-index:2; }
+  .eyebrow { font:600 10px/1.4 system-ui,sans-serif; letter-spacing:.28em; color:#ffc678; text-transform:uppercase; }
+  h1 { font-size:clamp(24px,4vw,43px); font-weight:400; line-height:1.05; margin:12px 0 0; text-shadow:0 2px 18px #170f29; }
+  .caption { position:absolute; bottom:5%; left:7%; z-index:3; color:#f6c99e; font:11px/1.5 system-ui,sans-serif; letter-spacing:.13em; text-transform:uppercase; opacity:.8; }
+  .spark { position:absolute; width:4px; height:4px; border-radius:50%; background:#ffd77a; box-shadow:0 0 12px 3px #ffc667; animation:twinkle 2.7s ease-in-out infinite; }
+  @keyframes twinkle { 0%,100%{opacity:.25;transform:scale(.6)} 50%{opacity:1;transform:scale(1.35)} }
+  .flame { transform-origin:center bottom; animation:flicker 1.7s ease-in-out infinite alternate; }
+  @keyframes flicker { from{transform:scale(.94,1) rotate(-2deg);opacity:.86} to{transform:scale(1.06,1.08) rotate(2deg);opacity:1} }
+  .glow { animation:breathe 4s ease-in-out infinite; }
+  @keyframes breathe { 0%,100%{opacity:.42} 50%{opacity:.72} }
+  @media (max-height:650px) { .tower{height:60vh;bottom:14%} .title{top:5%} }
+</style>
+</head>
+<body>
+<main class="scene" aria-label="A small tower glowing with Diwali lamps at dusk">
+  <div class="moon"></div><div class="distant"></div>
+  <div class="title"><div class="eyebrow">A festival night</div><h1>Light finds<br>its way home.</h1></div>
+  <div class="tower">
+    <svg viewBox="0 0 400 590" role="img" aria-label="Illustration of a little sandstone tower decorated with oil lamps">
+      <defs>
+        <linearGradient id="stone" x2="1" y2=".2"><stop stop-color="#a65355"/><stop offset=".52" stop-color="#d27a58"/><stop offset="1" stop-color="#743d52"/></linearGradient>
+        <linearGradient id="roof" x2="0" y2="1"><stop stop-color="#f4b66c"/><stop offset="1" stop-color="#a55255"/></linearGradient>
+        <radialGradient id="lampGlow"><stop stop-color="#ffd66d" stop-opacity=".8"/><stop offset="1" stop-color="#ffb44b" stop-opacity="0"/></radialGradient>
+        <filter id="soft"><feGaussianBlur stdDeviation="15"/></filter>
+      </defs>
+      <!-- aura -->
+      <ellipse class="glow" cx="200" cy="376" rx="154" ry="148" fill="url(#lampGlow)" filter="url(#soft)"/>
+      <!-- foundation and little steps -->
+      <path d="M66 534h268l19 28H47z" fill="#4d3045"/><path d="M81 519h238l15 18H66z" fill="#9e5552"/><path d="M101 508h198v14H101z" fill="#e29360"/>
+      <!-- tower body -->
+      <path d="M119 302h162v206H119z" fill="url(#stone)"/>
+      <path d="M119 302h19v206h-19z" fill="#f3aa69" opacity=".24"/><path d="M267 302h14v206h-14z" fill="#452d46" opacity=".4"/>
+      <!-- cornice -->
+      <path d="M107 294h186l-9 20H116z" fill="#f0aa69"/><path d="M99 287h202v10H99z" fill="#7d4050"/>
+      <!-- arched windows -->
+      <g fill="#271f38" stroke="#f6b875" stroke-width="5">
+        <path d="M145 376v-33a27 27 0 0 1 54 0v33z"/><path d="M201 376v-33a27 27 0 0 1 54 0v33z"/>
+        <path d="M164 489v-47a36 36 0 0 1 72 0v47z"/>
+      </g>
+      <g stroke="#eaa36a" stroke-width="2" opacity=".65"><path d="M172 318v58m-15-29h30M228 318v58m-15-29h30M200 410v78m-25-39h50"/></g>
+      <!-- tower crown -->
+      <path d="M129 280h142l-17-39h-108z" fill="url(#roof)"/><path d="M144 235h112l-17-46h-78z" fill="#c86e59"/><path d="M163 187h74l-14-39h-46z" fill="url(#roof)"/>
+      <path d="M173 149l27-44 27 44z" fill="#f0b36e"/><path d="M193 105h14V87h-14z" fill="#e6a669"/><circle cx="200" cy="80" r="7" fill="#ffd886"/>
+      <path d="M119 280h162v8H119zM143 235h114v8H143zM162 187h76v8h-76z" fill="#713b4b" opacity=".8"/>
+      <!-- tiny parapet details -->
+      <g fill="#e5a269"><path d="M130 265h9v15h-9zm23 0h9v15h-9zm23 0h9v15h-9zm23 0h9v15h-9zm23 0h9v15h-9zm23 0h9v15h-9zm23 0h9v15h-9z"/></g>
+      <!-- rangoli at the threshold -->
+      <g transform="translate(200 516)" fill="none" stroke="#ffd47e" stroke-width="1.8" opacity=".9"><circle r="24"/><circle r="15"/><path d="M0-31q12 14 0 27Q-12-17 0-31zm31 31Q17 12 4 0Q17-12 31 0zM0 31Q-12 17 0 4Q12 17 0 31zm-31 0Q-17-12-4 0Q-17 12-31 0z"/><circle r="3" fill="#ffd47e"/></g>
+      <!-- diyas along ledges -->
+      <g class="flame"><g transform="translate(101 289)"><ellipse cx="0" cy="1" rx="22" ry="17" fill="url(#lampGlow)"/><path d="M-12 0Q0 14 12 0L8 5H-8z" fill="#e8a35e"/><path d="M0 0Q-7-9 1-18Q7-9 0 0" fill="#ffe08a"/></g></g>
+      <g class="flame" style="animation-delay:.4s"><g transform="translate(299 289)"><ellipse cx="0" cy="1" rx="22" ry="17" fill="url(#lampGlow)"/><path d="M-12 0Q0 14 12 0L8 5H-8z" fill="#e8a35e"/><path d="M0 0Q-7-9 1-18Q7-9 0 0" fill="#ffe08a"/></g></g>
+      <g class="flame" style="animation-delay:.9s"><g transform="translate(112 420)"><ellipse cx="0" cy="1" rx="20" ry="16" fill="url(#lampGlow)"/><path d="M-10 0Q0 12 10 0L7 4H-7z" fill="#e8a35e"/><path d="M0 0Q-6-8 1-16Q6-8 0 0" fill="#ffe08a"/></g></g>
+      <g class="flame" style="animation-delay:.2s"><g transform="translate(288 420)"><ellipse cx="0" cy="1" rx="20" ry="16" fill="url(#lampGlow)"/><path d="M-10 0Q0 12 10 0L7 4H-7z" fill="#e8a35e"/><path d="M0 0Q-6-8 1-16Q6-8 0 0" fill="#ffe08a"/></g></g>
+      <g class="flame" style="animation-delay:.7s"><g transform="translate(130 507)"><ellipse cx="0" cy="1" rx="20" ry="16" fill="url(#lampGlow)"/><path d="M-10 0Q0 12 10 0L7 4H-7z" fill="#e8a35e"/><path d="M0 0Q-6-8 1-16Q6-8 0 0" fill="#ffe08a"/></g></g>
+      <g class="flame" style="animation-delay:1.1s"><g transform="translate(270 507)"><ellipse cx="0" cy="1" rx="20" ry="16" fill="url(#lampGlow)"/><path d="M-10 0Q0 12 10 0L7 4H-7z" fill="#e8a35e"/><path d="M0 0Q-6-8 1-16Q6-8 0 0" fill="#ffe08a"/></g></g>
+    </svg>
+  </div>
+  <div class="caption">A little light, shared by all</div>
+  <i class="spark" style="left:22%;top:33%;animation-delay:.3s"></i><i class="spark" style="left:79%;top:25%;animation-delay:1.4s"></i><i class="spark" style="left:68%;top:48%;animation-delay:.8s"></i><i class="spark" style="left:31%;top:57%;animation-delay:2s"></i><i class="spark" style="left:87%;top:63%;animation-delay:.1s"></i><i class="spark" style="left:12%;top:49%;animation-delay:1.8s"></i>
+</main>
+</body>
+</html>

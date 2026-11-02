@@ -19,6 +19,12 @@ import { StreamSettings } from "./StreamSettings.js";
 import { ActionBar } from "./ActionBar.js";
 import "./settings.css";
 
+// One-click Codex vs Codex setup. No runner: the launch default (Docker) applies.
+const DEFAULT_SESSIONS: SessionConfig[] = [
+  { id: "session-1", cli: "codex", model: "gpt-6-luna", effort: "medium" },
+  { id: "session-2", cli: "codex", model: "gpt-5.6-luna", effort: "medium" },
+];
+
 // This dedicated host page keeps unsaved edits local while live snapshots update alongside it.
 export function QuickSettings({
   state,
@@ -35,9 +41,12 @@ export function QuickSettings({
     {},
   );
   const { busy, error, notice, setBusy, setError, setNotice, run } = useHostAction();
+  // Opened from the session controls, the arena's CLI sessions tab does not apply.
+  const fromSession =
+    new URLSearchParams(location.search).get("from") === "session";
   const [section, setSection] = useState<
     "sessions" | "stream" | "media" | "jev"
-  >("sessions");
+  >(fromSession ? "stream" : "sessions");
   const [harness, setHarness] = useState(false);
   // Consent typed in the harness form, sent with the next full save.
   const [nativeConsent, setNativeConsent] = useState<string>();
@@ -220,7 +229,7 @@ export function QuickSettings({
             ["media", "Break media"],
             ["jev", "Jev"],
           ] as const
-        ).map(([id, label]) => (
+        ).filter(([id]) => !(fromSession && id === "sessions")).map(([id, label]) => (
           <button
             key={id}
             disabled={busy}
@@ -255,9 +264,24 @@ export function QuickSettings({
                   Independent sessions. Model changes apply next round.
                 </p>
               </div>
-              <span className="qs-badge">
-                {draft.sessions.length} / 2 slots
-              </span>
+              <div className="qs-row">
+                <button
+                  disabled={busy || stale}
+                  title="session-1: codex · gpt-6-luna · medium, session-2: codex · gpt-5.6-luna · medium"
+                  onClick={() => {
+                    setDraft({ ...draft, sessions: structuredClone(DEFAULT_SESSIONS) });
+                    setHarness(false);
+                    setNotice(
+                      "Sessions reset to Codex gpt-6-luna (medium) vs Codex gpt-5.6-luna (medium). Save settings to apply them next round.",
+                    );
+                  }}
+                >
+                  Reset to Codex vs Codex
+                </button>
+                <span className="qs-badge">
+                  {draft.sessions.length} / 2 slots
+                </span>
+              </div>
             </div>
             {CLIS
               .filter((cli) => draft.sessions.some((s) => s.cli === cli))

@@ -9,6 +9,10 @@ export const help = `Prompt Arena guided startup
 
   ./check_stream_start.sh [--cli codex|cursor|claude] [--mode live|rehearsal] [--runner docker|native] [--direct-preview] [--verify] [--non-interactive] [--chat yt|twitch|kick] [--skip yt|twitch|kick] [--prompts] [--no-prompts]
   ./start_stream.sh       [--cli codex|cursor|claude] [--mode live|rehearsal] [--runner docker|native] [--direct-preview] [--verify] [--chat yt|twitch|kick] [--skip yt|twitch|kick] [--prompts] [--no-prompts] [--chats]
+  ./start_arena.sh        [same flags as start_stream.sh]   prompt arena controls (guided flow, even with no flags)
+  ./start_sessions.sh     [--chats]                         session mode controls (welcome page)
+
+OBS is optional at startup: if it is not open yet, the launcher warns and continues.
 
 --chats turns on the chat history feed (/chat and /chats/prompts OBS pages). It is off by default.
 Check defaults to live readiness. Start offers rehearsal/live and Docker/native choices.

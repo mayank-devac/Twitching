@@ -352,7 +352,11 @@ export class Docker {
       await rpc.initialize({ name: "prompt_arena", version: clientVersion });
       const profile = await rpc.call("config/read", { includeLayers: false }, configRead);
       assertCodexProfile(profile.config);
-      const { account } = await rpc.call("account/read", { refreshToken: true }, accountRead);
+      // Never force a refresh here: Codex rotates the refresh token on every
+      // refresh, which signs out every other copy of this login (the host
+      // ~/.codex and any running session's sandbox). Codex still refreshes on
+      // its own when the access token has actually expired.
+      const { account } = await rpc.call("account/read", { refreshToken: false }, accountRead);
       if (account?.type !== "chatgpt")
         return { account: account?.type, models: [], limits: {} };
       const models: CodexModel[] = [];

@@ -29,6 +29,11 @@ import { maybeVerify } from "./stream/verify.js";
 
 const args = process.argv.slice(2);
 const command = args.shift();
+// `start arena` always runs the guided prompt-arena flow; `start sessions` always
+// opens the session-mode welcome page. Plain `start` keeps the old behaviour.
+let launch: "arena" | "sessions" | undefined;
+if (command === "start" && (args[0] === "arena" || args[0] === "sessions"))
+  launch = args.shift() as "arena" | "sessions";
 // `send` talks to the already running app, so it skips the launcher entirely.
 if (command === "send" || (command === "start" && args[0] === "send")) {
   if (command === "start") args.shift();
@@ -44,7 +49,13 @@ if (chatsFlag !== -1) {
   process.env.TWITCHING_CHATS = "1";
 }
 // Flags retain the guided arena flow; no flags opens the idle local welcome UI.
-if (command === "start" && args.length === 0) {
+if (launch === "sessions" && args.length > 0) {
+  console.error(
+    "Session mode accepts only --chats: ./start_sessions.sh [--chats]\nArena flags belong to ./start_arena.sh.",
+  );
+  process.exit(2);
+}
+if (command === "start" && (launch === "sessions" || (!launch && args.length === 0))) {
   await import("./welcome-launcher.js");
   await new Promise(() => {});
 }

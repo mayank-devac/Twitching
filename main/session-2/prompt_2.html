@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Festival of Lights</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#100d20}body{font-family:Georgia,'Times New Roman',serif;color:#fff4d2}canvas{display:block;width:100%;height:100%}.caption{position:absolute;left:7%;top:7%;pointer-events:none;text-shadow:0 2px 18px #130d25}.eyebrow{font:10px/1.4 system-ui,sans-serif;letter-spacing:.32em;text-transform:uppercase;color:#ffc978}.title{font-size:clamp(24px,4vw,48px);font-weight:400;letter-spacing:.06em;margin-top:10px}.sub{font-size:clamp(11px,1.5vw,15px);color:#f1c79c;letter-spacing:.12em;margin-top:8px}.frame{position:absolute;inset:14px;border:1px solid #ffcf8650;pointer-events:none}.frame:before,.frame:after{content:'✦';position:absolute;color:#f7bc66;font-size:12px}.frame:before{top:-7px;left:-6px}.frame:after{right:-6px;bottom:-7px}
+</style>
+</head>
+<body>
+<canvas id="scene" aria-label="A glowing tower surrounded by Diwali lamps and a starry night sky"></canvas>
+<div class="caption"><div class="eyebrow">A night of a thousand lights</div><div class="title">दीपोत्सव</div><div class="sub">A little tower, aglow</div></div>
+<div class="frame"></div>
+<script>
+(()=>{const c=document.getElementById('scene'),x=c.getContext('2d');let w,h,dpr,t=0,seed=42;const rnd=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296};let stars=[],petals=[];
+function resize(){dpr=Math.min(devicePixelRatio||1,2);w=innerWidth;h=innerHeight;c.width=w*dpr;c.height=h*dpr;x.setTransform(dpr,0,0,dpr,0,0);seed=42;stars=Array.from({length:130},()=>({x:rnd()*w,y:rnd()*h*.68,r:.4+rnd()*1.5,a:.2+rnd()*.6,p:rnd()*6.3}));petals=Array.from({length:26},()=>({x:rnd()*w,y:rnd()*h,v:.15+rnd()*.45,s:2+rnd()*4,p:rnd()*6.3}))}addEventListener('resize',resize);resize();
+function glow(px,py,r,color){let g=x.createRadialGradient(px,py,0,px,py,r);g.addColorStop(0,color);g.addColorStop(1,'transparent');x.fillStyle=g;x.fillRect(px-r,py-r,r*2,r*2)}
+function path(points,fill,stroke='#0000',lw=1){x.beginPath();points.forEach((p,i)=>i?x.lineTo(...p):x.moveTo(...p));x.closePath();x.fillStyle=fill;x.fill();if(stroke!=='#0000'){x.strokeStyle=stroke;x.lineWidth=lw;x.stroke()}}
+function tower(cx,base,scale){x.save();x.translate(cx,base);x.scale(scale,scale);
+// shadow and base plinth
+glow(0,-15,180,'#ef743b30');path([[-116,0],[-92,-18],[92,-18],[116,0],[100,15],[-100,15]],'#493046','#d99159',1.2);path([[-90,-18],[-73,-34],[73,-34],[90,-18]],'#765044','#f2ba6a',1);
+// lower chamber
+path([[-75,-34],[-66,-123],[-48,-143],[48,-143],[66,-123],[75,-34]],'#b85439','#f5bc70',1.5);
+path([[-58,-46],[-53,-116],[-39,-133],[39,-133],[53,-116],[58,-46]],'#632f42','#ffce7c',1.2);
+// glowing arched doorway
+x.beginPath();x.moveTo(-19,-34);x.lineTo(-19,-85);x.quadraticCurveTo(0,-112,19,-85);x.lineTo(19,-34);x.closePath();x.fillStyle='#211a30';x.fill();x.strokeStyle='#ffdc93';x.lineWidth=2;x.stroke();glow(0,-67,40,'#ff9b40aa');
+// side windows
+for(const q of [-1,1]){x.beginPath();x.moveTo(q*40,-47);x.lineTo(q*40,-83);x.quadraticCurveTo(q*52,-100,q*57,-82);x.lineTo(q*57,-47);x.closePath();x.fillStyle='#ffc45b';x.fill();x.strokeStyle='#ffe0a0';x.lineWidth=1.5;x.stroke();glow(q*49,-70,27,'#ffac45aa')}
+// middle cornice and upper tier
+path([[-82,-123],[-70,-137],[70,-137],[82,-123],[70,-114],[-70,-114]],'#e59a54','#ffe0a0',1.2);
+path([[-52,-137],[-43,-207],[-27,-225],[27,-225],[43,-207],[52,-137]],'#bd6745','#ffd186',1.3);path([[-35,-147],[-31,-198],[-20,-214],[20,-214],[31,-198],[35,-147]],'#743b48','#ffe2a0',1);
+for(const q of [-1,1]){x.beginPath();x.moveTo(q*7,-138);x.lineTo(q*7,-180);x.quadraticCurveTo(0,-194,-q*7,-180);x.lineTo(-q*7,-138);x.fillStyle='#ffc35a';x.fill();glow(0,-164,28,'#ffb34b99')}
+path([[-62,-207],[-48,-220],[48,-220],[62,-207],[48,-198],[-48,-198]],'#e6a55d','#ffe0a0');
+// crown
+path([[-30,-220],[-23,-259],[0,-278],[23,-259],[30,-220]],'#a74e48','#ffd88e',1.4);path([[-37,-257],[-25,-265],[25,-265],[37,-257],[25,-250],[-25,-250]],'#edb160','#ffe9ab',1);x.beginPath();x.arc(0,-282,5,0,Math.PI*2);x.fillStyle='#fff0b0';x.fill();glow(0,-282,35,'#ffcc6777');
+// decorative verticals and string lights
+for(let yy=-116;yy>-223;yy-=82){for(let q of [-1,1]){x.beginPath();x.arc(q*68,yy,3,0,Math.PI*2);x.fillStyle='#ffe6a0';x.fill();glow(q*68,yy,20,'#ffbc5a90')}}
+x.strokeStyle='#ffcf7d';x.lineWidth=2;x.beginPath();x.moveTo(-82,-118);x.quadraticCurveTo(-55,-95,0,-108);x.quadraticCurveTo(53,-120,82,-98);x.stroke();for(let i=0;i<=8;i++){let u=i/8,xx=-82+164*u,yy=-118+18*Math.sin(u*Math.PI);x.beginPath();x.arc(xx,yy+5,2.6,0,7);x.fillStyle=i%2?'#ffe69a':'#ff8c51';x.fill();glow(xx,yy+5,14,i%2?'#ffdb79aa':'#ff805dcc')}
+x.restore()}
+function lamp(px,py,s){x.save();x.translate(px,py);x.scale(s,s);glow(0,-7,45,'#ff9d38aa');x.beginPath();x.moveTo(-23,0);x.quadraticCurveTo(-15,16,0,16);x.quadraticCurveTo(15,16,23,0);x.quadraticCurveTo(0,8,-23,0);x.fillStyle='#c8673b';x.fill();x.strokeStyle='#ffc879';x.lineWidth=1.5;x.stroke();x.beginPath();x.ellipse(0,0,23,5,0,0,7);x.fillStyle='#f6b764';x.fill();x.beginPath();x.ellipse(0,-2,8,3,0,0,7);x.fillStyle='#fff0b4';x.fill();x.restore()}
+function draw(){t+=.016;x.clearRect(0,0,w,h);let sky=x.createLinearGradient(0,0,0,h);sky.addColorStop(0,'#17132c');sky.addColorStop(.55,'#3a2440');sky.addColorStop(1,'#182235');x.fillStyle=sky;x.fillRect(0,0,w,h);
+// moon
+let mx=w*.79,my=h*.2;x.beginPath();x.arc(mx,my,Math.min(w,h)*.052,0,7);x.fillStyle='#ffe5ae';x.fill();x.globalCompositeOperation='destination-out';x.beginPath();x.arc(mx+12,my-8,Math.min(w,h)*.052,0,7);x.fill();x.globalCompositeOperation='source-over';glow(mx,my,95,'#ffdc9a1c');
+for(const s of stars){let a=s.a*(.65+.35*Math.sin(t*1.2+s.p));x.globalAlpha=a;x.fillStyle='#ffe8bc';x.beginPath();x.arc(s.x,s.y,s.r,0,7);x.fill()}x.globalAlpha=1;
+// distant silhouettes
+x.fillStyle='#20243a';x.beginPath();x.moveTo(0,h*.66);for(let i=0;i<=w;i+=24)x.lineTo(i,h*.65+Math.sin(i*.009)*16+Math.sin(i*.023)*8);x.lineTo(w,h);x.lineTo(0,h);x.fill();
+// garden floor
+let fg=x.createLinearGradient(0,h*.67,0,h);fg.addColorStop(0,'#26313a');fg.addColorStop(1,'#111c29');x.fillStyle=fg;x.fillRect(0,h*.67,w,h*.33);
+// rangoli rings
+let rcx=w*.5,ry=h*.84;x.save();x.translate(rcx,ry);for(let i=0;i<5;i++){x.beginPath();x.ellipse(0,0,75+i*22,17+i*7,0,0,7);x.strokeStyle=`rgba(255,190,112,${.48-i*.07})`;x.lineWidth=1;x.stroke()}for(let i=0;i<16;i++){let a=i*Math.PI/8;x.beginPath();x.ellipse(Math.cos(a)*115,Math.sin(a)*36,5,12,a,0,7);x.fillStyle=i%2?'#c78375':'#e7b365';x.globalAlpha=.7;x.fill()}x.globalAlpha=1;x.restore();
+let sc=Math.min(w/960,h/1044);tower(w*.5,h*.735,sc);lamp(w*.19,h*.79,sc*.8);lamp(w*.81,h*.79,sc*.8);lamp(w*.34,h*.88,sc*.64);lamp(w*.66,h*.88,sc*.64);
+// drifting petals
+for(const p of petals){p.y+=p.v;p.x+=Math.sin(t+p.p)*.22;if(p.y>h+8){p.y=-8;p.x=rnd()*w}x.save();x.translate(p.x,p.y);x.rotate(t*.3+p.p);x.fillStyle='#f3ad88';x.globalAlpha=.45;x.beginPath();x.ellipse(0,0,p.s,p.s*.48,.5,0,7);x.fill();x.restore()}x.globalAlpha=1;
+// small firefly glints
+for(let i=0;i<9;i++){let fx=w*(.12+.76*((i*0.137+t*.012)%1)),fy=h*(.53+((i*37)%100)/250);let a=.35+.65*Math.sin(t*2+i)**2;glow(fx,fy,12,`rgba(255,204,107,${a*.5})`);x.fillStyle=`rgba(255,231,165,${a})`;x.fillRect(fx-1,fy-1,2,2)}requestAnimationFrame(draw)}draw()})();
+</script>
+</body>
+</html>

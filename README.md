@@ -118,11 +118,25 @@ To install the one-command launcher, run this once from the repository:
 source ~/.zshrc
 ```
 
+This installs three commands:
+
+| Command | Opens | Flags |
+| --- | --- | --- |
+| `start_arena` | **Prompt arena controls**: the guided arena startup (rehearsal/live, Docker/native, sessions, checks), even with no flags | Same flags as `./start_stream.sh` |
+| `start_sessions` | **Session mode controls**: the welcome page for coding sessions | `--chats` only |
+| `start_stream` | Old behaviour: no flags opens the welcome page, any flag runs the guided arena | All |
+
 ```sh
-start_stream
+start_arena                        # prompt arena
+start_arena --mode rehearsal --codex
+start_sessions                     # session mode
 ```
-Run `start_stream` to open Twitching. 
-`start_stream` opens the welcome page. The page lets you choose the sandbox (Docker) or native runner. If Docker is not reachable and Colima is installed, the launcher starts Colima and uses its isolated Docker socket automatically. The installer only adds a marked function to `~/.zshrc`; it does not copy credentials.
+
+Without the installer, run the files directly: `./start_arena.sh` and `./start_sessions.sh`.
+
+If Docker is not reachable and Colima is installed, each command starts Colima and uses its isolated Docker socket automatically. The installer only adds a marked block of functions to `~/.zshrc`; it does not copy credentials. Rerunning it after an older install replaces the old `start_stream` block, and keeps a backup at `~/.zshrc.twitching-backup`.
+
+**OBS is optional at startup.** If OBS is closed or the overlay Browser Source is missing, the launcher prints a `WARNING` with the setup steps and continues. You can open OBS later. A **live** broadcast still needs OBS running when you confirm the public start.
 
 With **Docker Desktop insalled**
 ```sh
@@ -160,6 +174,7 @@ On this Mac, Colima is configured for **4 CPUs, 6 GB RAM and a 12 GB container d
 
 - **Check:** defaults to live readiness; starts no broadcast or coding job.
 - **Start without flags:** opens the idle welcome UI. **Start with flags:** keeps the guided arena readiness and launch flow.
+- **`./start_arena.sh`** always runs the guided arena flow; **`./start_sessions.sh`** always opens session mode.
 - **First run:** choose private rehearsal and Docker. Public mode requires a recorded rehearsal confirmation.
 
 Keep the terminal open. **Ctrl+C ends the activated show and broadcast.**
@@ -285,6 +300,9 @@ With a prompt list, the next task starts after the result hold. After the last t
 
 | Goal | Command |
 | --- | --- |
+| Prompt arena controls (guided) | `./start_arena.sh` |
+| Session mode controls | `./start_sessions.sh` |
+| Session mode with OBS chat feeds | `./start_sessions.sh --chats` |
 | Private rehearsal | `./start_stream.sh --mode rehearsal --runner docker` |
 | Live show | `./start_stream.sh --mode live --runner docker` |
 | Codex only | `./start_stream.sh --codex` |
@@ -343,7 +361,8 @@ Failures print specific fixes. Interactive checks offer image builds, network se
 - Going public requires scene, audio and webhook confirmation, then a final **yes**.
 - If the script starts a public broadcast but controller startup fails, it stops that broadcast.
 - Failed prerequisite checks do not stop a pre-existing broadcast.
-- OBS checks confirm source configuration. Rehearsal must confirm visibility and audible audio.
+- OBS checks confirm source configuration. A missing OBS or overlay source only warns, so OBS can be opened later. Rehearsal must confirm visibility and audible audio.
+- Loading Codex models (**Load models**, **Run a new harness**) does not force a login refresh. A forced refresh rotated the Codex refresh token and signed out other copies of the same login (your `~/.codex` and running session sandboxes). For Codex vs Codex on separate accounts, run `npm run sandbox:login:codex -- 2` once; session 2 then uses `runtime/auth/codex-2`.
 
 ### Native agents: explicit opt-in
 

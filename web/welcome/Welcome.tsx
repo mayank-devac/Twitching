@@ -468,7 +468,7 @@ export function Welcome({
             />
           )}
         <ChatMenu />
-        <a className="quick-settings-link" href="/control/settings" aria-label="Quick settings">
+        <a className="quick-settings-link" href="/control/settings?from=session" aria-label="Quick settings">
           <img className="header-tool-icon" src={settingsIcon} alt="" />
           <span className="header-tool-label">Quick settings ↗</span>
         </a>

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>After Hours · Desk & Cat</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #10151a; }
+  body { display: grid; place-items: center; font-family: Georgia, 'Times New Roman', serif; }
+  .frame { width: min(100vw, 91.954vh); height: min(100vh, 108.75vw); aspect-ratio: 80 / 87; overflow: hidden; position: relative; background: #171d23; box-shadow: 0 24px 90px #05080cb0; }
+  svg { display: block; width: 100%; height: 100%; }
+  .grain { position: absolute; inset: 0; pointer-events: none; opacity: .13; mix-blend-mode: soft-light; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.88' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E"); }
+  @media (prefers-reduced-motion: no-preference) { .blink { animation: blink 5.5s infinite; transform-origin: center; } .cursor { animation: breathe 2.8s steps(2,end) infinite; } @keyframes blink { 0%, 45%, 49%, 100% { opacity: 1; } 47% { opacity: .12; } } @keyframes breathe { 50% { opacity: .18; } } }
+</style>
+</head>
+<body>
+<main class="frame" aria-label="A cozy illustrated home computer desk at night, with a cat beside it">
+<svg viewBox="0 0 960 1044" role="img" aria-labelledby="title desc" xmlns="http://www.w3.org/2000/svg">
+<title id="title">After Hours</title><desc id="desc">A warmly lit computer desk in a quiet room at night, with a sleepy cat watching from the right.</desc>
+<defs>
+ <linearGradient id="wall" x2="0" y2="1"><stop stop-color="#283743"/><stop offset="1" stop-color="#18232c"/></linearGradient>
+ <linearGradient id="desk" x2="0" y2="1"><stop stop-color="#735142"/><stop offset=".12" stop-color="#533d36"/><stop offset="1" stop-color="#302b2b"/></linearGradient>
+ <linearGradient id="screen" x2="0" y2="1"><stop stop-color="#274553"/><stop offset="1" stop-color="#142b38"/></linearGradient>
+ <radialGradient id="glow"><stop stop-color="#f3c780" stop-opacity=".42"/><stop offset="1" stop-color="#f3c780" stop-opacity="0"/></radialGradient>
+ <linearGradient id="fur" x2=".8" y2="1"><stop stop-color="#d8b895"/><stop offset="1" stop-color="#967560"/></linearGradient>
+ <filter id="shadow"><feGaussianBlur stdDeviation="18"/></filter>
+ <filter id="soft"><feGaussianBlur stdDeviation="3"/></filter>
+</defs>
+<!-- quiet midnight room -->
+<rect width="960" height="1044" fill="url(#wall)"/>
+<path d="M0 0h960v58H0z" fill="#111c24"/><path d="M0 58h960" stroke="#70808a" stroke-opacity=".15"/>
+<rect x="54" y="102" width="264" height="294" rx="4" fill="#101a22" stroke="#52606a" stroke-width="5"/>
+<rect x="66" y="114" width="240" height="270" fill="#263b48"/>
+<path d="M67 296q54-75 111-26t128-35v150H67z" fill="#334e59"/><path d="M67 331q67-46 117-13t122-20v86H67z" fill="#253d48"/>
+<path d="M190 115v269M67 249h239" stroke="#101b23" stroke-width="8"/>
+<circle cx="249" cy="172" r="20" fill="#e2bd7e" opacity=".9"/><circle cx="249" cy="172" r="38" fill="#e2bd7e" opacity=".1"/>
+<path d="M40 404h290" stroke="#111a20" stroke-width="18"/>
+<!-- pinboard and art -->
+<rect x="692" y="103" width="218" height="178" rx="3" fill="#aa886a" opacity=".42"/>
+<rect x="710" y="121" width="86" height="111" fill="#d7c6a4"/><path d="M724 210q28-54 58-5M722 177q24-28 58-4" fill="none" stroke="#42616a" stroke-width="5"/>
+<rect x="813" y="121" width="78" height="111" fill="#e4d8c0"/><path d="M827 208l22-48 29 48z" fill="#b97960"/><circle cx="856" cy="148" r="12" fill="#d4a967"/>
+<circle cx="704" cy="109" r="5" fill="#d29b64"/><circle cx="900" cy="109" r="5" fill="#d29b64"/>
+<!-- trailing plant -->
+<path d="M877 344q-4-92 28-135M886 289q-36-7-40-40 30 0 40 40M891 264q30-18 27-45-25 7-27 45M884 321q-39 3-48-21 29-9 48 21" fill="none" stroke="#769076" stroke-width="7" stroke-linecap="round"/>
+<path d="M840 346h85l-9 68h-67z" fill="#bb795c"/><path d="M835 345h95v13h-95z" fill="#d18e68"/>
+<!-- wall glow -->
+<ellipse cx="482" cy="574" rx="420" ry="345" fill="url(#glow)"/>
+<!-- lamp -->
+<ellipse cx="166" cy="592" rx="125" ry="25" fill="#090e12" opacity=".5" filter="url(#shadow)"/>
+<path d="M174 523l-35-131 13-4 47 135" fill="none" stroke="#d2a16e" stroke-width="13" stroke-linecap="round"/>
+<path d="M130 394q3-72 70-54l32 69-91 11z" fill="#e7bd7a"/><path d="M130 394l102 15" stroke="#f5d49a" stroke-width="5"/>
+<circle cx="181" cy="436" r="104" fill="#ffc978" opacity=".12" filter="url(#soft)"/>
+<ellipse cx="178" cy="527" rx="78" ry="12" fill="#e8b779" opacity=".14"/>
+<!-- desk silhouette and wood -->
+<path d="M0 591q178-20 347-6t302-2q177-13 311 7v454H0z" fill="#11191e" opacity=".38"/>
+<path d="M0 615q192-15 409-2t551-7v438H0z" fill="url(#desk)"/>
+<path d="M0 656q210-13 415 3t545-7M0 724q179-9 427 4t533-5M0 887q254-12 481 5t479-8" fill="none" stroke="#c08b67" stroke-opacity=".12" stroke-width="3"/>
+<path d="M112 1024l-19 20h278l-27-20M652 1024l-14 20h269l-27-20" fill="#252729"/>
+<!-- monitor -->
+<ellipse cx="503" cy="629" rx="254" ry="24" fill="#111315" opacity=".55" filter="url(#shadow)"/>
+<rect x="262" y="217" width="474" height="307" rx="14" fill="#10161b" stroke="#3b444a" stroke-width="5"/>
+<rect x="279" y="234" width="440" height="273" rx="5" fill="url(#screen)"/>
+<!-- monitor night landscape -->
+<circle cx="611" cy="296" r="29" fill="#e2c98e" opacity=".87"/><circle cx="620" cy="286" r="25" fill="#274553"/>
+<path d="M280 423q74-98 146-30 57-97 127-18 71-88 166-1v134H280z" fill="#203b43"/>
+<path d="M280 450q109-71 177-16 70-70 145-13 56-42 117-13v99H280z" fill="#172f38"/>
+<path d="M480 506q28-68 76-99 40 41 73 99" fill="#29434b"/>
+<path d="M492 506q29-54 64-77 36 41 55 77" fill="#314d52"/>
+<path d="M539 468v38" stroke="#e3bd79" stroke-width="3" opacity=".8"/><circle cx="538" cy="463" r="3" fill="#ffe0a1"/>
+<g fill="#f2d99f" opacity=".8"><circle cx="329" cy="276" r="2"/><circle cx="392" cy="318" r="2"/><circle cx="466" cy="267" r="1.7"/><circle cx="676" cy="356" r="2"/><circle cx="344" cy="371" r="1.5"/><circle cx="580" cy="250" r="1.4"/></g>
+<path d="M441 525h116l21 46H418z" fill="#45494b"/><path d="M394 570h209l17 18H378z" fill="#656568"/><path d="M393 588h213" stroke="#9c9a93" stroke-opacity=".4" stroke-width="2"/>
+<circle cx="499" cy="516" r="3" fill="#d0a46a"/>
+<!-- keyboard -->
+<path d="M305 658l349-2 61 94-460 2z" fill="#22272a" stroke="#424546" stroke-width="3"/>
+<path d="M325 670l311-1 9 13-329 1zM337 689l317-1 9 13-334 2zM350 710l310-2 10 13-329 2zM365 731l305-2 9 12-319 2z" fill="#586063"/>
+<g fill="#252d30"><path d="M342 672h23v8h-23zM375 672h23v8h-23zM408 672h23v8h-23zM441 672h23v8h-23zM474 672h23v8h-23zM507 672h23v8h-23zM540 672h23v8h-23zM573 672h23v8h-23zM606 672h19v8h-19z"/><path d="M351 692h25v8h-25zM386 692h25v8h-25zM421 692h25v8h-25zM456 692h25v8h-25zM491 692h25v8h-25zM526 692h25v8h-25zM561 692h25v8h-25zM596 692h25v8h-25z"/></g>
+<!-- mouse and mug -->
+<path d="M723 694q0-28 28-28t29 28v37q-3 28-29 28t-28-28z" fill="#bab0a0"/><path d="M778 704q36-6 29 23-3 15-29 14" fill="none" stroke="#bab0a0" stroke-width="8"/>
+<path d="M727 693h50" stroke="#e0d2ba" stroke-width="4"/><path d="M740 662q8-16 0-25m16 25q8-16 0-25" fill="none" stroke="#d8c7a8" stroke-width="3" opacity=".45"/>
+<path d="M683 691q5-20 24-20t24 20v40q-2 25-24 25t-24-25z" fill="#d2c5ad" stroke="#8a8174" stroke-width="3"/><path d="M730 699q23-4 23 15t-23 15" fill="none" stroke="#d2c5ad" stroke-width="7"/>
+<!-- scattered notes / pencil -->
+<path d="M82 780l167-10 8 86-170 13z" fill="#d8cba9"/><path d="M105 800l112-7m-109 21l88-6m-87 20l98-7" stroke="#7b776a" stroke-width="3" opacity=".55"/>
+<path d="M121 878l191-27 8 12-190 32z" fill="#b8815e"/><path d="M118 878l-20 8 19 9" fill="#d6ba91"/>
+<!-- tower tucked left -->
+<rect x="72" y="494" width="103" height="189" rx="9" fill="#303639" stroke="#4b5152" stroke-width="3"/>
+<path d="M86 509h75v158H86z" fill="#20282b"/><circle cx="124" cy="631" r="25" fill="#354144" stroke="#657074" stroke-width="3"/><circle cx="124" cy="631" r="4" fill="#dfb575"/>
+<path d="M92 523h61" stroke="#55736e" stroke-width="3"/><circle cx="148" cy="523" r="3" fill="#d9bc78"/>
+<!-- side cat, curled in a loaf on a small cushion -->
+<ellipse cx="827" cy="723" rx="126" ry="29" fill="#141516" opacity=".55" filter="url(#shadow)"/>
+<path d="M727 715q11-69 93-79 80-10 132 50l-7 40q-84 29-176 2z" fill="#7a5748"/>
+<path d="M730 708q68-14 125 2t96-8" fill="none" stroke="#b18467" stroke-width="3" opacity=".5"/>
+<!-- tail -->
+<path d="M891 690q64-38 74 4 8 37-43 33" fill="none" stroke="#ad896b" stroke-width="23" stroke-linecap="round"/>
+<path d="M892 689q41-22 56-7" fill="none" stroke="#e1c19b" stroke-width="4" stroke-linecap="round" opacity=".45"/>
+<!-- cat body -->
+<path d="M750 691q-8-73 35-103 50-35 111 9 39 28 39 77-3 54-91 57-77 2-94-40z" fill="url(#fur)"/>
+<path d="M784 620q25-54 81-37 43 12 51 62-27-24-52-7-35 25-80-18z" fill="#c5a384"/>
+<!-- ears -->
+<path d="M771 603l-9-59q0-10 10-3l47 37M846 578l34-45q9-8 12 3l2 60" fill="#b68f70" stroke="#8c6d5a" stroke-width="5" stroke-linejoin="round"/>
+<path d="M773 585l-3-31 29 24m62-4 24-31 0 42" fill="#c78379"/>
+<!-- face -->
+<path d="M767 610q8-51 58-54 54-3 73 42 12 34-21 59-43 26-82-1-32-20-28-46z" fill="#d8b895"/>
+<path d="M790 615q11-9 22 0" fill="none" stroke="#59493d" stroke-width="5" stroke-linecap="round" class="blink"/>
+<path d="M837 615q11-9 22 0" fill="none" stroke="#59493d" stroke-width="5" stroke-linecap="round" class="blink"/>
+<path d="M821 629l7 5 7-5q-6-6-14 0" fill="#9a6a66"/><path d="M828 634q-2 13-15 12m15-12q4 13 18 10" fill="none" stroke="#765747" stroke-width="3" stroke-linecap="round"/>
+<path d="M786 633l-45-8m45 19l-49 8m107-17l40-12m-40 23l43 7" fill="none" stroke="#786653" stroke-width="2" opacity=".7"/>
+<path d="M805 651q22 13 43 1" fill="none" stroke="#b68c6a" stroke-width="5" stroke-linecap="round"/>
+<!-- small ceramic lamp glint, desk details -->
+<path d="M0 614q191-14 396-1" stroke="#d6a579" stroke-opacity=".35" stroke-width="3"/>
+<circle cx="723" cy="614" r="3" fill="#edc478"/><path d="M786 781h116" stroke="#c7986e" stroke-opacity=".2"/>
+<!-- typography -->
+<text x="480" y="119" text-anchor="middle" fill="#f0d2a1" font-size="16" letter-spacing="6" font-family="Georgia,serif" opacity=".8">A QUIET LITTLE CORNER</text>
+<text x="480" y="176" text-anchor="middle" fill="#f4e8d2" font-size="34" letter-spacing="5" font-family="Georgia,serif">AFTER HOURS</text>
+<path d="M407 187h146" stroke="#d4a66f" stroke-width="1" opacity=".65"/>
+<text x="480" y="961" text-anchor="middle" fill="#e6c9a0" font-size="14" letter-spacing="4" opacity=".64">STAY A LITTLE LONGER</text>
+<rect class="cursor" x="922" y="1009" width="2" height="2" fill="#e1bd87"/>
+</svg><div class="grain"></div></main>
+</body>
+</html>
