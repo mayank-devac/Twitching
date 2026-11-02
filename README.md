@@ -25,7 +25,7 @@ Share what a coding CLI such as Codex or Claude Code is doing without sharing yo
 - Play music and visuals when the Codex account quota runs out.
 - assign goal timer .
 - Prompt arena: vs between models and harness. 
-- supports twitch, Codex, Cursor and Claude Code.
+- supports twitch, yt , kick. harness :Codex, Cursor and Claude Code.
 - add breaks between live_streams .
 - show chats from multiple platforms using OBS Browser source 
 
