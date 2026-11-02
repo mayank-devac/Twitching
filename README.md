@@ -96,8 +96,11 @@ cd Twitching
 
 ### 1. Prepare your machine
 
-- [ ] Install **Node.js 24+** and optional: Docker engine: **Colima** or **Docker Desktop**. 
-- [ ] Run `npm ci`.
+- [ ] Install **Node.js 24+** 
+- [ ] Run `npm ci`. 
+
+optional: 
+- [ ] Docker engine: **Colima** or **Docker Desktop**. 
 - [ ] Copy `.env.example` to `.env.local`; fill in credentials privately.
 - [ ] Supply your own `assets/break.mp3`; audio is not distributed.
 - [ ] Add blocked words in `settings.json`.
@@ -118,7 +121,7 @@ source ~/.zshrc
 ```sh
 start_stream
 ```
-Run `start_stream` to open Twitching.
+Run `start_stream` to open Twitching. 
 `start_stream` opens the welcome page. The page lets you choose the sandbox (Docker) or native runner. If Docker is not reachable and Colima is installed, the launcher starts Colima and uses its isolated Docker socket automatically. The installer only adds a marked function to `~/.zshrc`; it does not copy credentials.
 
 With **Docker Desktop insalled**
