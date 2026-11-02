@@ -25,6 +25,7 @@ import {
   type StopChoice,
 } from "./controller/options.js";
 import { newRound, recordActivity, stateView } from "./controller/round-state.js";
+import { HeavyPageError } from "./preview-heavy.js";
 export {
   roundSessionCount,
   type ChatPlatforms,
@@ -212,6 +213,8 @@ export class Controller extends EventEmitter {
         round: number,
         count: SessionCount,
       ): Promise<string>;
+      // Direct previews only: a note that the page may be slow.
+      warning?(agent: SessionId): string | undefined;
     },
     private integrations: Integrations,
     private options: ControllerOptions,
@@ -325,6 +328,7 @@ export class Controller extends EventEmitter {
       this.collection?.prepared ? this.preparedVersion() : undefined,
       configuredSessions(this.options),
       this.clean,
+      this.options.runnerMode === "native",
     );
   }
   // The serialized state last written, so idle ticks can skip identical writes.
@@ -730,10 +734,14 @@ export class Controller extends EventEmitter {
           id,
           roundSessionCount(this.state.round),
         );
+        attempt.previewWarning = this.preview.warning?.(agent);
         attempt.status = "complete";
-      } catch {
+      } catch (error) {
         attempt.status = "error";
-        attempt.error = "HTML missing, empty, or failed to load safely";
+        attempt.error =
+          error instanceof HeavyPageError
+            ? error.message
+            : "HTML missing, empty, or failed to load safely";
       }
     }
     if (outcome.failure === "auth")

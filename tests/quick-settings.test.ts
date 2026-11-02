@@ -43,6 +43,7 @@ const defaults = (): QuickPreferences => ({
   },
   jevCriteria: defaultCriteria,
   jevProbe: "Create a colourful bouncing ball animation",
+  directPreview: false,
   media: { visualFit: "fit" },
 });
 test("settings survive reload and a stale tab cannot overwrite a newer save", () => {

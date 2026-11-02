@@ -44,11 +44,32 @@ async function waitForDockerEngine(docker: Docker) {
   );
 }
 
+// Returns true when previews will skip Docker (direct preview), so callers can skip the isolated render check.
 export async function checkSandbox(
   docker: Docker,
   settings: Settings,
   runnerMode: RunnerMode,
+  requestedDirect = false,
 ) {
+  if (runnerMode === "native") {
+    if (requestedDirect) {
+      console.log("\nDirect preview: skipping the Docker checks. Pages will not be isolated.");
+      return true;
+    }
+    const engineUp = await docker
+      .command(["info", "--format", "{{.ServerVersion}}"])
+      .then(() => true, () => false);
+    // Ask only when Docker is down; a non-interactive start falls through to the normal failure advice.
+    if (
+      !engineUp &&
+      (await yes(
+        "\nDocker or Colima is not running. Native agents can show results straight in the browser instead (direct preview).\nPages are then not isolated, and a heavy page may be reloaded or paused. You can switch this later in Quick Settings.\nUse direct preview?",
+      ))
+    ) {
+      console.log("Direct preview on: skipping the Docker checks.");
+      return true;
+    }
+  }
   await repair(
     "Docker Desktop",
     () =>
@@ -130,4 +151,5 @@ export async function checkSandbox(
       }
     },
   );
+  return false;
 }

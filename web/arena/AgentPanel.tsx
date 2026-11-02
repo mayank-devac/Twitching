@@ -7,6 +7,7 @@ import { SafeMarkdown } from "../markdown.js";
 import { cliIdleLogo, cliLogo, cliName } from "../agents.js";
 import { attemptFailed } from "./arena-status.js";
 import { AttemptTimer } from "./timers.js";
+import { useFrameWatchdog } from "./use-frame-watchdog.js";
 
 // SafeMarkdown is memoised, so a parent re-render only re-parses changed text.
 function MarkdownText({ children }: { children: string }) {
@@ -46,6 +47,11 @@ export function AgentPanel({
   const previewTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
+  // Direct preview runs the page in this browser, so a stuck page is detected and reloaded here.
+  const direct = !!(state.quickSettings?.directPreview && state.quickSettings.nativeRunner);
+  const frame = useRef<HTMLIFrameElement>(null);
+  const watchdog = useFrameWatchdog(frame, direct && !!attempt?.preview, attempt?.preview);
+  const gaveUp = direct && watchdog.health === "gave-up";
   useEffect(() => {
     setLoaded(false);
     setFailed(false);
@@ -53,7 +59,7 @@ export function AgentPanel({
       previewTimer.current = setTimeout(() => setFailed(true), 10000);
       return () => clearTimeout(previewTimer.current);
     }
-  }, [attempt?.preview]);
+  }, [attempt?.preview, watchdog.attempt]);
   const textSize = useMemo(
     () => events.reduce((n, e) => n + e.text.length, 0),
     [events],
@@ -117,9 +123,18 @@ export function AgentPanel({
             {visibility.cliName && <h3>{cliLabel}</h3>}
             {model && <p>{model}</p>}
           </div>
-        ) : attempt?.status === "complete" && attempt.preview && !failed ? (
+        ) : attempt?.status === "complete" && attempt.preview && !failed && !gaveUp ? (
           <>
+            {host && direct && (
+              <div className="preview-note" role="status">
+                {watchdog.health === "slow"
+                  ? "This page is heavy and briefly froze. It is reloaded automatically if it stops responding."
+                  : (attempt.previewWarning ?? "Direct preview: this page runs in the browser without Docker isolation.")}
+              </div>
+            )}
             <iframe
+              ref={frame}
+              key={watchdog.attempt}
               title={`${agent} HTML result`}
               src={attempt.preview}
               sandbox="allow-scripts"
@@ -138,15 +153,22 @@ export function AgentPanel({
               </div>
             )}
           </>
-        ) : attemptFailed(attempt) || failed ? (
+        ) : attemptFailed(attempt) || failed || gaveUp ? (
           <div className="failure-card">
             <span>!</span>
-            <h3>{attempt?.status}</h3>
+            <h3>{gaveUp ? "preview paused" : attempt?.status}</h3>
             <p>
-              {visibility.error
-                ? (attempt?.error ?? "")
-                : "Error details hidden by overlay settings"}
+              {gaveUp
+                ? "This page was too heavy and stopped responding, so the preview was paused."
+                : visibility.error
+                  ? (attempt?.error ?? "")
+                  : "Error details hidden by overlay settings"}
             </p>
+            {host && gaveUp && (
+              <button type="button" className="preview-reload" onClick={watchdog.reload}>
+                Reload preview
+              </button>
+            )}
           </div>
         ) : (
           <div className="activity-log" ref={log}>

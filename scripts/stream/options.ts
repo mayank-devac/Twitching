@@ -7,8 +7,8 @@ import { CLIS, isCli, type Agent, type RunnerMode, type SessionConfig } from "..
 
 export const help = `Prompt Arena guided startup
 
-  ./check_stream_start.sh [--cli codex|cursor|claude] [--mode live|rehearsal] [--runner docker|native] [--verify] [--non-interactive] [--chat yt|twitch|kick] [--skip yt|twitch|kick] [--prompts] [--no-prompts]
-  ./start_stream.sh       [--cli codex|cursor|claude] [--mode live|rehearsal] [--runner docker|native] [--verify] [--chat yt|twitch|kick] [--skip yt|twitch|kick] [--prompts] [--no-prompts] [--chats]
+  ./check_stream_start.sh [--cli codex|cursor|claude] [--mode live|rehearsal] [--runner docker|native] [--direct-preview] [--verify] [--non-interactive] [--chat yt|twitch|kick] [--skip yt|twitch|kick] [--prompts] [--no-prompts]
+  ./start_stream.sh       [--cli codex|cursor|claude] [--mode live|rehearsal] [--runner docker|native] [--direct-preview] [--verify] [--chat yt|twitch|kick] [--skip yt|twitch|kick] [--prompts] [--no-prompts] [--chats]
 
 --chats turns on the chat history feed (/chat and /chats/prompts OBS pages). It is off by default.
 Check defaults to live readiness. Start offers rehearsal/live and Docker/native choices.
@@ -22,7 +22,8 @@ If that file already has tasks, prompt-list mode is used unless you pass --no-pr
 Native mode defaults to host prompts only; live chat is disabled unless explicitly enabled with --allow-native-chat (viewer prompts then run with your local-user permissions).
 --verify explicitly runs type checks, tests, fixture replay, build and (Docker mode) isolation tests.
 Without --verify, checks use saved CLI logins/models/quota and a temporary isolated preview.
-Check never starts a broadcast or coding round. Native agents still require Docker previews.
+Check never starts a broadcast or coding round. Native agents use Docker previews unless direct preview is on.
+--direct-preview (native runner only) shows generated pages straight in the browser with no Docker. Pages are not isolated, and a heavy page is reloaded or paused. When Docker is not running, an interactive start offers this instead. It is also a toggle in Quick Settings.
 Public starts require terminal confirmation. No credentials are requested or printed in this terminal.
 `;
 
@@ -37,6 +38,8 @@ export interface StreamOptions {
   ignorePrompts: boolean;
   // Explicit opt-in for viewer chat on the native runner; off unless --allow-native-chat.
   allowNativeChat: boolean;
+  // Native runner only: skip the Docker preview browser and show pages straight in the browser.
+  directPreview: boolean;
   singleAgent?: Agent;
   requestedSessions: SessionConfig[];
 }
@@ -63,6 +66,7 @@ export function parseStreamOptions(
     forcePrompts: false,
     ignorePrompts: false,
     allowNativeChat: false,
+    directPreview: false,
     requestedSessions: [],
   };
   const setSkip = (value: string, skip: boolean) => {
@@ -99,6 +103,7 @@ export function parseStreamOptions(
     else if (args[i] === "--runner" && (RUNNER_MODES as readonly string[]).includes(args[i + 1] ?? ""))
       options.runnerMode = args[++i] as StreamOptions["runnerMode"];
     else if (args[i] === "--allow-native-chat") options.allowNativeChat = true;
+    else if (args[i] === "--direct-preview") options.directPreview = true;
     else if (args[i] === "--prompts") options.forcePrompts = true;
     else if (args[i] === "--no-prompts") options.ignorePrompts = true;
     else if (args[i] === "--chat" && args[i + 1]) {

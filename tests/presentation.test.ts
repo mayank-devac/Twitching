@@ -205,7 +205,7 @@ test("hide clears public snapshots, reconnect stays hidden, reveal sends a full 
     sessions: [{ id: "session-1", cli: "codex", model: "fixture" }],
     visibility: { "session-1": { ...defaultVisibility } },
     stream: { mode: "rehearsal", youtube: false, twitch: false, kick: false, collectionMs: 1000, extensionMs: 1000, resultMs: 1000 },
-    jevCriteria: defaultCriteria, jevProbe: "Explain this function safely", media: {},
+    jevCriteria: defaultCriteria, jevProbe: "Explain this function safely", directPreview: false, media: {},
   });
   const port = await freePort();
   const origin = `http://127.0.0.1:${port}`;

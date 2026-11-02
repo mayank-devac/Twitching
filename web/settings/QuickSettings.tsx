@@ -335,6 +335,8 @@ export function QuickSettings({
               disabled={busy || !connected}
               change={(stream) => setDraft({ ...draft, stream })}
               action={(name) => void controlAction(name)}
+              directPreview={draft.directPreview}
+              changeDirectPreview={(directPreview) => setDraft({ ...draft, directPreview })}
             />
           </div>
           {section === "media" && (

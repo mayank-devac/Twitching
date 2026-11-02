@@ -98,7 +98,7 @@ try {
     );
   }
   console.log(
-    `\nPrompt Arena — ${mode.toUpperCase()} / ${runnerMode.toUpperCase()} AGENTS\nPreviews always use isolated Docker. No coding jobs have started.`,
+    `\nPrompt Arena — ${mode.toUpperCase()} / ${runnerMode.toUpperCase()} AGENTS\nPreviews use isolated Docker unless native agents opt into direct preview. No coding jobs have started.`,
   );
   const origin = controlOrigin(settings.host, settings.port);
   const { Store } = await import("../server/store.js");
@@ -135,7 +135,11 @@ try {
     settings.port,
   );
   const existing = running.existing;
-  await checkSandbox(docker, settings, runnerMode);
+  if (options.directPreview && runnerMode !== "native")
+    fix("--direct-preview needs native agents", "Add --runner native, or drop --direct-preview. Docker agents always use the isolated Docker preview.");
+  const directPreview = await checkSandbox(docker, settings, runnerMode, options.directPreview);
+  // The server child inherits this; it overrides the saved Quick Settings toggle for this run only.
+  if (directPreview) process.env.ARENA_DIRECT_PREVIEW = "1";
   await checkLocalSetup(settings, existing);
   const twitchPending =
     mode === "live"
@@ -182,6 +186,7 @@ try {
     origin,
     clean,
     privateValues,
+    directPreview,
   });
   await maybeVerify(options, runnerMode);
   const pendingChats = [

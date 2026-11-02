@@ -96,7 +96,7 @@ cd Twitching
 
 ### 1. Prepare your machine
 
-- [ ] Install **Node.js 24+** and a Docker engine: **Colima** or **Docker Desktop**. Docker is also required for native-agent previews.
+- [ ] Install **Node.js 24+** and optional: Docker engine: **Colima** or **Docker Desktop**. 
 - [ ] Run `npm ci`.
 - [ ] Copy `.env.example` to `.env.local`; fill in credentials privately.
 - [ ] Supply your own `assets/break.mp3`; audio is not distributed.
@@ -353,7 +353,7 @@ Failures print specific fixes. Interactive checks offer image builds, network se
 - **Cursor login:** Native subscription login; CLI must expose `--sandbox`
 - **Claude Code login:** The same saved `claude setup-token` token as Docker (`npm run sandbox:login:claude`); your Keychain login is not used. Runs `acceptEdits` plus Claude's OS sandbox (Seatbelt on macOS) and needs Claude Code 2.1.259 or later
 - **Models:** Exact requested models remain mandatory
-- **Previews:** Still require Docker
+- **Previews:** Use Docker by default. With no Docker engine running, an interactive start offers **direct preview**: results load straight in the browser. `--direct-preview` and the Quick Settings toggle also turn it on. Pages are then not isolated; a page that freezes is reloaded once, then paused, and big or endless-loop pages are warned about or refused before loading
 - **Cancellation/restart:** Process groups and ownership records
 - **Limitation:** Process groups do not isolate files; escaped/background work may need manual cleanup
 

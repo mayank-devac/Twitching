@@ -5,12 +5,6 @@
 - Docker is the default agent boundary. Native agents require explicit opt-in through `start_stream.sh`.
 - Tests/builds/type checks require permission unless explicitly included in the current request.
 
-## Commands (only with permission, see above)
-
-- `npm run check` — type check
-- `npm test` — unit and integration tests in `tests/`
-- `npm run build` — build `dist/`
-
 ## Where things live
 
 `.agent/repo_map.md` is the detailed file map; verify it against the source. In short:

@@ -185,6 +185,8 @@ export interface Attempt {
   startedAt?: number;
   endedAt?: number;
   preview?: string;
+  // Host-only note that a direct (non-isolated) preview may be slow.
+  previewWarning?: string;
   error?: string;
 }
 export interface Round {
@@ -222,6 +224,9 @@ export interface ShowState {
     revision: number;
     visibility: import("./settings.js").QuickPreferences["visibility"];
     media: import("./settings.js").QuickPreferences["media"];
+    // Saved toggle, and whether this run can use it (native agents only).
+    directPreview?: boolean;
+    nativeRunner?: boolean;
   };
   obsReconnectDeadline?: number;
   quota?: { remainingPercent: number; resetsAt: number };

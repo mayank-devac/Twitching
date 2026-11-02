@@ -130,15 +130,15 @@ test("arena: projected rows keep their shape and text unredacted", () => {
 });
 
 test("arena: stateView publishes model labels and the visibility map regardless of model", () => {
-  const doc = { revision: 7, value: { visibility: { a: { ...defaultVisibility, model: false } }, media: {} } } as never;
+  const doc = { revision: 7, value: { visibility: { a: { ...defaultVisibility, model: false } }, media: {}, directPreview: true } } as never;
   const state: ShowState = {
     status: "running", mode: "rehearsal", reason: "why SECRET", candidates: [], candidateCount: 0,
     events: [], connections: {}, checks: [], rehearsalComplete: false,
   };
-  const view = stateView(state, doc, undefined, [{ id: "a", cli: "codex", model: "m1", effort: "high" }] as never, fakeClean);
+  const view = stateView(state, doc, undefined, [{ id: "a", cli: "codex", model: "m1", effort: "high" }] as never, fakeClean, true);
   assert.deepEqual(view.models, { a: "m1 · high" });
   assert.deepEqual(view.agents, ["a"]);
-  assert.deepEqual(view.quickSettings, { revision: 7, visibility: { a: { ...defaultVisibility, model: false } }, media: {} });
+  assert.deepEqual(view.quickSettings, { revision: 7, visibility: { a: { ...defaultVisibility, model: false } }, media: {}, directPreview: true, nativeRunner: true });
   assert.equal(view.reason, "why [R]");
 });
 
@@ -151,6 +151,7 @@ function fixture(visibility: QuickPreferences["visibility"] = { "session-1": { .
     stream: { mode: "rehearsal", youtube: false, twitch: false, kick: false, collectionMs: 1000, extensionMs: 1000, resultMs: 1000 },
     jevCriteria: defaultCriteria,
     jevProbe: "Explain this function safely",
+    directPreview: false,
     media: {},
   });
   const host = new Docker(store, { root: "/unused-fixture-root", image: "unused" });

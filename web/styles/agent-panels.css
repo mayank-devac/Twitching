@@ -435,3 +435,23 @@
   max-width: 400px;
   line-height: 1.7;
 }
+
+.preview-note {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgb(60 44 12 / 92%);
+  color: #ffe2a0;
+  font-size: 12px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+.preview-reload {
+  margin-top: 14px;
+}
+        

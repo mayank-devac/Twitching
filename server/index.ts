@@ -117,9 +117,15 @@ const preferences = new QuickSettings(
     },
     jevCriteria: defaultCriteria,
     jevProbe: settings.jevProbe,
+    directPreview: false,
     media: { visualFit: "fit" },
   },
   {
+    // The launcher sets this only when the host chose (or declined) direct preview for this run.
+    directPreview:
+      process.env.ARENA_DIRECT_PREVIEW === undefined
+        ? undefined
+        : process.env.ARENA_DIRECT_PREVIEW === "1",
     platforms: CHAT_PLATFORMS.some(
       (platform) => process.env[skipEnvKey(platform)] !== undefined,
     )
@@ -176,6 +182,8 @@ const preview = new Previews(
   credentialGuard(privateValues),
   settings.previewView,
 );
+// Direct preview skips the Docker browser; only native agents may use it, and the saved toggle applies at once.
+preview.direct = () => settings.runnerMode === "native" && preferences.get().value.directPreview;
 preview.publicHidden = () => { const p = presentation.get("default"); return p.hidden || !!p.breakActive; };
 const previewServer = preview.app().listen(settings.previewPort, settings.host);
 let controller: Controller;
@@ -258,7 +266,9 @@ const integrations = {
     await access(settings.musicPath);
     await access(settings.visualPath);
     const checks = [
-      "Restricted Chromium preview ready",
+      preview.direct()
+        ? "Direct preview (no Docker): pages run in the browser without isolation"
+        : "Restricted Chromium preview ready",
       "Break music and visual are readable",
     ];
     if (settings.mode === "live") {
@@ -395,11 +405,12 @@ if (sessions.recoveryRunners.has("native") && settings.runnerMode !== "native") 
 if (sessions.recoveryRunners.has("docker") && settings.runnerMode !== "docker") await docker.recover();
 if (settings.experience === "arena") await browserSandbox
   .recover()
-  .catch(() =>
-    controller.pause(
-      "Docker is not ready. Start Docker Desktop before running the show.",
-    ),
-  );
+  .catch(() => {
+    if (!preview.direct())
+      controller.pause(
+        "Docker is not ready. Start Docker Desktop before running the show.",
+      );
+  });
 if (settings.experience === "arena" && controller.state.round)
   for (const [agent, attempt] of Object.entries(controller.state.round.attempts)) {
     if (attempt.status === "complete") {

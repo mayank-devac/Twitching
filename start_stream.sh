@@ -6,14 +6,10 @@ if ! command -v node >/dev/null 2>&1 || ! node -e 'process.exit(Number(process.v
   printf '%s\n' 'ERROR: Node.js 24 or newer is required. Install it, reopen your terminal, then run this file again.' >&2
   exit 1
 fi
-# Idle welcome startup does not need Docker until the host chooses a managed runner.
-needs_docker=true
-if [ "$#" -eq 1 ] && [ "$1" = "--chats" ]; then
-  needs_docker=false
-fi
-if [ "$needs_docker" = true ] && ! command -v docker >/dev/null 2>&1; then
-  printf '%s\n' 'ERROR: Docker is required for previews and for the arena Codex login. Install Docker Desktop, open it, then run this file again.' >&2
-  exit 1
+# Docker-dependent features check for Docker when they are selected. Keep the
+# launcher available for the welcome page and other features without Docker.
+if ! command -v docker >/dev/null 2>&1 || ! docker info --format '{{.ServerVersion}}' >/dev/null 2>&1; then
+  printf '%s\n' 'WARNING: Docker is unavailable. The welcome page and other non-Docker features can still be used. Docker-agent runs and isolated previews require Docker; native mode can use direct, unisolated previews.' >&2
 fi
 if [ ! -x node_modules/.bin/tsx ]; then
   printf '%s\n' 'ERROR: App dependencies are missing. Run: npm ci' >&2

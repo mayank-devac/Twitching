@@ -324,7 +324,15 @@ fieldset.qs-main {
   font-size: 12px;
   font-weight: 400;
 }
+.qs-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 400;
+}
 .qs-visibility input,
+.qs-toggle input,
 .qs-platforms input {
   width: 15px;
   height: 15px;

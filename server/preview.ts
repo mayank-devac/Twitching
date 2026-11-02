@@ -7,6 +7,7 @@ import express from "express";
 import { z } from "zod";
 import type { SessionId, SessionCount } from "../shared/types.js";
 import { credentialGuard } from "./redact.js";
+import { assessPage, HeavyPageError, withWatchdog } from "./preview-heavy.js";
 export const previewPolicy =
   "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; media-src data:; connect-src 'none'; webrtc 'block'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; sandbox allow-scripts";
 export function sanitizeHtml(html: string) {
@@ -56,8 +57,11 @@ interface View {
   viewport: { width: number; height: number };
   token: string;
   html: string;
-  context: BrowserContext;
-  page: Page;
+  // Direct views have no isolated browser: the host browser loads `html` itself.
+  context?: BrowserContext;
+  page?: Page;
+  direct?: boolean;
+  warning?: string;
   error?: string;
   capture?: Promise<Buffer>;
   image?: Buffer;
@@ -103,6 +107,8 @@ export class Previews {
   ) {}
   // Existing result URLs must stop serving content while publication is hidden.
   publicHidden = () => false;
+  // True when the host chose direct preview (native agents without Docker); checked per call so a saved toggle applies at once.
+  direct = () => false;
   app() {
     const app = express();
     app.disable("x-powered-by");
@@ -129,7 +135,7 @@ export class Previews {
         res.status(404).type("html").send("<h1>Result unavailable</h1>");
         return;
       }
-      if (this.viewMode === "live") {
+      if (this.viewMode === "live" || view.direct) {
         res.set("Content-Security-Policy", previewPolicy);
         res.type("html").send(view.html);
         return;
@@ -172,7 +178,7 @@ export class Previews {
     });
     app.get("/frame/:token", async (req, res) => {
       const view = this.find(String(req.params.token));
-      if (!view || view.error) {
+      if (!view || view.error || view.direct) {
         res.status(410).end();
         return;
       }
@@ -191,6 +197,7 @@ export class Previews {
         const view = this.find(String(req.params.token));
         if (
           !view ||
+          !view.page ||
           view.error ||
           ![undefined, "null", this.origin].includes(req.headers.origin)
         ) {
@@ -216,15 +223,16 @@ export class Previews {
           res.status(400).end();
           return;
         }
+        const page = view.page;
         view.input = view.input
           .then(async () => {
             if (input.type === "click")
-              await view.page.mouse.click(input.x, input.y);
+              await page.mouse.click(input.x, input.y);
             else if (input.type === "move")
-              await view.page.mouse.move(input.x, input.y);
+              await page.mouse.move(input.x, input.y);
             else if (input.type === "wheel")
-              await view.page.mouse.wheel(0, input.dy);
-            else await view.page.keyboard.press(input.key);
+              await page.mouse.wheel(0, input.dy);
+            else await page.keyboard.press(input.key);
           })
           .catch(() => {
             view.error = "Preview stopped responding";
@@ -256,6 +264,7 @@ export class Previews {
     </script></body></html>`;
   }
   async ready() {
+    if (this.direct()) return;
     if (!this.browser?.isConnected())
       this.browser = await this.browserFactory();
   }
@@ -337,10 +346,11 @@ export class Previews {
     }
   }
   private async capture(view: View) {
-    if (view.error) throw new Error(view.error);
+    if (view.error || !view.page) throw new Error(view.error ?? "No isolated page");
+    const page = view.page;
     if (view.image && Date.now() - view.capturedAt < 150) return view.image;
     if (!view.capture)
-      view.capture = view.page
+      view.capture = page
         .screenshot({ type: "jpeg", quality: 80, timeout: 1800 })
         .then((image) => {
           view.image = image;
@@ -376,14 +386,34 @@ export class Previews {
     this.assertSafeHtml(html);
     if (!/<(?:html|body|canvas|div|main|svg|button)\b/i.test(html))
       throw new Error("Output is not HTML");
-    const view = await this.render(html, viewportFor(count));
+    let view: View;
+    if (this.direct()) {
+      // No browser to try the page in, so screen it, then let the host browser load it with a heartbeat.
+      const found = assessPage(html);
+      if (found.block) throw new HeavyPageError(found.block);
+      view = {
+        viewport: viewportFor(count),
+        token: randomBytes(24).toString("hex"),
+        html: withWatchdog(html),
+        direct: true,
+        warning: found.warning,
+        capturedAt: 0,
+        input: Promise.resolve(),
+      };
+    } else view = await this.render(html, viewportFor(count));
     for (const [key, old] of this.views)
       if (key.startsWith(`${agent}:`)) {
-        await old.context.close();
+        await old.context?.close();
         this.views.delete(key);
       }
     this.views.set(`${agent}:${round}`, view);
     return `${this.origin}/page/${agent}/${round}`;
+  }
+  // Host-facing note for a direct preview that may be slow; undefined for isolated or light pages.
+  warning(agent: SessionId) {
+    for (const [key, view] of this.views)
+      if (key.startsWith(`${agent}:`)) return view.warning;
+    return undefined;
   }
   async restore(agent: SessionId, round: number, count: SessionCount) {
     try {
@@ -395,7 +425,7 @@ export class Previews {
   async close() {
     const views = [...this.views.values()];
     this.views.clear();
-    await Promise.allSettled(views.map((view) => view.context.close()));
+    await Promise.allSettled(views.map((view) => view.context?.close()));
     await this.browser?.close().catch(() => {});
     this.browser = undefined;
   }

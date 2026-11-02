@@ -106,7 +106,10 @@ export async function startShow(show: ShowStart) {
     show;
   if (runnerMode === "native") {
     console.log(
-      "\nNATIVE WARNING: Codex/Cursor/Claude Code terminal commands can read and change files on your Mac, outside the project. Process-group cancellation cannot contain commands that deliberately escape it. Previews remain protected in Docker.",
+      "\nNATIVE WARNING: Codex/Cursor/Claude Code terminal commands can read and change files on your Mac, outside the project. Process-group cancellation cannot contain commands that deliberately escape it. " +
+        (process.env.ARENA_DIRECT_PREVIEW === "1"
+          ? "Direct preview is on: generated pages run in the browser without Docker isolation."
+          : "Previews remain protected in Docker."),
     );
     if (
       (await question(

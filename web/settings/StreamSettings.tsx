@@ -13,13 +13,18 @@ export function StreamSettings({
   disabled,
   change,
   action,
+  directPreview,
+  changeDirectPreview,
 }: {
   state: ShowState;
   value: QuickPreferences["stream"];
   disabled: boolean;
   change(value: QuickPreferences["stream"]): void;
   action(name: string): void;
+  directPreview: boolean;
+  changeDirectPreview(value: boolean): void;
 }) {
+  const native = !!state.quickSettings?.nativeRunner;
   return (
     <section className="qs-card">
       <div className="qs-section-heading">
@@ -92,6 +97,26 @@ export function StreamSettings({
             </label>
           ))}
         </div>
+      </div>
+      <div className="qs-setting-block">
+        <div>
+          <h3>Direct preview</h3>
+          <p className="qs-hint">
+            {native
+              ? "Show results straight in the browser instead of the Docker preview browser. Use it when Docker or Colima is not running. Pages are not isolated, and a page that freezes is reloaded or paused. Applies to the next result."
+              : "Needs native agents. Docker agents always use the isolated Docker preview."}
+          </p>
+        </div>
+        <label className="qs-toggle">
+          <input
+            type="checkbox"
+            role="switch"
+            disabled={disabled || !native}
+            checked={native && directPreview}
+            onChange={(e) => changeDirectPreview(e.target.checked)}
+          />
+          {native && directPreview ? "On" : "Off"}
+        </label>
       </div>
       <div className="qs-setting-block qs-stack">
         <div>

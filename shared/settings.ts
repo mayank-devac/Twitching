@@ -66,6 +66,8 @@ export interface QuickPreferences {
   };
   jevCriteria: string;
   jevProbe: string;
+  // Native agents only: show generated pages straight in the browser instead of the Docker preview browser.
+  directPreview: boolean;
   media: { audio?: string; visual?: string; visualFit?: BreakVisualMode };
 }
 export interface SettingsDocument {

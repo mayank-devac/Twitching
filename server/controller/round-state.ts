@@ -59,6 +59,7 @@ export function stateView(
   preparedVersion: string | undefined,
   configured: SessionConfig[],
   clean: (s: string, limit?: number) => string,
+  nativeRunner = false,
 ) {
   const value = structuredClone(state);
   if (doc)
@@ -66,6 +67,8 @@ export function stateView(
       revision: doc.revision,
       visibility: doc.value.visibility,
       media: doc.value.media,
+      directPreview: doc.value.directPreview,
+      nativeRunner,
     };
   if (preparedVersion) value.preparedVersion = preparedVersion;
   // A saved result keeps its own configuration, even after startup choices change.

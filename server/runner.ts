@@ -142,7 +142,7 @@ export class CliRunner implements PairRunner {
     const models = new Map<Agent, CliCatalog>();
     const checks = [
       this.docker.executionBoundary === "native"
-        ? "Native agent terminals: no execution boundary; previews stay in Docker"
+        ? "Native agent terminals: no execution boundary; previews use Docker unless direct preview is on"
         : "Docker isolation and internal egress network ready",
     ];
     // Each CLI's discovery is independent; run them together, validate in order.

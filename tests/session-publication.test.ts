@@ -57,6 +57,7 @@ test("preview is private; publication and history never mix two same-CLI session
     },
     jevCriteria: defaultCriteria,
     jevProbe: "Explain this function safely",
+    directPreview: false,
     media: {},
   });
   const host = new Docker(store, {
@@ -188,6 +189,7 @@ test("native consent stays with one conversation and never reaches process.env",
     stream: { mode: "rehearsal", youtube: false, twitch: false, kick: false, collectionMs: 1000, extensionMs: 1000, resultMs: 1000 },
     jevCriteria: defaultCriteria,
     jevProbe: "Explain this function safely",
+    directPreview: false,
     media: {},
   });
   const host = new Docker(store, { root: "/unused-fixture-root", image: "unused" });

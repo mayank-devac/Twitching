@@ -97,6 +97,8 @@ export interface ServiceCheck {
   origin: string;
   clean: (text: string) => string;
   privateValues: string[];
+  // Direct preview has no isolated browser to render in.
+  directPreview?: boolean;
 }
 
 // Server modules load lazily because importing them reads the env this launcher prepares.
@@ -165,6 +167,10 @@ export async function checkServices(check: ServiceCheck) {
     },
     `Open OBS, enable Tools → WebSocket Server Settings, add OBS_PASSWORD privately, and add ${check.origin}/overlay as a Browser Source (1920 × 1080).`,
   );
+  if (check.directPreview) {
+    console.log("\nSkipping isolated HTML rendering: direct preview is on.");
+    return;
+  }
   await repair(
     "actual isolated HTML rendering",
     async () => {

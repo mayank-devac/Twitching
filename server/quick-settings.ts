@@ -60,6 +60,8 @@ export const preferencesSchema = z
       .strict(),
     jevCriteria: z.string().trim().min(10).max(4000),
     jevProbe: z.string().trim().min(10).max(700),
+    // Rows saved before this toggle existed read as off.
+    directPreview: z.boolean().default(false),
     media: z
       .object({
         audio: z
@@ -94,6 +96,7 @@ export class QuickSettings {
     startup: {
       mode?: QuickPreferences["stream"]["mode"];
       sessions?: QuickPreferences["sessions"];
+      directPreview?: boolean;
       platforms?: Pick<
         QuickPreferences["stream"],
         "youtube" | "twitch" | "kick"
@@ -120,6 +123,8 @@ export class QuickSettings {
     if (startup.mode) this.document.value.stream.mode = startup.mode;
     if (startup.sessions)
       this.document.value.sessions = structuredClone(startup.sessions);
+    if (startup.directPreview !== undefined)
+      this.document.value.directPreview = startup.directPreview;
     if (startup.platforms)
       Object.assign(this.document.value.stream, startup.platforms);
   }
