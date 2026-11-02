@@ -121,15 +121,28 @@ fi
 step "6/7 Coding CLI logins (sandbox)"
 login_present() {
   case "$1" in
-    codex) [ -e runtime/auth/codex/.codex/auth.json ] || [ -e "$HOME/.codex/auth.json" ] ;;
+    codex) [ -e runtime/auth/codex/.codex/auth.json ] ;;
     cursor) [ -d runtime/auth/cursor ] ;;
     claude) [ -e runtime/auth/claude/oauth-token ] ;;
   esac
 }
+# When this machine already has a login, sandbox:login offers to reuse it
+# (Codex: copy ~/.codex/auth.json; Claude: run claude setup-token here) or
+# make a new one. Only presence is checked; no credential is read here.
+login_offer() {
+  case "$1" in
+    codex) [ -e "$HOME/.codex/auth.json" ] && { printf 'Set up codex for the sandbox now (you can copy your existing ~/.codex login or sign in fresh)?'; return; } ;;
+    claude) have claude && { printf 'Set up claude for the sandbox now (you can reuse your existing Claude sign-in or paste a token)?'; return; } ;;
+  esac
+  return 1
+}
+# Docker is only needed to sign in inside the sandbox, not to copy or paste.
+login_needs_docker() { [ "$1" = cursor ] || { [ "$1" = codex ] && ! [ -e "$HOME/.codex/auth.json" ]; }; }
 any_login=0
 for cli in codex claude cursor; do
   if login_present "$cli"; then say_ok "$cli login saved"; any_login=1
-  elif docker_up && interactive && ask "Log in to $cli for the sandbox now (opens its sign-in)?" n; then
+  elif { ! login_needs_docker "$cli" || docker_up; } && interactive \
+    && if offer=$(login_offer "$cli"); then ask "$offer" y; else ask "Log in to $cli for the sandbox now (opens its sign-in)?" n; fi; then
     npm run "sandbox:login:$cli" && { say_ok "$cli login saved"; any_login=1; } || say_warn "$cli login did not finish; rerun: npm run sandbox:login:$cli"
   else
     printf '     %s: not logged in (optional) — npm run sandbox:login:%s\n' "$cli" "$cli"

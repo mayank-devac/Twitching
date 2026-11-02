@@ -40,34 +40,30 @@ export function codexAccount(root: string, session?: string) {
 const codexAuthFile = (root: string, account: string) =>
   resolve(root, "runtime/auth", account, ".codex/auth.json");
 
-async function seedArenaCodexLogin(
-  root: string,
-  realHome = process.env.HOME,
-) {
-  if (!realHome) return false;
-  const destination = codexAuthFile(root, "codex");
-  const existing = await lstat(destination).catch(
-    (error: NodeJS.ErrnoException) => {
-      if (error.code === "ENOENT") return undefined;
-      throw error;
-    },
-  );
-  if (existing) return false;
-  try {
-    return await copyLoginFile(
-      resolve(realHome, ".codex", "auth.json"),
-      destination,
-      realHome,
-      root,
-    );
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      /must be a regular file inside its profile/.test(error.message)
-    )
-      return false;
+// This Mac's own Codex login (`codex login`), or undefined when there is none
+// or it is not a plain file. Only its presence is checked here.
+export async function hostCodexLogin(realHome = process.env.HOME) {
+  if (!realHome) return undefined;
+  const path = resolve(realHome, ".codex", "auth.json");
+  const info = await lstat(path).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return undefined;
     throw error;
-  }
+  });
+  return info?.isFile() && !info.isSymbolicLink() ? path : undefined;
+}
+
+// Copies the host login into the arena profile, only when the user chose
+// that in `npm run sandbox:login:codex`. Runs never copy it on their own: the
+// copy shares one refresh token with the host, and Codex rotates it on
+// refresh, so either side can sign the other out.
+export async function copyHostCodexLogin(root: string, realHome = process.env.HOME) {
+  if (!realHome || !(await hostCodexLogin(realHome))) return false;
+  return copyLoginFile(
+    resolve(realHome, ".codex", "auth.json"),
+    codexAuthFile(root, "codex"),
+    realHome,
+    root,
+  );
 }
 
 export async function prepareCodexHome(
@@ -84,7 +80,6 @@ export async function prepareCodexHome(
     throw new Error("Codex profile must be a real directory");
   if (auth) {
     await loginGuard(root, account).prepare(home, async () => {
-      if (account === "codex") await seedArenaCodexLogin(root);
       await copyLoginFile(codexAuthFile(root, account), resolve(codexHome, "auth.json"), root, home);
     }, () => fingerprintFile(resolve(codexHome, "auth.json"), home));
   }

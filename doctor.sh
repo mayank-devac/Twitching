@@ -89,7 +89,7 @@ report() {
   fi
 
   section "Coding CLI logins (presence only)"
-  [ -e runtime/auth/codex/.codex/auth.json ] && ok "codex: sandbox login saved" || { [ -e "$HOME/.codex/auth.json" ] && ok "codex: host login found (copied into the sandbox on first use)" || warn "codex: not logged in" "npm run sandbox:login:codex"; }
+  [ -e runtime/auth/codex/.codex/auth.json ] && ok "codex: sandbox login saved" || { [ -e "$HOME/.codex/auth.json" ] && warn "codex: not set up for the sandbox (your ~/.codex login can be copied)" "npm run sandbox:login:codex" || warn "codex: not logged in" "npm run sandbox:login:codex"; }
   [ -e runtime/auth/codex-2/.codex/auth.json ] && ok "codex: second account (session-2) saved"
   [ -e runtime/auth/claude/oauth-token ] && ok "claude: token saved" || warn "claude: not logged in" "npm run sandbox:login:claude"
   [ -d runtime/auth/cursor ] && ok "cursor: login saved" || warn "cursor: not logged in" "npm run sandbox:login:cursor"

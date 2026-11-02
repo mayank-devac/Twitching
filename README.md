@@ -239,7 +239,9 @@ npm run build
 
 Sign in yourself using your existing subscriptions. Docker login commands save authentication under ignored `runtime/auth/`; never paste CLI credentials into prompts. Personal terminal chats are left alone.
 
-**Claude Code** is opt-in at `npm run sandbox:build` (`INSTALL_CLAUDE=1`), like Cursor. To log in, run `claude setup-token` on your own machine (needs a Claude Pro, Max, Team or Enterprise plan), then `npm run sandbox:login:claude` and paste the token. The input is hidden. The token is stored at `runtime/auth/claude/oauth-token` (mode 0600) and handed to each run through its environment, never written into a workspace. `ANTHROPIC_API_KEY` is never forwarded, because in print mode it would override the subscription token.
+**Reusing an existing login:** if `~/.codex/auth.json` exists, `npm run sandbox:login:codex` (and `./setup.sh`) asks whether to copy it into the sandbox or sign in to a new, separate sandbox login. Copying skips the sign-in, but both copies share one refresh token: when either side renews it, the other may be signed out. Runs never copy it on their own.
+
+**Claude Code** is opt-in at `npm run sandbox:build` (`INSTALL_CLAUDE=1`), like Cursor. Your normal Claude sign-in lives in the macOS Keychain and expires within hours, so it is not copied. Instead, when the `claude` CLI is installed, `npm run sandbox:login:claude` offers to run `claude setup-token` for you (one browser click if you are already signed in; needs a Claude Pro, Max, Team or Enterprise plan); paste the token it prints. The input is hidden. The token is stored at `runtime/auth/claude/oauth-token` (mode 0600) and handed to each run through its environment, never written into a workspace. `ANTHROPIC_API_KEY` is never forwarded, because in print mode it would override the subscription token.
 
 Claude runs use `claude --print --output-format stream-json` with:
 - an empty, strict MCP config;

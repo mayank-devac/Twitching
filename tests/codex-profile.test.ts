@@ -19,6 +19,7 @@ import { CliRunner } from "../server/runner.js";
 import {
   assertCodexProfile,
   CODEX_EXEC_PROFILE_ARGS,
+  copyHostCodexLogin,
   prepareCodexHome,
   retainCodexLogin,
 } from "../server/codex-profile.js";
@@ -96,7 +97,7 @@ test("an empty arena profile can be prepared before its first login", async () =
   }
 });
 
-test("a missing arena Codex login is seeded once from this Mac's Codex login file", async () => {
+test("runs never copy this Mac's Codex login; only an explicit copy does", async () => {
   const root = await mkdtemp(resolve(tmpdir(), "stram-codex-seed-"));
   const loginHome = await mkdtemp(resolve(tmpdir(), "stram-codex-mac-"));
   const previousHome = process.env.HOME;
@@ -105,25 +106,29 @@ test("a missing arena Codex login is seeded once from this Mac's Codex login fil
   await writeFile(resolve(loginHome, ".codex/auth.json"), "fixture-codex\n", {
     mode: 0o600,
   });
+  const saved = resolve(root, "runtime/auth/codex/.codex/auth.json");
   try {
     const first = await prepareCodexHome(root, resolve(root, "session-1"));
-    assert.equal(
-      await readFile(resolve(first, "auth.json"), "utf8"),
-      "fixture-codex\n",
-    );
-    assert.equal(
-      await readFile(
-        resolve(root, "runtime/auth/codex/.codex/auth.json"),
-        "utf8",
-      ),
-      "fixture-codex\n",
-    );
-    await writeFile(resolve(loginHome, ".codex/auth.json"), "ignored-later\n");
+    await assert.rejects(stat(resolve(first, "auth.json")), { code: "ENOENT" });
+    await assert.rejects(stat(saved), { code: "ENOENT" });
+
+    assert.equal(await copyHostCodexLogin(root), true);
+    assert.equal(await readFile(saved, "utf8"), "fixture-codex\n");
     const second = await prepareCodexHome(root, resolve(root, "session-2"));
     assert.equal(
       await readFile(resolve(second, "auth.json"), "utf8"),
       "fixture-codex\n",
     );
+
+    // Choosing copy again replaces an older sandbox login.
+    await writeFile(resolve(loginHome, ".codex/auth.json"), "fixture-newer\n");
+    assert.equal(await copyHostCodexLogin(root), true);
+    assert.equal(await readFile(saved, "utf8"), "fixture-newer\n");
+
+    // A linked host login is refused rather than followed.
+    await rm(resolve(loginHome, ".codex/auth.json"));
+    await symlink(saved, resolve(loginHome, ".codex/auth.json"));
+    assert.equal(await copyHostCodexLogin(root), false);
   } finally {
     if (previousHome === undefined) delete process.env.HOME;
     else process.env.HOME = previousHome;
