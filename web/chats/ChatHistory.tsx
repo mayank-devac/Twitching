@@ -116,9 +116,15 @@ export function ChatHistory({
                 {e.prompt && <span className="tag">!prompt</span>}
                 {isSelected && <span className="tag good">Jev selected</span>}
                 <p>{e.text}</p>
-                <button type="button" disabled={!arenaOpen || sent === e.id} title={arenaOpen ? "" : "Open the prompt arena and start a round"} onClick={() => void send(e.platform, e.id)}>
-                  {sent === e.id ? "Sent" : "Send prompt"}
-                </button>
+                {arenaOpen && (
+                  <button
+                    type="button"
+                    disabled={sent === e.id}
+                    onClick={() => void send(e.platform, e.id)}
+                  >
+                    {sent === e.id ? "Sent" : "Send prompt"}
+                  </button>
+                )}
               </li>
             );
           })}

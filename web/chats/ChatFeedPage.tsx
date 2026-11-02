@@ -21,7 +21,9 @@ export function ChatFeedPage() {
     document.body.style.background = bg;
     document.body.style.overflow = "hidden";
   }, [bg]);
-  useEffect(() => end.current?.scrollIntoView({ block: "end" }), [entries]);
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: "end" });
+  }, [entries]);
   return (
     <main className="chat-obs" style={{ background: bg }}>
       {showStatus && (shown.length > 0 || offline) && (
