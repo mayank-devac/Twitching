@@ -515,7 +515,7 @@ if (settings.experience === "arena" && controller.state.round)
   }
 http.server.listen(settings.port, settings.host, () =>
   console.log(
-    `Prompt Arena: http://${urlHost(settings.host)}:${settings.port}/control · OBS: http://${urlHost(settings.host)}:${settings.port}/overlay`,
+    `http://${urlHost(settings.host)}:${settings.port}/control · OBS: http://${urlHost(settings.host)}:${settings.port}/overlay`,
   ),
 );
 const timer = setInterval(() => {
